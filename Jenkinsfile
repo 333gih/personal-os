@@ -21,8 +21,8 @@ pipeline {
     parameters {
         choice(
             name: 'ENVIRONMENT',
-            choices: ['dev', 'staging', 'prod'],
-            description: 'Target deployment environment'
+            choices: ['prod', 'staging', 'dev'],
+            description: 'Target deployment environment (default: prod)'
         )
         booleanParam(
             name: 'SKIP_TESTS',
@@ -31,9 +31,9 @@ pipeline {
         )
         string(
             name: 'GIT_BRANCH',
-            defaultValue: 'develop',
+            defaultValue: 'main',
             trim: true,
-            description: 'Git branch to build and deploy (GitLab).'
+            description: 'Git branch to build and deploy (GitLab). Default: main'
         )
     }
 
