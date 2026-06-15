@@ -46,7 +46,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("storage: %v", err)
 	}
-	if !storageSvc.Enabled() {
+	if cfg.Storage.IsRemote() && !storageSvc.Enabled() {
+		log.Printf("storage: S3/SeaweedFS configured but bucket %q unavailable — file uploads disabled (check S3_* credentials, bucket, and seaweedfs-net)", cfg.Storage.Bucket)
+	} else if !storageSvc.Enabled() {
 		log.Printf("storage: remote object storage disabled (set STORAGE_PROVIDER=seaweedfs + S3_* env)")
 	}
 

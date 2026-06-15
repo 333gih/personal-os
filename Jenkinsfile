@@ -348,7 +348,7 @@ pipeline {
                             # ── [2/3] API service
                             docker rm -f ${apiContainer} 2>/dev/null || true
                             echo "[INFO] [2/3] Starting API: ${apiContainer}"
-                            docker run -d \\
+                            docker create \\
                                 --name ${apiContainer} \\
                                 --network ${appNetwork} \\
                                 --network-alias personal-os-api \\
@@ -362,11 +362,14 @@ pipeline {
                             docker network connect ${extNetwork} ${apiContainer} || true
                             if docker network inspect ${env.SEAWEEDFS_NET} >/dev/null 2>&1; then
                                 docker network connect ${env.SEAWEEDFS_NET} ${apiContainer} || true
+                            else
+                                echo "[WARN] Docker network ${env.SEAWEEDFS_NET} not found — S3/SeaweedFS may be unreachable"
                             fi
                             if [ -n "\${KAFKA_BROKER:-}" ] || [ -n "\${KAFKA_BROKERS:-}" ]; then
                                 docker network inspect marketplace_obs >/dev/null 2>&1 || docker network create marketplace_obs
                                 docker network connect marketplace_obs ${apiContainer} || true
                             fi
+                            docker start ${apiContainer}
 
                             # Wait for API before FE (both services must be paired)
                             echo "[INFO] Waiting for API /health before deploying FE..."

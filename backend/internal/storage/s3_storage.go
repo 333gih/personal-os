@@ -66,17 +66,57 @@ func NewS3Storage(cfg config.StorageConfig) (*S3Storage, error) {
 }
 
 func (s *S3Storage) EnsureBucket(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
+	var lastErr error
+	for attempt := 0; attempt < 6; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(2 * time.Second):
+			}
+		}
 
-	exists, err := s.client.BucketExists(ctx, s.bucket)
-	if err != nil {
-		return fmt.Errorf("bucket exists check: %w", err)
+		checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		exists, err := s.client.BucketExists(checkCtx, s.bucket)
+		cancel()
+		if err != nil {
+			lastErr = fmt.Errorf("bucket exists check: %w", err)
+			if !isRetryableStorageErr(err) {
+				return lastErr
+			}
+			continue
+		}
+		if exists {
+			return nil
+		}
+
+		makeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		err = s.client.MakeBucket(makeCtx, s.bucket, minio.MakeBucketOptions{})
+		cancel()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !isRetryableStorageErr(err) {
+			return err
+		}
 	}
-	if exists {
-		return nil
+	if lastErr != nil {
+		return lastErr
 	}
-	return s.client.MakeBucket(ctx, s.bucket, minio.MakeBucketOptions{})
+	return fmt.Errorf("bucket ensure timed out")
+}
+
+func isRetryableStorageErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "access denied") || strings.Contains(msg, "accessdenied") ||
+		strings.Contains(msg, "invalidaccesskeyid") || strings.Contains(msg, "signaturedoesnotmatch") {
+		return false
+	}
+	return true
 }
 
 func (s *S3Storage) publicObjectURLForKey(key string) string {

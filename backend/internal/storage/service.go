@@ -36,7 +36,8 @@ func NewService(db *gorm.DB, cfg config.StorageConfig) (*Service, error) {
 	}
 	if s3 != nil {
 		if err := s3.EnsureBucket(context.Background()); err != nil {
-			return nil, fmt.Errorf("ensure bucket: %w", err)
+			// Do not block API startup — uploads return ErrStorageNotConfigured at runtime.
+			s3 = nil
 		}
 	}
 	return &Service{db: db, s3: s3, cfg: cfg}, nil
