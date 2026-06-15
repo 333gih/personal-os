@@ -134,26 +134,20 @@ pipeline {
             }
             steps {
                 script {
+                    // Jenkins-in-Docker: bind-mounting ${WORKSPACE} hits the host path, not the
+                    // Jenkins container filesystem (checkout files exist only in the latter).
+                    // Stream backend source via tar stdin instead of -v workspace.
+                    sh 'docker volume create go-mod-cache-personal-os 2>/dev/null || true'
                     sh """#!/usr/bin/env bash
                         set -eo pipefail
-                        test -f backend/go.mod || {
-                            echo '[WARN] backend/go.mod missing before test — restoring from git'
-                            docker run --rm -v "${env.WORKSPACE}:/workspace" alpine \\
-                                sh -c 'rm -rf /workspace/backend'
-                            git checkout HEAD -- backend/
-                        }
-                        test -f backend/go.mod
-                    """
-                    sh 'docker volume create go-mod-cache-personal-os 2>/dev/null || true'
-                    sh """
-                        docker run --rm \\
+                        test -f backend/go.mod || { echo 'ERROR: backend/go.mod missing in Jenkins workspace'; exit 2; }
+                        tar -cC backend . | docker run --rm -i \\
                             -e CGO_ENABLED=0 \\
                             -e GO111MODULE=on \\
                             -v go-mod-cache-personal-os:/go/pkg/mod \\
-                            -v "${env.WORKSPACE}:/workspace" \\
-                            -w /workspace/backend \\
+                            -w /app \\
                             golang:1.24-bookworm \\
-                            bash -ec \"set -e; echo '=== backend (expect go.mod) ==='; ls -la; if [ ! -f go.mod ]; then echo 'ERROR: backend/go.mod missing — push go.mod and go.sum to ${params.GIT_BRANCH}'; exit 2; fi; go mod download; go test ./... -count=1; go vet ./...\"
+                            bash -ec 'set -e; mkdir -p /app; tar -xC /app; echo \"=== backend (in container) ===\"; ls -la; test -f go.mod; go mod download; go test ./... -count=1; go vet ./...'
                     """
                 }
             }
@@ -279,6 +273,12 @@ pipeline {
                             # ── Postgres (once)
                             if ! docker ps --format '{{.Names}}' | grep -Eq "^${pgContainer}\$"; then
                                 docker rm -f ${pgContainer} 2>/dev/null || true
+                                pgInitVol="personal-os-pg-init-${params.ENVIRONMENT}"
+                                docker volume create "\${pgInitVol}" 2>/dev/null || true
+                                # Stream migration SQL (avoid WORKSPACE bind-mount — Jenkins-in-Docker).
+                                docker run --rm -i -v "\${pgInitVol}:/initdb" alpine \\
+                                    sh -c 'cat > /initdb/001_schema.sql' \\
+                                    < backend/migrations/001_initial_schema.sql
                                 echo "[INFO] [1/3] Starting PostgreSQL: ${pgContainer}"
                                 docker run -d \\
                                     --name ${pgContainer} \\
@@ -289,7 +289,7 @@ pipeline {
                                     -e POSTGRES_PASSWORD="\${POSTGRES_DATABASE_PASSWORD}" \\
                                     -e POSTGRES_DB="\${POSTGRES_DATABASE_NAME}" \\
                                     -v ${pgVolume}:/var/lib/postgresql/data \\
-                                    -v "${env.WORKSPACE}/backend/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro" \\
+                                    -v "\${pgInitVol}:/docker-entrypoint-initdb.d:ro" \\
                                     pgvector/pgvector:pg17
 
                                 for i in \$(seq 1 30); do

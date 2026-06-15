@@ -11,6 +11,7 @@ backend/.env
 
 # Go
 backend/server
+backend/server.exe
 backend/tmp/
 
 # IDE
