@@ -89,6 +89,23 @@ pipeline {
                         script: 'git rev-parse --short=8 HEAD',
                         returnStdout: true
                     ).trim()
+                    // Prior docker bind mounts can leave root-owned empty backend/ or frontend/;
+                    // cleanWs deferred wipeout may not remove them, so git checkout skips those paths.
+                    sh """#!/usr/bin/env bash
+                        set -eo pipefail
+                        restore_tree_if_missing() {
+                            local rel="\$1" marker="\$2"
+                            if [ -f "\${rel}/\${marker}" ]; then
+                                return 0
+                            fi
+                            echo "[WARN] \${rel}/\${marker} missing — removing stale \${rel}/ and restoring from git"
+                            docker run --rm -v "${env.WORKSPACE}:/workspace" alpine sh -ce "rm -rf /workspace/\${rel}"
+                            git checkout HEAD -- "\${rel}/"
+                            test -f "\${rel}/\${marker}"
+                        }
+                        restore_tree_if_missing backend go.mod
+                        restore_tree_if_missing frontend package.json
+                    """
                     echo "✅ Checked out ${params.GIT_BRANCH} @ ${env.SHORT_COMMIT}"
                 }
             }
@@ -106,8 +123,8 @@ pipeline {
                             -e CGO_ENABLED=0 \\
                             -e GO111MODULE=on \\
                             -v go-mod-cache-personal-os:/go/pkg/mod \\
-                            -v "${env.WORKSPACE}/backend:/app" \\
-                            -w /app \\
+                            -v "${env.WORKSPACE}:/workspace" \\
+                            -w /workspace/backend \\
                             golang:1.24-bookworm \\
                             bash -ec \"set -e; echo '=== backend (expect go.mod) ==='; ls -la; if [ ! -f go.mod ]; then echo 'ERROR: backend/go.mod missing — push go.mod and go.sum to ${params.GIT_BRANCH}'; exit 2; fi; go mod download; go test ./... -count=1; go vet ./...\"
                     """
