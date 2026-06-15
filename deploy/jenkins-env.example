@@ -1,0 +1,77 @@
+# =============================================================================
+# Personal OS — Jenkins Secret File (ONE file → API + Frontend + Postgres)
+# Credential ID: env-personal-os-dev | env-personal-os-staging | env-personal-os-prod
+#
+# Single Jenkinsfile deploys BOTH services from this file:
+#   • personal-os-api-app-{env}  — Go API (--env-file)
+#   • personal-os-fe-app-{env}   — Next.js (--env-file + NEXT_PUBLIC_* at build)
+#   • personal-os-pg-{env}       — Postgres (POSTGRES_DATABASE_*)
+#
+# Upload: Jenkins → Credentials → Secret file (POSIX KEY=VALUE, no export)
+# =============================================================================
+
+# ── App (core-service style) ────────────────────────────────────────────────
+APP_ENV=production
+APP_NAME=personal-os-api
+APP_DESCRIPTION=Personal OS API
+APP_VERSION=1.0.0
+APP_HOST=0.0.0.0
+APP_PORT=8080
+APP_PUBLIC_URL=https://api-personal-os.fashandcurious.com
+LOG_LEVEL=info
+PING_TIMEOUT=60
+
+# ── PostgreSQL (Jenkins sidecar personal-os-pg-{env}, network alias personal-os-pg)
+POSTGRES_DATABASE_HOST=personal-os-pg
+POSTGRES_DATABASE_PORT=5432
+POSTGRES_DATABASE_NAME=personalos
+POSTGRES_DATABASE_USER=personalos
+POSTGRES_DATABASE_PASSWORD=CHANGE_ME_STRONG_DB_PASSWORD
+POSTGRES_DATABASE_DEBUG=false
+POSTGRES_SSL_MODE=disable
+# Optional explicit URL (overrides POSTGRES_DATABASE_* when set):
+# DATABASE_URL=postgres://personalos:CHANGE_ME@personal-os-pg:5432/personalos?sslmode=disable
+
+# ── JWT ─────────────────────────────────────────────────────────────────────
+JWT_ISSUER=personal-os-api
+JWT_SECRET=CHANGE_ME_LONG_RANDOM_STRING_MIN_32_CHARS
+ACCESS_TOKEN_SECRET=CHANGE_ME_LONG_RANDOM_STRING_MIN_32_CHARS
+ACCESS_TOKEN_EXPIRES_IN=168h
+JWT_EXPIRY_HOURS=168
+DEFAULT_USER_EMAIL=admin@personal-os.local
+DEFAULT_USER_PASSWORD=CHANGE_ME_ON_FIRST_LOGIN
+
+# ── Proxy / CORS (Traefik + Kong — quote TRUSTED_PROXIES like core-service) ─
+TRUSTED_PROXIES="127.0.0.1/8,::1/128,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,100.64.0.0/10"
+CORS_ORIGINS=https://personal-os-fe.fashandcurious.com
+ALLOWED_ORIGINS=https://personal-os-fe.fashandcurious.com
+
+# ── S3 / SeaweedFS (same cluster as fash core-service) ────────────────────
+STORAGE_PROVIDER=seaweedfs
+S3_ENDPOINT=seaweedfs-s3:8333
+S3_ACCESS_KEY=fash-access-key
+S3_SECRET_KEY=CHANGE_ME_STRONG_S3_SECRET
+S3_BUCKET=personal-os
+S3_USE_SSL=false
+S3_PUBLIC_BASE_URL=https://storage.fashandcurious.com/personal-os
+S3_REGION=us-east-1
+
+# ── OpenAI-compatible API ───────────────────────────────────────────────────
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+EMBEDDING_DIM=1536
+
+# ── Kafka (optional — future event plugins) ─────────────────────────────────
+# KAFKA_BROKER=kafka1:9092,kafka2:9092,kafka3:9092
+# KAFKA_TOPIC=personal-os.events.v1
+
+# =============================================================================
+# Frontend (fash-admin-portal-fe .env.prod style — baked at docker build)
+# Host: personal-os-fe.fashandcurious.com
+# API:  api-personal-os.fashandcurious.com
+# =============================================================================
+NEXT_PUBLIC_SITE_URL=https://personal-os-fe.fashandcurious.com
+NEXT_PUBLIC_API_URL=https://api-personal-os.fashandcurious.com/api/v1
+PORT=3000
+NODE_ENV=production

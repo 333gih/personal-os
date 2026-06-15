@@ -1,0 +1,62 @@
+# ── Personal OS API (paste into kong.yml.tpl) ────────────────────────────────
+
+  - name: personal-os-api.upstream
+    algorithm: round-robin
+    healthchecks:
+      active:
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+        http_path: /health
+        timeout: 3
+        type: http
+    targets:
+      - target: ${PERSONAL_OS_API_HOST}
+        weight: 100
+
+# services section:
+  - name: personal-os-api
+    host: personal-os-api.upstream
+    port: 80
+    protocol: http
+    retries: 2
+    connect_timeout: 5000
+    read_timeout: 120000
+    write_timeout: 120000
+    tags: ["api", "personal-os"]
+
+# routes section:
+  # Dedicated subdomain (Traefik → Kong → personal-os-api)
+  - name: api-personal-os-subdomain
+    service: personal-os-api
+    hosts:
+      - ${API_SUBDOMAIN_PERSONAL_OS_HOST}
+    paths:
+      - /
+    strip_path: false
+    preserve_host: true
+    protocols: [http, https]
+    tags: ["personal-os", "subdomain"]
+
+  # Path-based fallback (same pattern as core-service)
+  - name: api-personal-os-path
+    service: personal-os-api
+    paths:
+      - /personal-os-service
+      - /gateway/personal-os-service
+    strip_path: true
+    protocols: [http, https]
+    tags: ["personal-os", "path"]
+
+  # Public login (no JWT at Kong — personal-os validates its own JWT)
+  - name: api-personal-os-auth-login
+    service: personal-os-api
+    paths:
+      - /api/v1/auth/login
+    methods: [POST, OPTIONS]
+    strip_path: false
+    protocols: [http, https]
+    tags: ["personal-os", "public"]

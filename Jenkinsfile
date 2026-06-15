@@ -1,0 +1,375 @@
+// =============================================================================
+// Jenkinsfile — Personal OS (ONE pipeline → API + Frontend + Postgres)
+//
+// Single job deploys BOTH services in one run:
+//   • personal-os-api-app-{env}  (Go API, alias personal-os-api)
+//   • personal-os-fe-app-{env}   (Next.js, alias personal-os-fe)
+//   • personal-os-pg-{env}       (Postgres sidecar, alias personal-os-pg)
+//
+// Jenkins credential (one secret file for everything):
+//   env-personal-os-dev | env-personal-os-staging | env-personal-os-prod
+// Template: deploy/jenkins-env.example
+//
+// Flow: Checkout → Test → Build API + FE → Deploy PG → Deploy API → wait healthy → Deploy FE → Health both
+// =============================================================================
+
+pipeline {
+
+    agent any
+
+    parameters {
+        choice(
+            name: 'ENVIRONMENT',
+            choices: ['dev', 'staging', 'prod'],
+            description: 'Target deployment environment'
+        )
+        booleanParam(
+            name: 'SKIP_TESTS',
+            defaultValue: false,
+            description: 'Skip tests — emergency hotfix only'
+        )
+        string(
+            name: 'GIT_BRANCH',
+            defaultValue: 'develop',
+            trim: true,
+            description: 'Git branch to build and deploy (GitLab).'
+        )
+    }
+
+    environment {
+        GIT_REPO       = 'https://gitlab.com/YOUR_GROUP/personal-os.git'
+        CREDENTIALS_ID = 'e8689c9a-5588-4725-b8cd-712ae345d8e1'
+
+        REGISTRY         = 'docker.io'
+        DOCKER_NAMESPACE = 'phuckhoa'
+        API_IMAGE_NAME   = 'personal-os-api'
+        FE_IMAGE_NAME    = 'personal-os-fe'
+
+        TRAEFIK_NET     = 'traefik-public'
+        SEAWEEDFS_NET   = 'seaweedfs-net'
+        SLACK_CHANNEL   = '#ci-cd-alert'
+        SLACK_ERROR_LOG = '#ci-cd-errors'
+
+        DOCKER_BUILDKIT = '1'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 60, unit: 'MINUTES')
+        timestamps()
+        ansiColor('xterm')
+        disableConcurrentBuilds()
+    }
+
+    stages {
+
+        stage('Notify Start') {
+            steps {
+                slackSend(
+                    channel: env.SLACK_CHANNEL,
+                    color: 'warning',
+                    message: "🟡 *STARTED (personal-os API+FE):* `${env.JOB_NAME}` #${env.BUILD_NUMBER}\n" +
+                             "Environment: *${params.ENVIRONMENT}* • Branch: *${params.GIT_BRANCH}*\n" +
+                             "${env.BUILD_URL}"
+                )
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                cleanWs()
+                git(
+                    branch: params.GIT_BRANCH,
+                    url: env.GIT_REPO,
+                    credentialsId: env.CREDENTIALS_ID
+                )
+                script {
+                    env.SHORT_COMMIT = sh(
+                        script: 'git rev-parse --short=8 HEAD',
+                        returnStdout: true
+                    ).trim()
+                    echo "✅ Checked out ${params.GIT_BRANCH} @ ${env.SHORT_COMMIT}"
+                }
+            }
+        }
+
+        stage('Build & Test Backend') {
+            when {
+                expression { return !params.SKIP_TESTS }
+            }
+            steps {
+                script {
+                    sh 'docker volume create go-mod-cache-personal-os 2>/dev/null || true'
+                    sh """
+                        docker run --rm \\
+                            -e CGO_ENABLED=0 \\
+                            -e GO111MODULE=on \\
+                            -v go-mod-cache-personal-os:/go/pkg/mod \\
+                            -v "\${WORKSPACE}/backend:/app" \\
+                            -w /app \\
+                            golang:1.24-bookworm \\
+                            bash -ec 'set -e; go test ./... -count=1; go vet ./...'
+                    """
+                }
+            }
+            post {
+                failure {
+                    slackSend(
+                        channel: env.SLACK_ERROR_LOG,
+                        color: 'danger',
+                        message: "❌ *personal-os TEST FAILED:* `${env.JOB_NAME}` #${env.BUILD_NUMBER}\n" +
+                                 "${env.BUILD_URL}console"
+                    )
+                }
+            }
+        }
+
+        stage('Build API & Frontend Images') {
+            steps {
+                script {
+                    env.IMAGE_TAG        = "${params.ENVIRONMENT}-${env.BUILD_NUMBER}"
+                    env.API_FULL_IMAGE   = "${env.REGISTRY}/${env.DOCKER_NAMESPACE}/${env.API_IMAGE_NAME}:${env.IMAGE_TAG}"
+                    env.API_LATEST_IMAGE = "${env.REGISTRY}/${env.DOCKER_NAMESPACE}/${env.API_IMAGE_NAME}:${params.ENVIRONMENT}-latest"
+                    env.FE_FULL_IMAGE    = "${env.REGISTRY}/${env.DOCKER_NAMESPACE}/${env.FE_IMAGE_NAME}:${env.IMAGE_TAG}"
+                    env.FE_LATEST_IMAGE  = "${env.REGISTRY}/${env.DOCKER_NAMESPACE}/${env.FE_IMAGE_NAME}:${params.ENVIRONMENT}-latest"
+
+                    // ── 1/2 API image (no env file at build — core-service pattern)
+                    sh """
+                        set -eo pipefail
+                        echo "=== [1/2] Building API: ${env.API_FULL_IMAGE} ==="
+                        docker build \\
+                            --file backend/Dockerfile \\
+                            --tag ${env.API_FULL_IMAGE} \\
+                            --tag ${env.API_LATEST_IMAGE} \\
+                            --label git.commit=${env.SHORT_COMMIT} \\
+                            --label build.number=${env.BUILD_NUMBER} \\
+                            --label environment=${params.ENVIRONMENT} \\
+                            --label service=personal-os-api \\
+                            backend
+                    """
+
+                    // ── 2/2 FE image (NEXT_PUBLIC_* from Jenkins secret — fash-portal-fe pattern)
+                    withCredentials([file(
+                        credentialsId: "env-personal-os-${params.ENVIRONMENT}",
+                        variable: 'ENV_FILE'
+                    )]) {
+                        sh """
+                            set -eo pipefail
+                            echo "=== [2/2] Building FE: ${env.FE_FULL_IMAGE} (Jenkins env-personal-os-${params.ENVIRONMENT}) ==="
+                            docker build \\
+                                --file frontend/Dockerfile \\
+                                --secret id=env_build,src="\${ENV_FILE}" \\
+                                --tag ${env.FE_FULL_IMAGE} \\
+                                --tag ${env.FE_LATEST_IMAGE} \\
+                                --label git.commit=${env.SHORT_COMMIT} \\
+                                --label build.number=${env.BUILD_NUMBER} \\
+                                --label environment=${params.ENVIRONMENT} \\
+                                --label service=personal-os-fe \\
+                                frontend
+                        """
+                    }
+                    echo "✅ Both images built (API + FE) tag ${env.IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Deploy API, Frontend & Postgres') {
+            steps {
+                script {
+                    def pgContainer  = "personal-os-pg-${params.ENVIRONMENT}"
+                    def apiContainer = "personal-os-api-app-${params.ENVIRONMENT}"
+                    def feContainer  = "personal-os-fe-app-${params.ENVIRONMENT}"
+                    def appNetwork   = "personal-os-net-${params.ENVIRONMENT}"
+                    def extNetwork   = "iot-public-net-${params.ENVIRONMENT}"
+                    def pgVolume     = "personal-os-pgdata-${params.ENVIRONMENT}"
+
+                    env.API_CONTAINER = apiContainer
+                    env.FE_CONTAINER  = feContainer
+
+                    sh """
+                        for net in ${appNetwork} ${extNetwork} ${env.TRAEFIK_NET}; do
+                            docker network inspect "\$net" >/dev/null 2>&1 || docker network create "\$net"
+                        done
+                        docker volume create ${pgVolume} 2>/dev/null || true
+                    """
+
+                    withCredentials([file(
+                        credentialsId: "env-personal-os-${params.ENVIRONMENT}",
+                        variable: 'ENV_FILE'
+                    )]) {
+                        sh """
+                            set -eo pipefail
+                            set -a
+                            . "\${ENV_FILE}"
+                            set +a
+
+                            echo "=== Deploying personal-os (API + FE) env=${params.ENVIRONMENT} ==="
+                            echo "    API image: ${env.API_FULL_IMAGE}"
+                            echo "    FE  image: ${env.FE_FULL_IMAGE}"
+                            echo "    FE  URL:   \${NEXT_PUBLIC_SITE_URL:-<unset>}"
+                            echo "    API URL:   \${NEXT_PUBLIC_API_URL:-<unset>}"
+
+                            # ── Postgres (once)
+                            if ! docker ps --format '{{.Names}}' | grep -Eq "^${pgContainer}\$"; then
+                                docker rm -f ${pgContainer} 2>/dev/null || true
+                                echo "[INFO] [1/3] Starting PostgreSQL: ${pgContainer}"
+                                docker run -d \\
+                                    --name ${pgContainer} \\
+                                    --network ${appNetwork} \\
+                                    --network-alias personal-os-pg \\
+                                    --restart unless-stopped \\
+                                    -e POSTGRES_USER="\${POSTGRES_DATABASE_USER}" \\
+                                    -e POSTGRES_PASSWORD="\${POSTGRES_DATABASE_PASSWORD}" \\
+                                    -e POSTGRES_DB="\${POSTGRES_DATABASE_NAME}" \\
+                                    -v ${pgVolume}:/var/lib/postgresql/data \\
+                                    -v "\${WORKSPACE}/backend/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro" \\
+                                    pgvector/pgvector:pg17
+
+                                for i in \$(seq 1 30); do
+                                    docker exec ${pgContainer} pg_isready -U "\${POSTGRES_DATABASE_USER}" >/dev/null 2>&1 && break
+                                    [ \$i -eq 30 ] && echo "[ERROR] PostgreSQL timeout" && exit 1
+                                    sleep 2
+                                done
+                                echo "[INFO] PostgreSQL ready ✅"
+                            else
+                                echo "[INFO] PostgreSQL already running: ${pgContainer}"
+                            fi
+
+                            # ── [2/3] API service
+                            docker rm -f ${apiContainer} 2>/dev/null || true
+                            echo "[INFO] [2/3] Starting API: ${apiContainer}"
+                            docker run -d \\
+                                --name ${apiContainer} \\
+                                --network ${appNetwork} \\
+                                --network-alias personal-os-api \\
+                                --restart unless-stopped \\
+                                --env-file "\${ENV_FILE}" \\
+                                -e APP_ENV="\${APP_ENV:-production}" \\
+                                -e APP_PORT="\${APP_PORT:-8080}" \\
+                                --expose 8080 \\
+                                --label service=personal-os-api \\
+                                --label environment=${params.ENVIRONMENT} \\
+                                ${env.API_FULL_IMAGE}
+
+                            docker network connect ${extNetwork} ${apiContainer} || true
+                            if docker network inspect ${env.SEAWEEDFS_NET} >/dev/null 2>&1; then
+                                docker network connect ${env.SEAWEEDFS_NET} ${apiContainer} || true
+                            fi
+                            if [ -n "\${KAFKA_BROKER:-}" ] || [ -n "\${KAFKA_BROKERS:-}" ]; then
+                                docker network inspect marketplace_obs >/dev/null 2>&1 || docker network create marketplace_obs
+                                docker network connect marketplace_obs ${apiContainer} || true
+                            fi
+
+                            # Wait for API before FE (both services must be paired)
+                            echo "[INFO] Waiting for API /health before deploying FE..."
+                            API_OK=0
+                            for i in \$(seq 1 24); do
+                                if docker exec ${apiContainer} wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1; then
+                                    echo "[INFO] API /health OK ✅"
+                                    API_OK=1
+                                    break
+                                fi
+                                STATUS=\$(docker inspect --format='{{.State.Status}}' ${apiContainer} 2>/dev/null || echo "missing")
+                                if [ "\$STATUS" != "running" ]; then
+                                    echo "[ERROR] API container not running (status=\$STATUS)"
+                                    docker logs ${apiContainer} --tail 80
+                                    exit 1
+                                fi
+                                sleep 5
+                            done
+                            if [ "\$API_OK" -ne 1 ]; then
+                                echo "[ERROR] API failed health check — aborting FE deploy"
+                                docker logs ${apiContainer} --tail 80
+                                exit 1
+                            fi
+
+                            # ── [3/3] Frontend service
+                            docker rm -f ${feContainer} 2>/dev/null || true
+                            echo "[INFO] [3/3] Starting FE: ${feContainer}"
+                            docker run -d \\
+                                --name ${feContainer} \\
+                                --network ${appNetwork} \\
+                                --network-alias personal-os-fe \\
+                                --restart unless-stopped \\
+                                --env-file "\${ENV_FILE}" \\
+                                -e NODE_ENV="\${NODE_ENV:-production}" \\
+                                -e PORT="\${PORT:-3000}" \\
+                                -e HOSTNAME="\${HOSTNAME:-0.0.0.0}" \\
+                                --expose 3000 \\
+                                --label service=personal-os-fe \\
+                                --label environment=${params.ENVIRONMENT} \\
+                                ${env.FE_FULL_IMAGE}
+
+                            docker network connect ${env.TRAEFIK_NET} ${feContainer} || true
+
+                            echo "=== Deploy complete: API + FE running ==="
+                            docker ps --filter name=personal-os- \\
+                                --format 'table {{.Names}}\\t{{.Status}}\\t{{.Label "service"}}'
+                        """
+                    }
+
+                    sh """
+                        docker images ${env.DOCKER_NAMESPACE}/${env.API_IMAGE_NAME} \\
+                            --format '{{.Tag}} {{.ID}}' | grep "^${params.ENVIRONMENT}-" | \\
+                            sort -rV | tail -n +4 | awk '{print \$2}' | xargs -r docker rmi -f 2>/dev/null || true
+                        docker images ${env.DOCKER_NAMESPACE}/${env.FE_IMAGE_NAME} \\
+                            --format '{{.Tag}} {{.ID}}' | grep "^${params.ENVIRONMENT}-" | \\
+                            sort -rV | tail -n +4 | awk '{print \$2}' | xargs -r docker rmi -f 2>/dev/null || true
+                    """
+                }
+            }
+        }
+
+        stage('Health Check API & Frontend') {
+            steps {
+                script {
+                    sh """
+                        echo "[INFO] Final health: API (${env.API_CONTAINER})"
+                        for i in \$(seq 1 6); do
+                            docker exec ${env.API_CONTAINER} wget -qO- http://127.0.0.1:8080/health && break
+                            [ \$i -eq 6 ] && exit 1
+                            sleep 3
+                        done
+
+                        echo "[INFO] Final health: FE (${env.FE_CONTAINER})"
+                        for i in \$(seq 1 6); do
+                            docker exec ${env.FE_CONTAINER} wget -qO- http://127.0.0.1:3000/login >/dev/null 2>&1 && break
+                            [ \$i -eq 6 ] && docker logs ${env.FE_CONTAINER} --tail 50 && exit 1
+                            sleep 3
+                        done
+
+                        echo "✅ personal-os API + FE both healthy"
+                        docker ps --filter name=personal-os- \\
+                            --format 'table {{.Names}}\\t{{.Status}}\\t{{.Label "service"}}'
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            slackSend(
+                channel: env.SLACK_CHANNEL,
+                color: 'good',
+                message: "✅ *personal-os API+FE SUCCESS:* `${env.JOB_NAME}` #${env.BUILD_NUMBER}\n" +
+                         "Environment: *${params.ENVIRONMENT}* • Branch: *${params.GIT_BRANCH}*\n" +
+                         "API: `${env.API_FULL_IMAGE}` → `${env.API_CONTAINER}`\n" +
+                         "FE: `${env.FE_FULL_IMAGE}` → `${env.FE_CONTAINER}`\n" +
+                         "${env.BUILD_URL}"
+            )
+        }
+        failure {
+            slackSend(
+                channel: env.SLACK_CHANNEL,
+                color: 'danger',
+                message: "❌ *personal-os API+FE FAILED:* `${env.JOB_NAME}` #${env.BUILD_NUMBER}\n" +
+                         "Check API: `${env.API_CONTAINER}` FE: `${env.FE_CONTAINER}`\n" +
+                         "${env.BUILD_URL}console"
+            )
+        }
+        always {
+            sh 'docker image prune -f --filter "dangling=true" || true'
+        }
+    }
+}

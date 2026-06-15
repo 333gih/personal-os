@@ -1,0 +1,16 @@
+# Optional overlay: join fash SeaweedFS network for file uploads in local Docker.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.seaweedfs.yml up -d
+
+services:
+  api:
+    networks:
+      - seaweedfs-net
+    environment:
+      STORAGE_PROVIDER: seaweedfs
+      S3_ENDPOINT: seaweedfs-s3:8333
+      S3_USE_SSL: "false"
+
+networks:
+  seaweedfs-net:
+    external: true
+    name: seaweedfs-net

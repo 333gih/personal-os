@@ -1,0 +1,33 @@
+# ── Personal OS Traefik routes (paste into traefix/dynamic/services.yml) ─────
+#
+# FE:  personal-os-fe.fashandcurious.com  → personal-os-fe-app-dev:3000
+# API: api-personal-os.fashandcurious.com → Kong (see kong snippet)
+#
+# Adjust container suffix -dev for staging/prod.
+
+    personal-os-fe-https:
+      rule: Host(`personal-os-fe.fashandcurious.com`)
+      entryPoints: [websecure]
+      service: personal-os-fe
+      tls: {}
+      priority: 40
+
+    personal-os-fe-http:
+      rule: Host(`personal-os-fe.fashandcurious.com`)
+      entryPoints: [web]
+      service: personal-os-fe
+      middlewares: [redirect-to-https]
+      priority: 40
+
+# Add under http.services:
+    personal-os-fe:
+      loadBalancer:
+        servers:
+          - url: "http://personal-os-fe-app-dev:3000"
+
+# TLS SAN (traefix/traefix.yml):
+#   - main: personal-os-fe.fashandcurious.com
+#   - main: api-personal-os.fashandcurious.com
+
+# Add to fash-api-subdomains-to-kong-https rule:
+#   Host(`api-personal-os.fashandcurious.com`) ||

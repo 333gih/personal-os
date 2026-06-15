@@ -1,0 +1,348 @@
+openapi: 3.1.0
+info:
+  title: Personal OS API
+  description: Personal knowledge platform API for learning, work, and startup domains
+  version: 1.0.0
+  contact:
+    name: Personal OS
+
+servers:
+  - url: http://localhost:8088/api/v1
+    description: Local development (via Nginx)
+  - url: http://localhost:8080/api/v1
+    description: Direct API access
+
+tags:
+  - name: Auth
+  - name: Entities
+  - name: Relationships
+  - name: Search
+  - name: AI
+  - name: Reminders
+  - name: Files
+  - name: Dashboard
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: JWT token and user
+        '401':
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: User profile
+
+  /entities:
+    get:
+      tags: [Entities]
+      summary: List entities
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: domain
+          in: query
+          schema: { type: string, enum: [inbox, learning, work, startup] }
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: tag
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Paginated entity list
+    post:
+      tags: [Entities]
+      summary: Create entity
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityInput'
+      responses:
+        '201':
+          description: Created entity
+
+  /entities/{id}:
+    get:
+      tags: [Entities]
+      summary: Get entity
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/EntityId'
+      responses:
+        '200':
+          description: Entity
+    put:
+      tags: [Entities]
+      summary: Update entity
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/EntityId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityUpdate'
+      responses:
+        '200':
+          description: Updated entity
+    delete:
+      tags: [Entities]
+      summary: Delete entity
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/EntityId'
+      responses:
+        '204':
+          description: Deleted
+
+  /entities/{id}/detail:
+    get:
+      tags: [Entities]
+      summary: Get entity with relations, timeline, and optional AI insights
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/EntityId'
+        - name: insights
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Entity detail
+
+  /relationships:
+    get:
+      tags: [Relationships]
+      summary: List relationships
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: entity_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Relationship list
+    post:
+      tags: [Relationships]
+      summary: Create relationship
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelationshipInput'
+      responses:
+        '201':
+          description: Created relationship
+
+  /relationships/{id}:
+    delete:
+      tags: [Relationships]
+      summary: Delete relationship
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Deleted
+
+  /search:
+    get:
+      tags: [Search]
+      summary: Search entities (GET)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: mode
+          in: query
+          schema: { type: string, enum: [fulltext, semantic, hybrid], default: hybrid }
+        - name: domain
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Search results
+    post:
+      tags: [Search]
+      summary: Search entities (POST)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query: { type: string }
+                mode: { type: string, enum: [fulltext, semantic, hybrid] }
+                domain: { type: string }
+                limit: { type: integer }
+      responses:
+        '200':
+          description: Search results
+
+  /ai/analyze:
+    post:
+      tags: [AI]
+      summary: AI analysis (classify, summarize, tags, relationships, actions)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entity_id: { type: string, format: uuid }
+                action: { type: string, enum: [classify, summarize, tags, relationships, actions, full] }
+                content: { type: string }
+                type: { type: string }
+      responses:
+        '200':
+          description: AI analysis result
+
+  /reminders:
+    get:
+      tags: [Reminders]
+      summary: List reminders
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Reminder list
+    post:
+      tags: [Reminders]
+      summary: Create reminder
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entity_id, title, due_at]
+              properties:
+                entity_id: { type: string, format: uuid }
+                title: { type: string }
+                due_at: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Created reminder
+
+  /reminders/upcoming:
+    get:
+      tags: [Reminders]
+      summary: Upcoming reminders
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: days
+          in: query
+          schema: { type: integer, default: 7 }
+      responses:
+        '200':
+          description: Upcoming reminders
+
+  /files/upload:
+    post:
+      tags: [Files]
+      summary: Upload file
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                entity_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Upload result
+
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Dashboard stats
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Dashboard data
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    EntityId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  schemas:
+    EntityInput:
+      type: object
+      required: [type, title]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        content: { type: string }
+        tags: { type: array, items: { type: string } }
+        source: { type: string }
+        metadata: { type: object }
+
+    EntityUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        content: { type: string }
+        tags: { type: array, items: { type: string } }
+        source: { type: string }
+        metadata: { type: object }
+        status: { type: string }
+        type: { type: string }
+
+    RelationshipInput:
+      type: object
+      required: [source_entity_id, target_entity_id, relation_type]
+      properties:
+        source_entity_id: { type: string, format: uuid }
+        target_entity_id: { type: string, format: uuid }
+        relation_type: { type: string }
