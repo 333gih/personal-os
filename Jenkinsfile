@@ -336,6 +336,15 @@ pipeline {
                                 echo "[INFO] PostgreSQL already running: ${pgContainer}"
                             fi
 
+                            # Idempotent SQL migrations (safe on every deploy).
+                            for mig in 003_storage_key_prefix.sql 004_fix_users_email_constraint.sql; do
+                                if [ -f "backend/migrations/\${mig}" ]; then
+                                    echo "[INFO] Applying migration \${mig}..."
+                                    cat "backend/migrations/\${mig}" | docker exec -i ${pgContainer} \\
+                                        psql -v ON_ERROR_STOP=1 -U "\${POSTGRES_DATABASE_USER}" -d "\${POSTGRES_DATABASE_NAME}"
+                                fi
+                            done
+
                             # ── [2/3] API service
                             docker rm -f ${apiContainer} 2>/dev/null || true
                             echo "[INFO] [2/3] Starting API: ${apiContainer}"
