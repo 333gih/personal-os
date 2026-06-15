@@ -7,17 +7,23 @@ Hostnames production:
 | FE | https://personal-os-fe.fashandcurious.com |
 | API | https://api-personal-os.fashandcurious.com |
 
-## Jenkins secret (`env-personal-os-dev`)
+## Jenkins secrets
 
-Upload [`jenkins-env.example`](jenkins-env.example) as Jenkins **Secret file** credential.
+| Credential ID | Template |
+|---------------|----------|
+| `env-personal-os-api-dev` | [`backend/.env.prod`](../backend/.env.prod) |
+| `env-personal-os-fe-dev` | [`frontend/.env.prod`](../frontend/.env.prod) |
 
-Jenkinsfile loads **toàn bộ** biến từ file này — không hardcode trong pipeline:
+Upload mỗi file là Jenkins **Secret file** (staging/prod: đổi suffix `-dev`).
 
 ```groovy
-withCredentials([file(credentialsId: "env-personal-os-${params.ENVIRONMENT}", variable: 'ENV_FILE')]) {
-  set -a; . "$ENV_FILE"; set +a   // deploy
-  docker build --secret id=env_build,src="$ENV_FILE"  // FE build
-  docker run --env-file "$ENV_FILE"  // API + FE runtime
+withCredentials([
+  file(credentialsId: "env-personal-os-api-${params.ENVIRONMENT}", variable: 'API_ENV_FILE'),
+  file(credentialsId: "env-personal-os-fe-${params.ENVIRONMENT}", variable: 'FE_ENV_FILE'),
+]) {
+  docker build --secret id=env_build,src="$FE_ENV_FILE"   // FE build
+  docker run --env-file "$API_ENV_FILE"                    // API + Postgres vars
+  docker run --env-file "$FE_ENV_FILE"                     // FE runtime
 }
 ```
 

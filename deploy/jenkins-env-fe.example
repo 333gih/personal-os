@@ -1,0 +1,6 @@
+# =============================================================================
+# Personal OS Frontend — Jenkins Secret File
+# Credential ID: env-personal-os-fe-dev | env-personal-os-fe-staging | env-personal-os-fe-prod
+#
+# Canonical template: frontend/.env.prod
+# =============================================================================

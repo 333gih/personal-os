@@ -43,7 +43,7 @@ docker compose -f docker-compose.yml -f docker-compose.seaweedfs.yml up -d
 - `personal-os-fe-app-{env}` (Next.js)
 - `personal-os-pg-{env}` (Postgres)
 
-1. Upload secret `env-personal-os-dev` từ [`deploy/jenkins-env.example`](deploy/jenkins-env.example)
+1. Upload Jenkins secrets từ [`backend/.env.prod`](backend/.env.prod) và [`frontend/.env.prod`](frontend/.env.prod)
 2. Patch fash Traefik + Kong: [`deploy/fash-integration/README.md`](deploy/fash-integration/README.md)
 3. Sửa `GIT_REPO` trong [`Jenkinsfile`](Jenkinsfile)
 4. **Build** một lần → cả 2 service lên (FE chỉ deploy sau khi API `/health` OK)

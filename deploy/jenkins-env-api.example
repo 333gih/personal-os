@@ -1,0 +1,10 @@
+# =============================================================================
+# Personal OS API — Jenkins Secret File
+# Credential ID: env-personal-os-api-dev | env-personal-os-api-staging | env-personal-os-api-prod
+#
+# Canonical template: backend/.env.prod (copy that file, replace CHANGE_ME_* secrets)
+#
+# Used by Jenkinsfile for:
+#   • personal-os-api-app-{env}  (--env-file)
+#   • personal-os-pg-{env}       (POSTGRES_DATABASE_* at deploy)
+# =============================================================================

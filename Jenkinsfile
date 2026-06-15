@@ -6,9 +6,10 @@
 //   • personal-os-fe-app-{env}   (Next.js, alias personal-os-fe)
 //   • personal-os-pg-{env}       (Postgres sidecar, alias personal-os-pg)
 //
-// Jenkins credential (one secret file for everything):
-//   env-personal-os-dev | env-personal-os-staging | env-personal-os-prod
-// Template: deploy/jenkins-env.example
+// Jenkins credentials (two secret files — fash core-service + portal-fe pattern):
+//   env-personal-os-api-dev | env-personal-os-api-staging | env-personal-os-api-prod
+//   env-personal-os-fe-dev  | env-personal-os-fe-staging  | env-personal-os-fe-prod
+// Templates: backend/.env.prod, frontend/.env.prod
 //
 // Flow: Checkout → Test → Build API + FE → Deploy PG → Deploy API → wait healthy → Deploy FE → Health both
 // =============================================================================
@@ -37,7 +38,7 @@ pipeline {
     }
 
     environment {
-        GIT_REPO       = 'https://gitlab.com/YOUR_GROUP/personal-os.git'
+        GIT_REPO       = 'https://gitlab.com/personal-os1/personal-os.git'
         CREDENTIALS_ID = 'e8689c9a-5588-4725-b8cd-712ae345d8e1'
 
         REGISTRY         = 'docker.io'
@@ -148,17 +149,23 @@ pipeline {
                             backend
                     """
 
-                    // ── 2/2 FE image (NEXT_PUBLIC_* from Jenkins secret — fash-portal-fe pattern)
+                    // ── 2/2 FE image (NEXT_PUBLIC_* from FE Jenkins secret — fash-portal-fe pattern)
                     withCredentials([file(
-                        credentialsId: "env-personal-os-${params.ENVIRONMENT}",
-                        variable: 'ENV_FILE'
+                        credentialsId: "env-personal-os-fe-${params.ENVIRONMENT}",
+                        variable: 'FE_ENV_FILE'
                     )]) {
-                        sh """
+                        sh """#!/usr/bin/env bash
                             set -eo pipefail
-                            echo "=== [2/2] Building FE: ${env.FE_FULL_IMAGE} (Jenkins env-personal-os-${params.ENVIRONMENT}) ==="
+                            FE_ENV_LF="\${WORKSPACE}/.jenkins.fe.\${BUILD_NUMBER}.env"
+                            cleanup() { rm -f "\${FE_ENV_LF}" || true; }
+                            trap cleanup EXIT
+                            # Jenkins secret files edited on Windows often have CRLF — strip before source/build.
+                            LC_ALL=C sed '1s/^\\xEF\\xBB\\xBF//' "\${FE_ENV_FILE}" | tr -d '\\r' > "\${FE_ENV_LF}"
+
+                            echo "=== [2/2] Building FE: ${env.FE_FULL_IMAGE} (env-personal-os-fe-${params.ENVIRONMENT}) ==="
                             docker build \\
                                 --file frontend/Dockerfile \\
-                                --secret id=env_build,src="\${ENV_FILE}" \\
+                                --secret id=env_build,src="\${FE_ENV_LF}" \\
                                 --tag ${env.FE_FULL_IMAGE} \\
                                 --tag ${env.FE_LATEST_IMAGE} \\
                                 --label git.commit=${env.SHORT_COMMIT} \\
@@ -193,21 +200,37 @@ pipeline {
                         docker volume create ${pgVolume} 2>/dev/null || true
                     """
 
-                    withCredentials([file(
-                        credentialsId: "env-personal-os-${params.ENVIRONMENT}",
-                        variable: 'ENV_FILE'
-                    )]) {
-                        sh """
+                    withCredentials([
+                        file(
+                            credentialsId: "env-personal-os-api-${params.ENVIRONMENT}",
+                            variable: 'API_ENV_FILE'
+                        ),
+                        file(
+                            credentialsId: "env-personal-os-fe-${params.ENVIRONMENT}",
+                            variable: 'FE_ENV_FILE'
+                        ),
+                    ]) {
+                        sh """#!/usr/bin/env bash
                             set -eo pipefail
+                            API_ENV_LF="\${WORKSPACE}/.jenkins.api.\${BUILD_NUMBER}.env"
+                            FE_ENV_LF="\${WORKSPACE}/.jenkins.fe.\${BUILD_NUMBER}.env"
+                            cleanup() { rm -f "\${API_ENV_LF}" "\${FE_ENV_LF}" || true; }
+                            trap cleanup EXIT
+                            # Strip BOM/CRLF (Windows-edited Jenkins secrets break \`source\` and docker --env-file).
+                            LC_ALL=C sed '1s/^\\xEF\\xBB\\xBF//' "\${API_ENV_FILE}" | tr -d '\\r' > "\${API_ENV_LF}"
+                            LC_ALL=C sed '1s/^\\xEF\\xBB\\xBF//' "\${FE_ENV_FILE}" | tr -d '\\r' > "\${FE_ENV_LF}"
+
                             set -a
-                            . "\${ENV_FILE}"
+                            . "\${API_ENV_LF}"
                             set +a
 
                             echo "=== Deploying personal-os (API + FE) env=${params.ENVIRONMENT} ==="
+                            echo "    API credential: env-personal-os-api-${params.ENVIRONMENT}"
+                            echo "    FE  credential: env-personal-os-fe-${params.ENVIRONMENT}"
                             echo "    API image: ${env.API_FULL_IMAGE}"
                             echo "    FE  image: ${env.FE_FULL_IMAGE}"
-                            echo "    FE  URL:   \${NEXT_PUBLIC_SITE_URL:-<unset>}"
-                            echo "    API URL:   \${NEXT_PUBLIC_API_URL:-<unset>}"
+                            echo "    FE  URL:   \$(grep -E '^NEXT_PUBLIC_SITE_URL=' "\${FE_ENV_LF}" | cut -d= -f2- || echo '<unset>')"
+                            echo "    API URL:   \$(grep -E '^NEXT_PUBLIC_API_URL=' "\${FE_ENV_LF}" | cut -d= -f2- || echo '<unset>')"
 
                             # ── Postgres (once)
                             if ! docker ps --format '{{.Names}}' | grep -Eq "^${pgContainer}\$"; then
@@ -243,7 +266,7 @@ pipeline {
                                 --network ${appNetwork} \\
                                 --network-alias personal-os-api \\
                                 --restart unless-stopped \\
-                                --env-file "\${ENV_FILE}" \\
+                                --env-file "\${API_ENV_LF}" \\
                                 -e APP_ENV="\${APP_ENV:-production}" \\
                                 -e APP_PORT="\${APP_PORT:-8080}" \\
                                 --expose 8080 \\
@@ -291,7 +314,7 @@ pipeline {
                                 --network ${appNetwork} \\
                                 --network-alias personal-os-fe \\
                                 --restart unless-stopped \\
-                                --env-file "\${ENV_FILE}" \\
+                                --env-file "\${FE_ENV_LF}" \\
                                 -e NODE_ENV="\${NODE_ENV:-production}" \\
                                 -e PORT="\${PORT:-3000}" \\
                                 -e HOSTNAME="\${HOSTNAME:-0.0.0.0}" \\

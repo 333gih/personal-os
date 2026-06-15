@@ -15,7 +15,8 @@ ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 RUN --mount=type=secret,id=env_build,required=false \
     if [ -f /run/secrets/env_build ]; then \
-      set -a && . /run/secrets/env_build && set +a; \
+      sed '1s/^\xEF\xBB\xBF//' /run/secrets/env_build | tr -d '\r' > /tmp/env_build && \
+      set -a && . /tmp/env_build && set +a; \
     else \
       export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}"; \
       export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL}"; \

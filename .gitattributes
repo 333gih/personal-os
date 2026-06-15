@@ -1,0 +1,4 @@
+# Jenkins env files must be LF — CRLF breaks `source` and docker --env-file on Linux.
+*.env.prod text eol=lf
+*.env.example text eol=lf
+deploy/jenkins-env*.example text eol=lf
