@@ -216,7 +216,7 @@ pipeline {
                             FE_ENV_LF="${env.WORKSPACE}/.jenkins.fe.${env.BUILD_NUMBER}.env"
                             cleanup() { rm -f "\${API_ENV_LF}" "\${FE_ENV_LF}" || true; }
                             trap cleanup EXIT
-                            # Strip BOM/CRLF (Windows-edited Jenkins secrets break \`source\` and docker --env-file).
+                            # Strip BOM/CRLF (Windows-edited Jenkins secrets break shell source and docker --env-file).
                             LC_ALL=C sed '1s/^\\xEF\\xBB\\xBF//' "\${API_ENV_FILE}" | tr -d '\\r' > "\${API_ENV_LF}"
                             LC_ALL=C sed '1s/^\\xEF\\xBB\\xBF//' "\${FE_ENV_FILE}" | tr -d '\\r' > "\${FE_ENV_LF}"
 
