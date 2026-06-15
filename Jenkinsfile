@@ -258,9 +258,19 @@ pipeline {
                             LC_ALL=C sed '1s/^\\xEF\\xBB\\xBF//' "\${API_ENV_FILE}" | tr -d '\\r' > "\${API_ENV_LF}"
                             LC_ALL=C sed '1s/^\\xEF\\xBB\\xBF//' "\${FE_ENV_FILE}" | tr -d '\\r' > "\${FE_ENV_LF}"
 
-                            set -a
-                            . "\${API_ENV_LF}"
-                            set +a
+                            # Do not source env files — unquoted values with spaces (e.g. APP_DESCRIPTION)
+                            # break bash; docker --env-file handles them correctly.
+                            env_get() {
+                                local key="\$1" file="\$2"
+                                grep -E "^\${key}=" "\$file" 2>/dev/null | head -1 | cut -d= -f2-
+                            }
+                            POSTGRES_DATABASE_USER="\$(env_get POSTGRES_DATABASE_USER "\${API_ENV_LF}")"
+                            POSTGRES_DATABASE_PASSWORD="\$(env_get POSTGRES_DATABASE_PASSWORD "\${API_ENV_LF}")"
+                            POSTGRES_DATABASE_NAME="\$(env_get POSTGRES_DATABASE_NAME "\${API_ENV_LF}")"
+                            test -n "\${POSTGRES_DATABASE_USER}" && test -n "\${POSTGRES_DATABASE_PASSWORD}" && test -n "\${POSTGRES_DATABASE_NAME}" \\
+                                || { echo '[ERROR] POSTGRES_DATABASE_* missing in API env file'; exit 1; }
+                            KAFKA_BROKER="\$(env_get KAFKA_BROKER "\${API_ENV_LF}")"
+                            KAFKA_BROKERS="\$(env_get KAFKA_BROKERS "\${API_ENV_LF}")"
 
                             echo "=== Deploying personal-os (API + FE) env=${params.ENVIRONMENT} ==="
                             echo "    API credential: env-personal-os-api-${params.ENVIRONMENT}"
@@ -311,8 +321,6 @@ pipeline {
                                 --network-alias personal-os-api \\
                                 --restart unless-stopped \\
                                 --env-file "\${API_ENV_LF}" \\
-                                -e APP_ENV="\${APP_ENV:-production}" \\
-                                -e APP_PORT="\${APP_PORT:-8080}" \\
                                 --expose 8080 \\
                                 --label service=personal-os-api \\
                                 --label environment=${params.ENVIRONMENT} \\
@@ -359,9 +367,6 @@ pipeline {
                                 --network-alias personal-os-fe \\
                                 --restart unless-stopped \\
                                 --env-file "\${FE_ENV_LF}" \\
-                                -e NODE_ENV="\${NODE_ENV:-production}" \\
-                                -e PORT="\${PORT:-3000}" \\
-                                -e HOSTNAME="\${HOSTNAME:-0.0.0.0}" \\
                                 --expose 3000 \\
                                 --label service=personal-os-fe \\
                                 --label environment=${params.ENVIRONMENT} \\

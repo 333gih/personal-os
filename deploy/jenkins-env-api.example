@@ -4,6 +4,8 @@
 #
 # Canonical template: backend/.env.prod (copy that file, replace CHANGE_ME_* secrets)
 #
+# Values with spaces MUST be quoted, e.g. APP_DESCRIPTION="Personal OS API"
+# Jenkins deploy reads POSTGRES_* via grep (does not shell-source the file).
 # Used by Jenkinsfile for:
 #   • personal-os-api-app-{env}  (--env-file)
 #   • personal-os-pg-{env}       (POSTGRES_DATABASE_* at deploy)
