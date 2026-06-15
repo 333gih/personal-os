@@ -47,10 +47,10 @@ export default function EntityDetailPage() {
   const tags = parseTags(entity.tags);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="mb-2 flex gap-2">
+    <div className="mx-auto w-full max-w-4xl space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap gap-2">
             <Badge className="bg-primary/10 text-primary">{domainLabel(entity.domain)}</Badge>
             <Badge className="bg-muted text-muted-foreground">{typeLabel(entity.type)}</Badge>
             <Badge className="bg-muted text-muted-foreground">{entity.status}</Badge>
@@ -60,8 +60,13 @@ export default function EntityDetailPage() {
             Created {formatDateTime(entity.created_at)} · Updated {formatDateTime(entity.updated_at)}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => analyze.mutate()} disabled={analyze.isPending}>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button
+            variant="outline"
+            className="flex-1 sm:flex-none"
+            onClick={() => analyze.mutate()}
+            disabled={analyze.isPending}
+          >
             <Sparkles className="mr-2 h-4 w-4" />
             Analyze
           </Button>

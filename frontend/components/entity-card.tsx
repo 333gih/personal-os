@@ -51,7 +51,7 @@ export function EntityList({ entities, emptyMessage }: { entities: Entity[]; emp
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {entities.map((entity) => (
         <EntityCard key={entity.id} entity={entity} />
       ))}

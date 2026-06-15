@@ -1,13 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import {
+  PORTAL_COOKIE_REFRESH_401_HEADER,
+  PORTAL_COOKIE_REFRESH_401_VALUE,
+} from "@/lib/auth/constants";
 import { ensureSessionAccess } from "@/lib/auth/session";
 import { getServerAuthEnv } from "@/lib/auth/server-env";
 
 export const runtime = "nodejs";
 
+function resolveBearer(request: NextRequest, sessionToken: string): string | null {
+  const incoming = request.headers.get("Authorization")?.trim();
+  if (incoming?.toLowerCase().startsWith("bearer ")) {
+    const token = incoming.slice(7).trim();
+    if (token) return token;
+  }
+  return sessionToken || null;
+}
+
 async function proxy(request: NextRequest, pathSegments: string[]) {
   const session = await ensureSessionAccess();
   if (session.status !== "authenticated") {
+    return NextResponse.json(
+      { error: "Not authenticated" },
+      {
+        status: 401,
+        headers: {
+          [PORTAL_COOKIE_REFRESH_401_HEADER]: PORTAL_COOKIE_REFRESH_401_VALUE,
+        },
+      },
+    );
+  }
+
+  const bearer = resolveBearer(request, session.accessToken);
+  if (!bearer) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
@@ -18,7 +44,7 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
   const headers = new Headers();
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("Content-Type", contentType);
-  headers.set("Authorization", `Bearer ${session.accessToken}`);
+  headers.set("Authorization", `Bearer ${bearer}`);
   headers.set("Accept", request.headers.get("accept") || "application/json");
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
@@ -31,8 +57,6 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
     init.body = request.body;
     init.duplex = "half";
   }
-
-  console.log("[api-bff] proxy", { method: request.method, url });
 
   const upstream = await fetch(url, init);
   const responseHeaders = new Headers();

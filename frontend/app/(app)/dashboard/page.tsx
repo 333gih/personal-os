@@ -25,13 +25,13 @@ export default function DashboardPage() {
   if (isLoading) return <p className="text-muted-foreground">Loading dashboard...</p>;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">Dashboard</h1>
         <p className="text-muted-foreground">Overview of your personal knowledge</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {(["inbox", "learning", "work", "startup"] as const).map((domain) => {
           const count = data?.domain_counts?.[domain] ?? 0;
           const Icon = domainIcons[domain] || Inbox;
@@ -61,7 +61,7 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {data?.upcoming_reminders.map((r) => (
                 <Card key={r.id}>
-                  <CardContent className="flex items-center justify-between p-4">
+                  <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="font-medium">{r.title}</p>
                       <p className="text-xs text-muted-foreground">

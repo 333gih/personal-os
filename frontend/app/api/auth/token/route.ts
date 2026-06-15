@@ -10,7 +10,7 @@ export async function GET() {
   const session = await ensureSessionAccess();
   if (session.status !== "authenticated") {
     return NextResponse.json(
-      { authenticated: false },
+      { error: "Not authenticated" },
       {
         status: 401,
         headers: {
@@ -19,5 +19,5 @@ export async function GET() {
       },
     );
   }
-  return NextResponse.json({ authenticated: true });
+  return NextResponse.json({ access_token: session.accessToken });
 }

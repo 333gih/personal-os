@@ -34,20 +34,20 @@ export default function SearchPage() {
         <p className="text-muted-foreground">Full-text and semantic search across your knowledge</p>
       </div>
 
-      <form onSubmit={handleSearch} className="flex gap-2">
+      <form onSubmit={handleSearch} className="flex flex-col gap-2 sm:flex-row">
         <Input
           placeholder="Search courses, projects, ideas..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="flex-1"
+          className="min-w-0 flex-1"
         />
-        <Button type="submit">
+        <Button type="submit" className="w-full sm:w-auto shrink-0">
           <SearchIcon className="mr-2 h-4 w-4" />
           Search
         </Button>
       </form>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {(["hybrid", "fulltext", "semantic"] as const).map((m) => (
           <Button
             key={m}
@@ -71,14 +71,14 @@ export default function SearchPage() {
             <Link key={entity.id} href={`/entities/${entity.id}`}>
               <Card className="transition-shadow hover:shadow-md">
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1">
                       <h3 className="font-medium">{entity.title}</h3>
                       <p className="text-xs text-muted-foreground">
                         {domainLabel(entity.domain)} · {typeLabel(entity.type)}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex shrink-0 flex-wrap gap-2">
                       <Badge className="bg-muted text-muted-foreground">{match_type}</Badge>
                       <Badge className="bg-primary/10 text-primary">{score.toFixed(2)}</Badge>
                     </div>

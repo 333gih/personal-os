@@ -1,4 +1,5 @@
 import { portalFetch } from "@/lib/auth/client-fetch";
+import { authHeaders } from "@/lib/auth/access-token";
 import type {
   AIAnalyzeResult,
   DashboardData,
@@ -32,17 +33,19 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string>),
-  };
-
-  if (!(options.body instanceof FormData)) {
-    headers["Content-Type"] = "application/json";
-  }
-
   const method = options.method || "GET";
   const url = `${API_URL}${path}`;
-  apiLog("request", { method, url });
+
+  const baseHeaders: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  if (!(options.body instanceof FormData) && !baseHeaders["Content-Type"]) {
+    baseHeaders["Content-Type"] = "application/json";
+  }
+
+  const headers = await authHeaders(baseHeaders);
+  const hasAuth = headers.has("Authorization");
+  apiLog("request", { method, url, hasAuth });
 
   const res = await portalFetch(url, { ...options, headers });
 
@@ -55,11 +58,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       body = { error: raw || res.statusText };
     }
     const message = body.error || body.message || "Request failed";
-    apiLog("response error", { method, url, status: res.status, body });
+    apiLog("response error", { method, url, status: res.status, body, hasAuth });
     throw new ApiError(res.status, message, body);
   }
 
-  apiLog("response ok", { method, url, status: res.status });
+  apiLog("response ok", { method, url, status: res.status, hasAuth });
   if (res.status === 204) return undefined as T;
   return res.json();
 }

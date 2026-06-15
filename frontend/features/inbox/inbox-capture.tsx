@@ -82,8 +82,9 @@ export function InboxCapture({ defaultType = "inbox_note", onSuccess }: InboxCap
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button
+            className="w-full sm:w-auto"
             onClick={() => create.mutate()}
             disabled={!content || create.isPending}
           >
@@ -91,6 +92,7 @@ export function InboxCapture({ defaultType = "inbox_note", onSuccess }: InboxCap
           </Button>
           <Button
             variant="outline"
+            className="w-full sm:w-auto"
             onClick={() => analyze.mutate()}
             disabled={!content || analyze.isPending}
           >
