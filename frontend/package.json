@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:local": "node scripts/prepare-env.mjs local && next dev",
+    "dev:prod": "node scripts/prepare-env.mjs prod && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

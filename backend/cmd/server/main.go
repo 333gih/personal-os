@@ -31,9 +31,17 @@ func main() {
 		log.Fatalf("database: %v", err)
 	}
 
-	authSvc := auth.NewService(db, cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiry)
-	if err := authSvc.EnsureDefaultUser(cfg.DefaultUserEmail, cfg.DefaultUserPass, "Admin"); err != nil {
-		log.Fatalf("seed user: %v", err)
+	authSvc := auth.NewService(db, cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiry, auth.FashAuthSettings{
+		Enabled:   cfg.FashAuth.Enabled,
+		JWTSecret: cfg.FashAuth.JWTSecret,
+		JWTIssuer: cfg.FashAuth.JWTIssuer,
+	})
+	if !authSvc.UsesFashAuth() {
+		if err := authSvc.EnsureDefaultUser(cfg.DefaultUserEmail, cfg.DefaultUserPass, "Admin"); err != nil {
+			log.Fatalf("seed user: %v", err)
+		}
+	} else {
+		log.Printf("auth: fash-auth-service JWT validation enabled (issuer=%s)", cfg.FashAuth.JWTIssuer)
 	}
 
 	aiSvc := ai.NewService(db, cfg.OpenAIBaseURL, cfg.OpenAIAPIKey, cfg.OpenAIModel)
@@ -66,7 +74,12 @@ func main() {
 
 	api := r.Group("/api/v1")
 	authHandler := auth.NewHandler(authSvc)
-	authHandler.RegisterRoutes(api.Group("/auth"))
+	authRoutes := api.Group("/auth")
+	if !authSvc.UsesFashAuth() {
+		authHandler.RegisterRoutes(authRoutes)
+	} else {
+		authHandler.RegisterProfileRoutes(authRoutes)
+	}
 
 	protected := api.Group("")
 	protected.Use(auth.Middleware(authSvc))

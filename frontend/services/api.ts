@@ -1,39 +1,37 @@
+import { portalFetch } from "@/lib/auth/client-fetch";
 import type {
   AIAnalyzeResult,
   DashboardData,
   Entity,
   EntityDetail,
-  LoginResponse,
   SearchResult,
   User,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+const DEBUG_API = process.env.NODE_ENV === "development";
+
+function apiLog(label: string, data?: Record<string, unknown>) {
+  if (!DEBUG_API) return;
+  if (data) {
+    console.log(`[api] ${label}`, data);
+    return;
+  }
+  console.log(`[api] ${label}`);
+}
 
 class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+    public details?: unknown
+  ) {
     super(message);
+    this.name = "ApiError";
   }
 }
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
-}
-
-export function setToken(token: string) {
-  localStorage.setItem("token", token);
-}
-
-export function clearToken() {
-  localStorage.removeItem("token");
-}
-
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const token = getToken();
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
@@ -42,28 +40,31 @@ async function request<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
+  const method = options.method || "GET";
+  const url = `${API_URL}${path}`;
+  apiLog("request", { method, url });
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const res = await portalFetch(url, { ...options, headers });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new ApiError(res.status, body.error || "Request failed");
+    const raw = await res.text();
+    let body: { error?: string; message?: string } = {};
+    try {
+      body = raw ? JSON.parse(raw) : {};
+    } catch {
+      body = { error: raw || res.statusText };
+    }
+    const message = body.error || body.message || "Request failed";
+    apiLog("response error", { method, url, status: res.status, body });
+    throw new ApiError(res.status, message, body);
   }
 
+  apiLog("response ok", { method, url, status: res.status });
   if (res.status === 204) return undefined as T;
   return res.json();
 }
 
 export const api = {
-  login: (email: string, password: string) =>
-    request<LoginResponse>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    }),
-
   me: () => request<User>("/auth/me"),
 
   updateProfile: (data: { name: string; email?: string }) =>

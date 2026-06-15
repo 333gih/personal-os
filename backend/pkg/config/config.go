@@ -27,6 +27,7 @@ type Config struct {
 	EmbeddingDim     int
 	DefaultUserEmail string
 	DefaultUserPass  string
+	FashAuth         FashAuthConfig
 }
 
 func Load() *Config {
@@ -53,6 +54,7 @@ func Load() *Config {
 		EmbeddingDim:     embeddingDim,
 		DefaultUserEmail: getEnv("DEFAULT_USER_EMAIL", "admin@personal-os.local"),
 		DefaultUserPass:  getEnv("DEFAULT_USER_PASSWORD", "changeme123"),
+		FashAuth:         loadFashAuthConfig(),
 	}
 }
 

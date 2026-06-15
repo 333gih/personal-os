@@ -1,0 +1,61 @@
+import "server-only";
+
+function readEnv(name: string): string | undefined {
+  const v = process.env[name];
+  if (v === undefined || v === "") return undefined;
+  return v;
+}
+
+export function getCookieSecureFromHeaders(headers: Headers): boolean {
+  const explicit = readEnv("AUTH_COOKIE_SECURE");
+  if (explicit === "true") return true;
+  if (explicit === "false") return false;
+  const xf = headers.get("x-forwarded-proto");
+  if (xf) {
+    const p = xf.split(",")[0].trim().toLowerCase();
+    if (p === "http") return false;
+    if (p === "https") return true;
+  }
+  return process.env.NODE_ENV === "production";
+}
+
+export type ServerAuthEnv = {
+  API_URL: string;
+  APPLICATION_ID: string;
+  AUTH_LOCALE: string;
+  PERSONAL_OS_API_URL: string;
+  cookieSecure: boolean;
+};
+
+let cached: ServerAuthEnv | null = null;
+
+export function getServerAuthEnv(): ServerAuthEnv {
+  if (cached) return cached;
+
+  const API_URL = readEnv("API_URL");
+  const APPLICATION_ID = readEnv("NEXT_PUBLIC_APP_ID");
+  const PERSONAL_OS_API_URL = readEnv("PERSONAL_OS_API_URL");
+
+  if (!API_URL) {
+    throw new Error(
+      "Missing API_URL (fash-auth-service mount, e.g. https://api-auth.fashandcurious.com)",
+    );
+  }
+  if (!APPLICATION_ID) {
+    throw new Error("Missing NEXT_PUBLIC_APP_ID (must be allowed by fash-auth-service)");
+  }
+  if (!PERSONAL_OS_API_URL) {
+    throw new Error("Missing PERSONAL_OS_API_URL (personal-os API upstream for BFF proxy)");
+  }
+
+  cached = {
+    API_URL: API_URL.replace(/\/+$/, ""),
+    APPLICATION_ID: APPLICATION_ID.trim(),
+    AUTH_LOCALE: (readEnv("AUTH_LOCALE") || "vi").trim(),
+    PERSONAL_OS_API_URL: PERSONAL_OS_API_URL.replace(/\/+$/, ""),
+    cookieSecure:
+      readEnv("AUTH_COOKIE_SECURE") === "true" ||
+      (readEnv("AUTH_COOKIE_SECURE") !== "false" && process.env.NODE_ENV === "production"),
+  };
+  return cached;
+}

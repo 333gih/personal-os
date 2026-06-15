@@ -13,7 +13,6 @@ import {
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { clearToken } from "@/services/api";
 import { Button } from "./ui/button";
 
 const nav = [
@@ -30,8 +29,11 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const logout = () => {
-    clearToken();
+  const logout = async () => {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "same-origin",
+    }).catch(() => undefined);
     router.push("/login");
   };
 

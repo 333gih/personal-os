@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"log"
+
 	"github.com/gin-gonic/gin"
 	"github.com/personal-os/backend/pkg/response"
 )
@@ -30,6 +32,10 @@ type passwordRequest struct {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/login", h.Login)
+	h.RegisterProfileRoutes(r)
+}
+
+func (h *Handler) RegisterProfileRoutes(r *gin.RouterGroup) {
 	r.GET("/me", Middleware(h.service), h.Me)
 	r.PUT("/profile", Middleware(h.service), h.UpdateProfile)
 	r.PUT("/password", Middleware(h.service), h.ChangePassword)
@@ -38,16 +44,21 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 func (h *Handler) Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[auth] login bind error ip=%s: %v", c.ClientIP(), err)
 		response.BadRequest(c, err.Error())
 		return
 	}
 
+	log.Printf("[auth] login attempt email=%s ip=%s origin=%s", req.Email, c.ClientIP(), c.GetHeader("Origin"))
+
 	token, user, err := h.service.Login(req.Email, req.Password)
 	if err != nil {
+		log.Printf("[auth] login failed email=%s ip=%s: %v", req.Email, c.ClientIP(), err)
 		response.Unauthorized(c, err.Error())
 		return
 	}
 
+	log.Printf("[auth] login success email=%s user_id=%s ip=%s", user.Email, user.ID, c.ClientIP())
 	response.OK(c, gin.H{
 		"token": token,
 		"user":  user,

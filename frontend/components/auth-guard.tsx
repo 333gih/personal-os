@@ -8,12 +8,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.replace("/login");
-    } else {
-      setReady(true);
-    }
+    fetch("/api/auth/session", { credentials: "same-origin" })
+      .then((res) => {
+        if (!res.ok) {
+          console.warn("[auth-guard] no session", res.status);
+          router.replace("/login");
+          return;
+        }
+        setReady(true);
+      })
+      .catch((err) => {
+        console.error("[auth-guard] session check failed", err);
+        router.replace("/login");
+      });
   }, [router]);
 
   if (!ready) return null;

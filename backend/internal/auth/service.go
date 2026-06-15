@@ -2,6 +2,8 @@ package auth
 
 import (
 	"errors"
+	"log"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -16,15 +18,32 @@ type Service struct {
 	jwtSecret []byte
 	jwtIssuer string
 	jwtExpiry time.Duration
+	fashAuth  FashAuthSettings
+}
+
+type FashAuthSettings struct {
+	Enabled   bool
+	JWTSecret string
+	JWTIssuer string
+}
+
+func NewService(db *gorm.DB, jwtSecret, jwtIssuer string, jwtExpiry time.Duration, fash FashAuthSettings) *Service {
+	return &Service{
+		db:        db,
+		jwtSecret: []byte(jwtSecret),
+		jwtIssuer: jwtIssuer,
+		jwtExpiry: jwtExpiry,
+		fashAuth:  fash,
+	}
+}
+
+func (s *Service) UsesFashAuth() bool {
+	return s.fashAuth.Enabled
 }
 
 type Claims struct {
 	UserID uuid.UUID `json:"user_id"`
 	jwt.RegisteredClaims
-}
-
-func NewService(db *gorm.DB, jwtSecret, jwtIssuer string, jwtExpiry time.Duration) *Service {
-	return &Service{db: db, jwtSecret: []byte(jwtSecret), jwtIssuer: jwtIssuer, jwtExpiry: jwtExpiry}
 }
 
 func (s *Service) EnsureDefaultUser(email, password, name string) error {
@@ -52,21 +71,62 @@ func (s *Service) Login(email, password string) (string, *models.User, error) {
 	var user models.User
 	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[auth] login user not found email=%s", email)
 			return "", nil, errors.New("invalid credentials")
 		}
+		log.Printf("[auth] login db error email=%s: %v", email, err)
 		return "", nil, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		log.Printf("[auth] login password mismatch email=%s", email)
 		return "", nil, errors.New("invalid credentials")
 	}
 
 	token, err := s.generateToken(user.ID)
 	if err != nil {
+		log.Printf("[auth] login token error email=%s user_id=%s: %v", email, user.ID, err)
 		return "", nil, err
 	}
 
 	return token, &user, nil
+}
+
+func (s *Service) EnsureUserFromFash(id uuid.UUID, email string) error {
+	var user models.User
+	err := s.db.First(&user, "id = ?", id).Error
+	if err == nil {
+		updates := map[string]any{}
+		if email != "" && user.Email != email {
+			updates["email"] = email
+		}
+		if len(updates) == 0 {
+			return nil
+		}
+		return s.db.Model(&user).Updates(updates).Error
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	name := "User"
+	if email != "" {
+		parts := strings.Split(email, "@")
+		if parts[0] != "" {
+			name = parts[0]
+		}
+	}
+
+	return s.db.Create(&models.User{
+		ID:           id,
+		Email:        email,
+		PasswordHash: "!",
+		Name:         name,
+	}).Error
+}
+
+func (s *Service) ParseFashToken(tokenStr string) (uuid.UUID, string, error) {
+	return parseFashToken(tokenStr, s.fashAuth.JWTSecret, s.fashAuth.JWTIssuer)
 }
 
 func (s *Service) GetUser(id uuid.UUID) (*models.User, error) {

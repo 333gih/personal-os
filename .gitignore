@@ -8,6 +8,7 @@ frontend/out/
 .env
 docker/.env
 backend/.env
+frontend/.env.local
 
 # Go
 backend/server
