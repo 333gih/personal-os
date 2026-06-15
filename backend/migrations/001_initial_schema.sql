@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     name VARCHAR(255) DEFAULT '',
-    CONSTRAINT users_email_key UNIQUE (email),
+    CONSTRAINT uni_users_email UNIQUE (email),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
