@@ -106,10 +106,10 @@ pipeline {
                             -e CGO_ENABLED=0 \\
                             -e GO111MODULE=on \\
                             -v go-mod-cache-personal-os:/go/pkg/mod \\
-                            -v "\${WORKSPACE}/backend:/app" \\
+                            -v "${env.WORKSPACE}/backend:/app" \\
                             -w /app \\
                             golang:1.24-bookworm \\
-                            bash -ec 'set -e; go test ./... -count=1; go vet ./...'
+                            bash -ec \"set -e; echo '=== backend (expect go.mod) ==='; ls -la; if [ ! -f go.mod ]; then echo 'ERROR: backend/go.mod missing — push go.mod and go.sum to ${params.GIT_BRANCH}'; exit 2; fi; go mod download; go test ./... -count=1; go vet ./...\"
                     """
                 }
             }
@@ -156,7 +156,7 @@ pipeline {
                     )]) {
                         sh """#!/usr/bin/env bash
                             set -eo pipefail
-                            FE_ENV_LF="\${WORKSPACE}/.jenkins.fe.\${BUILD_NUMBER}.env"
+                            FE_ENV_LF="${env.WORKSPACE}/.jenkins.fe.${env.BUILD_NUMBER}.env"
                             cleanup() { rm -f "\${FE_ENV_LF}" || true; }
                             trap cleanup EXIT
                             # Jenkins secret files edited on Windows often have CRLF — strip before source/build.
@@ -212,8 +212,8 @@ pipeline {
                     ]) {
                         sh """#!/usr/bin/env bash
                             set -eo pipefail
-                            API_ENV_LF="\${WORKSPACE}/.jenkins.api.\${BUILD_NUMBER}.env"
-                            FE_ENV_LF="\${WORKSPACE}/.jenkins.fe.\${BUILD_NUMBER}.env"
+                            API_ENV_LF="${env.WORKSPACE}/.jenkins.api.${env.BUILD_NUMBER}.env"
+                            FE_ENV_LF="${env.WORKSPACE}/.jenkins.fe.${env.BUILD_NUMBER}.env"
                             cleanup() { rm -f "\${API_ENV_LF}" "\${FE_ENV_LF}" || true; }
                             trap cleanup EXIT
                             # Strip BOM/CRLF (Windows-edited Jenkins secrets break \`source\` and docker --env-file).
@@ -245,7 +245,7 @@ pipeline {
                                     -e POSTGRES_PASSWORD="\${POSTGRES_DATABASE_PASSWORD}" \\
                                     -e POSTGRES_DB="\${POSTGRES_DATABASE_NAME}" \\
                                     -v ${pgVolume}:/var/lib/postgresql/data \\
-                                    -v "\${WORKSPACE}/backend/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro" \\
+                                    -v "${env.WORKSPACE}/backend/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro" \\
                                     pgvector/pgvector:pg17
 
                                 for i in \$(seq 1 30); do
