@@ -78,7 +78,23 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                cleanWs()
+                // Deferred wipeout leaves root-owned backend/frontend from prior docker bind mounts.
+                cleanWs(deleteDirs: true, disableDeferredWipeout: true)
+                sh """#!/usr/bin/env bash
+                    set -eo pipefail
+                    ws="${env.WORKSPACE}"
+                    purge_docker_mount_dirs() {
+                        docker run --rm -v "\${ws}:/workspace" alpine \\
+                            sh -c 'rm -rf /workspace/backend /workspace/frontend' || true
+                    }
+                    verify_source_tree() {
+                        test -f backend/go.mod || { echo 'ERROR: backend/go.mod missing after checkout'; exit 2; }
+                        test -f frontend/package.json || { echo 'ERROR: frontend/package.json missing after checkout'; exit 2; }
+                        echo '=== backend (post-checkout) ==='
+                        ls -la backend/ | head -20
+                    }
+                    purge_docker_mount_dirs
+                """
                 git(
                     branch: params.GIT_BRANCH,
                     url: env.GIT_REPO,
@@ -89,22 +105,23 @@ pipeline {
                         script: 'git rev-parse --short=8 HEAD',
                         returnStdout: true
                     ).trim()
-                    // Prior docker bind mounts can leave root-owned empty backend/ or frontend/;
-                    // cleanWs deferred wipeout may not remove them, so git checkout skips those paths.
+                    // Always re-checkout backend/frontend: git skips paths blocked by root-owned empty dirs.
                     sh """#!/usr/bin/env bash
                         set -eo pipefail
-                        restore_tree_if_missing() {
-                            local rel="\$1" marker="\$2"
-                            if [ -f "\${rel}/\${marker}" ]; then
-                                return 0
-                            fi
-                            echo "[WARN] \${rel}/\${marker} missing — removing stale \${rel}/ and restoring from git"
-                            docker run --rm -v "${env.WORKSPACE}:/workspace" alpine sh -ce "rm -rf /workspace/\${rel}"
-                            git checkout HEAD -- "\${rel}/"
-                            test -f "\${rel}/\${marker}"
+                        ws="${env.WORKSPACE}"
+                        purge_docker_mount_dirs() {
+                            docker run --rm -v "\${ws}:/workspace" alpine \\
+                                sh -c 'rm -rf /workspace/backend /workspace/frontend'
                         }
-                        restore_tree_if_missing backend go.mod
-                        restore_tree_if_missing frontend package.json
+                        verify_source_tree() {
+                            test -f backend/go.mod || { echo 'ERROR: backend/go.mod missing after checkout'; exit 2; }
+                            test -f frontend/package.json || { echo 'ERROR: frontend/package.json missing after checkout'; exit 2; }
+                            echo '=== backend (post-checkout) ==='
+                            ls -la backend/ | head -20
+                        }
+                        purge_docker_mount_dirs
+                        git checkout HEAD -- backend/ frontend/
+                        verify_source_tree
                     """
                     echo "✅ Checked out ${params.GIT_BRANCH} @ ${env.SHORT_COMMIT}"
                 }
@@ -117,6 +134,16 @@ pipeline {
             }
             steps {
                 script {
+                    sh """#!/usr/bin/env bash
+                        set -eo pipefail
+                        test -f backend/go.mod || {
+                            echo '[WARN] backend/go.mod missing before test — restoring from git'
+                            docker run --rm -v "${env.WORKSPACE}:/workspace" alpine \\
+                                sh -c 'rm -rf /workspace/backend'
+                            git checkout HEAD -- backend/
+                        }
+                        test -f backend/go.mod
+                    """
                     sh 'docker volume create go-mod-cache-personal-os 2>/dev/null || true'
                     sh """
                         docker run --rm \\
