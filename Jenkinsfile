@@ -263,7 +263,6 @@ pipeline {
                             env_get() {
                                 local key="\$1" file="\$2" val=""
                                 val=\$(grep -E "^\${key}=" "\$file" 2>/dev/null | head -1 | cut -d= -f2- || true)
-                                val="\${val%\"}"; val="\${val#\"}"; val="\${val%\'}"; val="\${val#\'}"
                                 printf '%s' "\$val"
                             }
                             env_get_first() {
