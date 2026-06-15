@@ -261,14 +261,40 @@ pipeline {
                             # Do not source env files — unquoted values with spaces (e.g. APP_DESCRIPTION)
                             # break bash; docker --env-file handles them correctly.
                             env_get() {
-                                local key="\$1" file="\$2"
-                                grep -E "^\${key}=" "\$file" 2>/dev/null | head -1 | cut -d= -f2-
+                                local key="\$1" file="\$2" val=""
+                                val=\$(grep -E "^\${key}=" "\$file" 2>/dev/null | head -1 | cut -d= -f2- || true)
+                                val="\${val%\"}"; val="\${val#\"}"; val="\${val%\'}"; val="\${val#\'}"
+                                printf '%s' "\$val"
                             }
-                            POSTGRES_DATABASE_USER="\$(env_get POSTGRES_DATABASE_USER "\${API_ENV_LF}")"
-                            POSTGRES_DATABASE_PASSWORD="\$(env_get POSTGRES_DATABASE_PASSWORD "\${API_ENV_LF}")"
-                            POSTGRES_DATABASE_NAME="\$(env_get POSTGRES_DATABASE_NAME "\${API_ENV_LF}")"
-                            test -n "\${POSTGRES_DATABASE_USER}" && test -n "\${POSTGRES_DATABASE_PASSWORD}" && test -n "\${POSTGRES_DATABASE_NAME}" \\
-                                || { echo '[ERROR] POSTGRES_DATABASE_* missing in API env file'; exit 1; }
+                            env_get_first() {
+                                local file="\$1"; shift
+                                local key val
+                                for key in "\$@"; do
+                                    val="\$(env_get "\$key" "\$file")"
+                                    if [ -n "\$val" ]; then
+                                        printf '%s' "\$val"
+                                        return 0
+                                    fi
+                                done
+                                return 0
+                            }
+
+                            echo "[INFO] Loading deploy env files..."
+                            POSTGRES_DATABASE_USER="\$(env_get_first "\${API_ENV_LF}" POSTGRES_DATABASE_USER POSTGRES_USER)"
+                            POSTGRES_DATABASE_PASSWORD="\$(env_get_first "\${API_ENV_LF}" POSTGRES_DATABASE_PASSWORD POSTGRES_PASSWORD)"
+                            POSTGRES_DATABASE_NAME="\$(env_get_first "\${API_ENV_LF}" POSTGRES_DATABASE_NAME POSTGRES_DB)"
+                            if [ -z "\${POSTGRES_DATABASE_USER}" ]; then
+                                echo '[ERROR] POSTGRES_DATABASE_USER (or POSTGRES_USER) missing in API env file'
+                                exit 1
+                            fi
+                            if [ -z "\${POSTGRES_DATABASE_PASSWORD}" ]; then
+                                echo '[ERROR] POSTGRES_DATABASE_PASSWORD (or POSTGRES_PASSWORD) missing in API env file'
+                                exit 1
+                            fi
+                            if [ -z "\${POSTGRES_DATABASE_NAME}" ]; then
+                                echo '[ERROR] POSTGRES_DATABASE_NAME (or POSTGRES_DB) missing in API env file'
+                                exit 1
+                            fi
                             KAFKA_BROKER="\$(env_get KAFKA_BROKER "\${API_ENV_LF}")"
                             KAFKA_BROKERS="\$(env_get KAFKA_BROKERS "\${API_ENV_LF}")"
 
@@ -286,9 +312,8 @@ pipeline {
                                 pgInitVol="personal-os-pg-init-${params.ENVIRONMENT}"
                                 docker volume create "\${pgInitVol}" 2>/dev/null || true
                                 # Stream migration SQL (avoid WORKSPACE bind-mount — Jenkins-in-Docker).
-                                docker run --rm -i -v "\${pgInitVol}:/initdb" alpine \\
-                                    sh -c 'cat > /initdb/001_schema.sql' \\
-                                    < backend/migrations/001_initial_schema.sql
+                                tar -cC backend/migrations 001_initial_schema.sql | docker run --rm -i -v "\${pgInitVol}:/initdb" alpine \\
+                                    sh -c 'tar -xC /initdb && mv /initdb/001_initial_schema.sql /initdb/001_schema.sql'
                                 echo "[INFO] [1/3] Starting PostgreSQL: ${pgContainer}"
                                 docker run -d \\
                                     --name ${pgContainer} \\

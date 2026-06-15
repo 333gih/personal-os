@@ -6,6 +6,7 @@
 #
 # Values with spaces MUST be quoted, e.g. APP_DESCRIPTION="Personal OS API"
 # Jenkins deploy reads POSTGRES_* via grep (does not shell-source the file).
+# Accepted keys: POSTGRES_DATABASE_USER | POSTGRES_USER, etc.
 # Used by Jenkinsfile for:
 #   • personal-os-api-app-{env}  (--env-file)
 #   • personal-os-pg-{env}       (POSTGRES_DATABASE_* at deploy)
