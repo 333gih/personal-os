@@ -6,8 +6,8 @@ frontend/out/
 
 # Environment
 .env
-docker/.env
-backend/.env
+docker/.env*
+backend/.env*
 frontend/.env.local
 
 # Go
