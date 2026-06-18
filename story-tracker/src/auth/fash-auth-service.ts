@@ -5,45 +5,11 @@ import type {
   FashOtpVerifyRequest,
   FashTokenResponse,
 } from './fash-types';
-import { getApplicationId, joinAuthUrl } from './auth-api-config';
+import { getApplicationId } from './auth-api-config';
+import { postAuthJson } from './auth-http';
 import { clientChannelForMode } from './channels';
 import type { AuthMode } from './types';
 import { lockedRefresh } from './locked-refresh';
-
-async function postAuthJson<T>(path: string, body: unknown): Promise<T> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), __API_TIMEOUT__);
-
-  try {
-    const response = await fetch(joinAuthUrl(path), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-
-    const text = await response.text();
-    let json: unknown;
-    try {
-      json = text ? JSON.parse(text) : undefined;
-    } catch {
-      json = undefined;
-    }
-
-    if (!response.ok) {
-      const err = json as { message?: string; error?: string; detail?: string } | undefined;
-      const message = err?.message ?? err?.error ?? err?.detail ?? `Auth request failed (${response.status})`;
-      throw new Error(message);
-    }
-
-    return json as T;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 export class FashAuthService {
   async login(email: string, password: string, mode: AuthMode): Promise<FashTokenResponse> {

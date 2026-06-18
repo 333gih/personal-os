@@ -38,4 +38,13 @@ export interface SyncStatus {
   lastSyncAt: number | null;
   pendingCount: number;
   lastError?: string;
+  /** Browser connectivity; enriched at read time in the background script. */
+  online?: boolean;
+}
+
+export interface SyncNowResult {
+  synced: number;
+  failed: number;
+  pushedLatest: boolean;
+  error?: string;
 }

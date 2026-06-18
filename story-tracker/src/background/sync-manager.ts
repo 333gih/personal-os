@@ -28,7 +28,7 @@ export class SyncManager {
     });
 
     onConnectivityChange((online) => {
-      if (online) void syncService.flushQueue();
+      if (online) void syncService.syncNow();
     });
 
     browser.tabs.onActivated.addListener(({ tabId }) => {
@@ -51,7 +51,7 @@ export class SyncManager {
     });
 
     void registerKnownContentScripts();
-    void pullRemoteProgress();
+    void pullRemoteProgress().then(() => syncService.syncNow());
 
     logger.info('Sync manager initialized');
   }
@@ -59,7 +59,7 @@ export class SyncManager {
   private startSyncInterval(intervalMs: number): void {
     if (this.syncInterval) clearInterval(this.syncInterval);
     this.syncInterval = setInterval(() => {
-      void syncService.flushQueue();
+      void syncService.syncNow();
     }, intervalMs);
   }
 
@@ -82,7 +82,7 @@ export class SyncManager {
           );
 
         case MESSAGE_TYPES.SYNC_NOW:
-          return { success: true, data: await syncService.flushQueue() };
+          return { success: true, data: await syncService.syncNow() };
 
         case MESSAGE_TYPES.LOGIN:
           return {
@@ -116,11 +116,21 @@ export class SyncManager {
           await authService.logout();
           return { success: true };
 
-        case MESSAGE_TYPES.GET_AUTH_STATE:
-          return { success: true, data: await authService.getAuthState() };
+        case MESSAGE_TYPES.PING:
+          return { success: true, data: { ok: true } };
 
-        case MESSAGE_TYPES.GET_SYNC_STATUS:
-          return { success: true, data: await storageService.getSyncStatus() };
+        case MESSAGE_TYPES.GET_AUTH_STATE: {
+          await authService.ensureSession();
+          return { success: true, data: await authService.getAuthState() };
+        }
+
+        case MESSAGE_TYPES.GET_SYNC_STATUS: {
+          const syncStatus = await storageService.getSyncStatus();
+          return {
+            success: true,
+            data: { ...syncStatus, online: navigator.onLine },
+          };
+        }
 
         case MESSAGE_TYPES.GET_READING_HISTORY:
           return { success: true, data: await storageService.getReadingHistory() };
@@ -184,7 +194,7 @@ export class SyncManager {
     }
 
     if (info.isUnload || forceFlush) {
-      await syncService.flushQueue();
+      await syncService.syncNow();
     }
 
     return { success: true, data: { synced } };

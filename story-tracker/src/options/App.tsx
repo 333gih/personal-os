@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
+import { BrandLogo } from '../components/BrandLogo';
 import { useActionFeedback } from '../hooks/useActionFeedback';
 import { SUPPORTED_SITES } from '../shared/constants';
 import { storageService } from '../storage/storage-service';
@@ -56,7 +57,7 @@ export function App() {
     <div className="options-container">
       <header className="options-header">
         <div className="options-header__brand">
-          <span className="options-header__logo">ST</span>
+          <BrandLogo size={44} className="options-header__logo" />
           <div>
             <h1>Story Tracker Settings</h1>
             <p>Reading sync & site preferences</p>

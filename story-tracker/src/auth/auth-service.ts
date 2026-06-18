@@ -1,7 +1,13 @@
 import type { AuthMode, AuthState, LoginCredentials, RegisterCredentials } from './types';
 import type { FashTokenResponse } from './fash-types';
+import { AuthRequestError } from './auth-request-error';
 import { fashAuthService } from './fash-auth-service';
 import { isAccessTokenExpired, isAdminFromToken, userFromToken } from './jwt';
+import {
+  canUseStoredAccessToken,
+  isRefreshTokenValid,
+  shouldRefreshAccessToken,
+} from './session-utils';
 import { getApplicationId } from './auth-api-config';
 import { storageService } from '../storage/storage-service';
 import { logger } from '../utils/logger';
@@ -69,16 +75,57 @@ export class AuthService {
     return storageService.getAuth();
   }
 
+  /** Proactively refresh tokens when needed; returns whether a usable session exists. */
+  async ensureSession(): Promise<boolean> {
+    const auth = await storageService.getAuth();
+    if (!auth) return false;
+
+    if (!isRefreshTokenValid(auth)) {
+      await storageService.setAuth(null);
+      logger.info('Refresh token expired — session cleared');
+      return false;
+    }
+
+    if (!shouldRefreshAccessToken(auth)) {
+      return true;
+    }
+
+    const refreshed = await this.refreshTokens();
+    if (refreshed) return true;
+
+    const current = await storageService.getAuth();
+    return current !== null && canUseStoredAccessToken(current);
+  }
+
   async getValidAccessToken(): Promise<string | null> {
     const auth = await storageService.getAuth();
     if (!auth) return null;
 
-    if (!isAccessTokenExpired(auth.tokens.accessToken)) {
+    if (!isRefreshTokenValid(auth)) {
+      await storageService.setAuth(null);
+      return null;
+    }
+
+    if (!shouldRefreshAccessToken(auth)) {
       return auth.tokens.accessToken;
     }
 
     const refreshed = await this.refreshTokens();
-    return refreshed?.tokens.accessToken ?? null;
+    if (refreshed) {
+      return refreshed.tokens.accessToken;
+    }
+
+    const current = await storageService.getAuth();
+    if (current && canUseStoredAccessToken(current)) {
+      logger.warn('Using stored access token while refresh is temporarily unavailable');
+      return current.tokens.accessToken;
+    }
+
+    if (current && !isAccessTokenExpired(current.tokens.accessToken, 0)) {
+      return current.tokens.accessToken;
+    }
+
+    return null;
   }
 
   async refreshTokens(): Promise<AuthState | null> {
@@ -93,22 +140,32 @@ export class AuthService {
   }
 
   async isAuthenticated(): Promise<boolean> {
-    const token = await this.getValidAccessToken();
-    return token !== null;
+    return this.ensureSession();
   }
 
   private async doRefresh(): Promise<AuthState | null> {
     const auth = await storageService.getAuth();
     if (!auth) return null;
 
+    if (!isRefreshTokenValid(auth)) {
+      await storageService.setAuth(null);
+      return null;
+    }
+
     try {
       const response = await fashAuthService.refresh(auth.tokens.refreshToken, auth.mode);
       const updated = this.buildAuthState(response, auth.mode);
       await storageService.setAuth(updated);
+      logger.info('Access token refreshed', { email: updated.user.email });
       return updated;
     } catch (error) {
-      logger.error('Token refresh failed, logging out', error);
-      await storageService.setAuth(null);
+      if (error instanceof AuthRequestError && error.isAuthError) {
+        logger.error('Refresh token rejected — logging out', error);
+        await storageService.setAuth(null);
+        return null;
+      }
+
+      logger.warn('Token refresh failed (session kept for retry)', error);
       return null;
     }
   }
@@ -128,6 +185,8 @@ export class AuthService {
   private buildAuthState(tokens: FashTokenResponse, mode: AuthMode): AuthState {
     const user = userFromToken(tokens.access_token);
     const now = Date.now();
+    const accessExpiresIn = Math.max(60, tokens.expires_in);
+    const refreshExpiresIn = Math.max(3600, tokens.refresh_expires_in);
 
     return {
       mode,
@@ -135,8 +194,8 @@ export class AuthService {
       tokens: {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
-        expiresAt: now + tokens.expires_in * 1000,
-        refreshExpiresAt: now + tokens.refresh_expires_in * 1000,
+        expiresAt: now + accessExpiresIn * 1000,
+        refreshExpiresAt: now + refreshExpiresIn * 1000,
       },
       user: {
         ...user,

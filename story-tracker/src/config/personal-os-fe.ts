@@ -30,8 +30,5 @@ export function buildExtensionConnectUrl(nonce: string): string {
 
 export function personalOsFeConnectMatches(): string[] {
   const origin = getPersonalOsFeOrigin();
-  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-    return [`${origin}/extension/connect*`];
-  }
   return [`${origin}/extension/connect*`];
 }

@@ -24,7 +24,7 @@
     "page": "src/options/index.html",
     "open_in_tab": true
   },
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "alarms"],
   "content_scripts": [],
   "browser_specific_settings": {
     "gecko": {

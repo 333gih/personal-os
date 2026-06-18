@@ -43,6 +43,13 @@ export class OfflineQueue {
     await this.updatePendingCount();
   }
 
+  async removeByStoryId(storyId: string): Promise<void> {
+    await storageService.update('unsyncedEvents', (events) =>
+      events.filter((e) => e.payload.storyId !== storyId),
+    );
+    await this.updatePendingCount();
+  }
+
   async peek(): Promise<UnsyncedEvent[]> {
     return storageService.getUnsyncedEvents();
   }

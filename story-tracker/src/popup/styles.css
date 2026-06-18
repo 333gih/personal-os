@@ -32,17 +32,11 @@ body {
 }
 
 .popup__logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--st-primary), #8b5cf6);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  object-fit: contain;
+  background: #000;
   flex-shrink: 0;
   box-shadow: var(--st-shadow-sm);
 }

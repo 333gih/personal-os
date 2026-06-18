@@ -1,68 +1,41 @@
 /**
- * Generates minimal solid-color PNG icons for the extension.
+ * Generates extension toolbar/store icons from public/icons/icon-source.png.
  * Run: node scripts/generate-icons.mjs
  */
-import { writeFileSync, mkdirSync } from 'fs';
+import { mkdirSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { deflateSync } from 'zlib';
+import sharp from 'sharp';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(__dirname, '../public/icons');
+const sourcePath = resolve(outDir, 'icon-source.png');
+
 mkdirSync(outDir, { recursive: true });
 
-function createPng(size, r, g, b) {
-  const raw = [];
-  for (let y = 0; y < size; y++) {
-    raw.push(0);
-    for (let x = 0; x < size; x++) {
-      raw.push(r, g, b, 255);
-    }
-  }
-
-  const compressed = deflateSync(Buffer.from(raw));
-
-  function crc32(buf) {
-    let c = 0xffffffff;
-    for (let i = 0; i < buf.length; i++) {
-      c ^= buf[i];
-      for (let j = 0; j < 8; j++) {
-        c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-      }
-    }
-    return (c ^ 0xffffffff) >>> 0;
-  }
-
-  function chunk(type, data) {
-    const typeBuf = Buffer.from(type);
-    const len = Buffer.alloc(4);
-    len.writeUInt32BE(data.length);
-    const crcBuf = Buffer.alloc(4);
-    const crcData = Buffer.concat([typeBuf, data]);
-    crcBuf.writeUInt32BE(crc32(crcData));
-    return Buffer.concat([len, typeBuf, data, crcBuf]);
-  }
-
-  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 6;
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
-
-  return Buffer.concat([
-    signature,
-    chunk('IHDR', ihdr),
-    chunk('IDAT', compressed),
-    chunk('IEND', Buffer.alloc(0)),
-  ]);
+if (!existsSync(sourcePath)) {
+  console.warn('[generate-icons] icon-source.png not found — skipping');
+  process.exit(0);
 }
 
-for (const size of [16, 48, 128]) {
-  const png = createPng(size, 99, 102, 241);
-  writeFileSync(resolve(outDir, `icon-${size}.png`), png);
-  console.log(`Created icon-${size}.png`);
+/** Book + flag region (omit small "Personal OS" text for toolbar clarity). */
+const TOOLBAR_CROP = { left: 80, top: 40, width: 864, height: 720 };
+
+async function writeIcon(size, crop) {
+  let pipeline = sharp(sourcePath);
+  if (crop) {
+    pipeline = pipeline.extract(crop);
+  }
+  await pipeline
+    .resize(size, size, {
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 1 },
+    })
+    .png()
+    .toFile(resolve(outDir, `icon-${size}.png`));
+  console.log(`[generate-icons] icon-${size}.png`);
 }
+
+await writeIcon(16, TOOLBAR_CROP);
+await writeIcon(48, TOOLBAR_CROP);
+await writeIcon(128, null);

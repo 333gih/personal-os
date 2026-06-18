@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import browser from 'webextension-polyfill';
 import { ActionButton } from '../components/ActionButton';
+import { BrandLogo } from '../components/BrandLogo';
 import { useAuth } from '../hooks/useAuth';
 import { useReadingState } from '../hooks/useReadingState';
 import { useSyncStatus } from '../hooks/useSyncStatus';
@@ -38,11 +39,11 @@ export function App() {
 
   useEffect(() => {
     if (saveAction.isError) setToast('Could not save on this page.');
-    else if (syncAction.isError) setToast('Sync failed. Check login or network.');
+    else if (syncAction.isError) setToast(status.lastError ?? 'Sync failed. Check login or network.');
     else if (saveAction.isSuccess) setToast('Progress saved.');
     else if (syncAction.isSuccess) setToast('Synced to Personal OS.');
     else setToast(null);
-  }, [saveAction.isError, saveAction.isSuccess, syncAction.isError, syncAction.isSuccess]);
+  }, [saveAction.isError, saveAction.isSuccess, syncAction.isError, syncAction.isSuccess, status.lastError]);
 
   const handleSync = () => {
     void syncAction.run(async () => {
@@ -67,9 +68,7 @@ export function App() {
       <div className="popup">
         <header className="popup__header">
           <div className="popup__brand">
-            <span className="popup__logo" aria-hidden>
-              ST
-            </span>
+            <BrandLogo size={40} className="popup__logo" />
             <div>
               <h1 className="popup__title">Story Tracker</h1>
               <p className="popup__subtitle">Personal OS reading sync</p>
@@ -114,9 +113,7 @@ export function App() {
     <div className="popup">
       <header className="popup__header">
         <div className="popup__brand">
-          <span className="popup__logo" aria-hidden>
-            ST
-          </span>
+          <BrandLogo size={40} className="popup__logo" />
           <div>
             <h1 className="popup__title">Story Tracker</h1>
             <p className="popup__subtitle">{auth.user.email}</p>
@@ -129,10 +126,11 @@ export function App() {
 
       <div className="popup__toolbar">
         <span className={`st-badge ${modeBadge}`}>{auth.mode}</span>
-        <span className={`st-badge ${status.online ? 'st-badge--online' : 'st-badge--offline'}`}>
-          <span className={`status-dot ${status.online ? 'online' : 'offline'}`} />
-          {status.online ? 'Online' : 'Offline'}
+        <span className={`st-badge ${status.online !== false ? 'st-badge--online' : 'st-badge--offline'}`}>
+          <span className={`status-dot ${status.online !== false ? 'online' : 'offline'}`} />
+          {status.online !== false ? 'Online' : 'Offline'}
           {status.pendingCount > 0 ? ` · ${status.pendingCount} pending` : ''}
+          {status.lastError && status.state === 'error' ? ' · sync error' : ''}
         </span>
         <button type="button" className="link-btn" onClick={() => void logout()}>
           Log out
@@ -201,7 +199,7 @@ export function App() {
           success={syncAction.isSuccess}
           loadingLabel="Syncing…"
           successLabel="Synced"
-          disabled={!status.online && !syncAction.isLoading}
+          disabled={status.online === false && !syncAction.isLoading}
           onClick={handleSync}
         >
           Sync

@@ -8,11 +8,23 @@ vi.mock('webextension-polyfill', () => ({
         get: vi.fn().mockResolvedValue({}),
         remove: vi.fn().mockResolvedValue(undefined),
       },
+      local: {
+        set: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn().mockResolvedValue({}),
+        remove: vi.fn().mockResolvedValue(undefined),
+      },
+    },
+    scripting: {
+      executeScript: vi.fn().mockResolvedValue([]),
     },
     tabs: {
       create: vi.fn(),
       remove: vi.fn().mockResolvedValue(undefined),
       onRemoved: {
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      },
+      onUpdated: {
         addListener: vi.fn(),
         removeListener: vi.fn(),
       },

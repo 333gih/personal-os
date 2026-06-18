@@ -21,6 +21,8 @@ export function useAuth() {
 
   useEffect(() => {
     void refresh();
+    const interval = setInterval(() => void refresh(), 60_000);
+    return () => clearInterval(interval);
   }, [refresh]);
 
   useEffect(() => {

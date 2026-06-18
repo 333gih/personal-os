@@ -27,16 +27,11 @@ body {
 }
 
 .options-header__logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--st-primary), #8b5cf6);
-  color: #fff;
-  font-weight: 800;
-  font-size: 14px;
+  object-fit: contain;
+  background: #000;
 }
 
 .options-header h1 {

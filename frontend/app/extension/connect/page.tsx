@@ -19,9 +19,19 @@ type HandoffPayload = {
   nonce: string | null;
 };
 
+const HANDOFF_NONCE_STORAGE_KEY = "story_tracker_handoff_nonce";
+const HANDOFF_DEADLINE_MS = 90_000;
+
 function deliverHandoff(payload: HandoffPayload): Promise<void> {
   return new Promise((resolve, reject) => {
-    const deadline = Date.now() + 30_000;
+    const deadline = Date.now() + HANDOFF_DEADLINE_MS;
+    let bridgeReady = false;
+
+    const onBridgeReady = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if ((event.data as { type?: string })?.type !== "STORY_TRACKER_BRIDGE_READY") return;
+      bridgeReady = true;
+    };
 
     const onAck = (event: MessageEvent) => {
       if (event.source !== window || event.origin !== window.location.origin) return;
@@ -36,7 +46,9 @@ function deliverHandoff(payload: HandoffPayload): Promise<void> {
         cleanup();
         reject(
           new Error(
-            "Story Tracker did not pick up the session. Reload the extension in about:debugging and try again.",
+            bridgeReady
+              ? "Story Tracker could not complete sign-in. Reload the extension in about:debugging, then try again."
+              : "Story Tracker extension is not active on this page. Reload the extension in about:debugging, rebuild with matching PERSONAL_OS_FE_URL (use npm run build:firefox:dev:local for Docker localhost:3000), then try again.",
           ),
         );
       }
@@ -47,8 +59,10 @@ function deliverHandoff(payload: HandoffPayload): Promise<void> {
     function cleanup() {
       window.clearInterval(interval);
       window.removeEventListener("message", onAck);
+      window.removeEventListener("message", onBridgeReady);
     }
 
+    window.addEventListener("message", onBridgeReady);
     window.addEventListener("message", onAck);
     tick();
   });
@@ -68,7 +82,15 @@ function ExtensionConnectInner() {
     if (startedRef.current) return;
     startedRef.current = true;
 
-    const nonce = searchParams.get("nonce");
+    const nonceFromUrl = searchParams.get("nonce");
+    const nonceFromStorage =
+      typeof window !== "undefined"
+        ? window.sessionStorage.getItem(HANDOFF_NONCE_STORAGE_KEY)
+        : null;
+    const nonce = nonceFromUrl ?? nonceFromStorage;
+    if (nonce && typeof window !== "undefined") {
+      window.sessionStorage.setItem(HANDOFF_NONCE_STORAGE_KEY, nonce);
+    }
     const nextPath = `/extension/connect${nonce ? `?nonce=${encodeURIComponent(nonce)}` : ""}`;
 
     async function run() {
@@ -105,6 +127,9 @@ function ExtensionConnectInner() {
           setStatus("waiting");
         });
         await deliverHandoff(payload);
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem(HANDOFF_NONCE_STORAGE_KEY);
+        }
         setStatus("done");
       } catch (e) {
         setStatus("error");

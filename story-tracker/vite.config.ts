@@ -33,16 +33,92 @@ function loadSiteRegistryHostPatterns(): string[] {
   return registry.sites.flatMap((site) => site.hostPatterns);
 }
 
-function loadHostPermissions(env: Record<string, string>): string[] {
+function isLocalDevHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
+/** Firefox/WebExtension match patterns do not allow port wildcards (`localhost:*`). */
+function connectMatchForOrigin(origin: string): string | null {
+  try {
+    const url = new URL(origin);
+    const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+    if (port === '80' || port === '443') {
+      return `${url.protocol}//${url.hostname}/extension/connect*`;
+    }
+    return `${url.protocol}//${url.hostname}:${port}/extension/connect*`;
+  } catch {
+    return null;
+  }
+}
+
+function localDevConnectMatches(env: Record<string, string>): string[] {
+  const patterns = new Set<string>();
+  const fromEnv = connectMatchForOrigin(personalOsFeOrigin(env));
+  if (fromEnv) patterns.add(fromEnv);
+
+  // Docker / Next.js common ports (explicit — no `:*` wildcards).
+  for (const port of ['3000', '3001', '5173', '8080']) {
+    patterns.add(`http://localhost:${port}/extension/connect*`);
+    patterns.add(`http://127.0.0.1:${port}/extension/connect*`);
+  }
+
+  return [...patterns];
+}
+
+function loadPersonalOsFeConnectMatches(env: Record<string, string>, target: string): string[] {
+  const origin = personalOsFeOrigin(env);
+  const patterns = new Set<string>();
+
+  const primary = connectMatchForOrigin(origin);
+  if (primary) patterns.add(primary);
+  else patterns.add(`${origin}/extension/connect*`);
+
+  const isDevTarget = target === 'firefox-dev';
+  let isLocalFe = false;
+  try {
+    isLocalFe = isLocalDevHost(new URL(origin).hostname);
+  } catch {
+    isLocalFe = false;
+  }
+
+  if (isDevTarget || isLocalFe) {
+    for (const match of localDevConnectMatches(env)) {
+      patterns.add(match);
+    }
+  }
+
+  return [...patterns];
+}
+
+function loadHostPermissions(env: Record<string, string>, target: string): string[] {
   const api = loadJsonFile<{ apiHostPermissions: string[] }>(
     resolve(__dirname, 'public/manifest/api-host-permissions.json'),
     { apiHostPermissions: [] },
   );
-  return [...loadSiteRegistryHostPatterns(), ...api.apiHostPermissions, `${personalOsFeOrigin(env)}/*`];
-}
+  const feOrigin = personalOsFeOrigin(env);
+  const permissions = [
+    ...loadSiteRegistryHostPatterns(),
+    ...api.apiHostPermissions,
+    `${feOrigin}/*`,
+  ];
 
-function loadPersonalOsFeConnectMatches(env: Record<string, string>): string[] {
-  return [`${personalOsFeOrigin(env)}/extension/connect*`];
+  const isDevTarget = target === 'firefox-dev';
+  let isLocalFe = false;
+  try {
+    isLocalFe = isLocalDevHost(new URL(feOrigin).hostname);
+  } catch {
+    isLocalFe = false;
+  }
+
+  if (isDevTarget || isLocalFe) {
+    // Host permissions: omitted port matches any port on that host.
+    permissions.push('http://localhost/*', 'http://127.0.0.1/*');
+    for (const port of ['3000', '3001', '5173', '8080']) {
+      permissions.push(`http://localhost:${port}/*`, `http://127.0.0.1:${port}/*`);
+    }
+  }
+
+  return [...new Set(permissions)];
 }
 
 export default defineConfig(({ mode }) => {
@@ -56,9 +132,9 @@ export default defineConfig(({ mode }) => {
     ),
   );
 
-  const hostPermissions = loadHostPermissions(env);
+  const hostPermissions = loadHostPermissions(env, target);
   const storyMatches = loadSiteRegistryHostPatterns();
-  const connectMatches = loadPersonalOsFeConnectMatches(env);
+  const connectMatches = loadPersonalOsFeConnectMatches(env, target);
 
   const manifest = {
     ...baseManifest,
