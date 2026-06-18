@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Story Tracker",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Automatically track and sync your reading progress across novel and manga websites.",
   "icons": {
     "16": "icons/icon-16.png",
@@ -29,7 +29,17 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "story-tracker@personal-os.local",
-      "strict_min_version": "109.0"
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteActivity",
+          "websiteContent",
+          "authenticationInfo"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
     }
   }
 }
