@@ -25,11 +25,15 @@ export class AuthService {
     return this.finalizeAuth(tokens, credentials.mode);
   }
 
-  async register(credentials: RegisterCredentials): Promise<AuthState> {
-    const tokens = await fashAuthService.register(
+  async requestOtp(email: string): Promise<{ isNewUser: boolean }> {
+    const result = await fashAuthService.requestOtp(email, 'commercial');
+    return { isNewUser: result.is_new_user };
+  }
+
+  async verifyOtp(credentials: RegisterCredentials): Promise<AuthState> {
+    const tokens = await fashAuthService.verifyOtp(
       credentials.email,
-      credentials.password,
-      credentials.name,
+      credentials.otp,
       credentials.mode,
     );
     return this.finalizeAuth(tokens, credentials.mode);

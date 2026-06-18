@@ -3,6 +3,7 @@ import type { AuthMode } from '../auth/types';
 import type { ReadingInfo, ReadingSession } from '../types/reading';
 import { syncService } from '../services/sync-service';
 import { authService } from '../auth/auth-service';
+import { storageService } from '../storage/storage-service';
 import { MESSAGE_TYPES, type ExtensionMessage, type MessageResponse } from '../shared/messages';
 import { onConnectivityChange } from '../services/reading-progress-service';
 import { logger } from '../utils/logger';
@@ -78,16 +79,17 @@ export class SyncManager {
             ),
           };
 
-        case MESSAGE_TYPES.REGISTER:
+        case MESSAGE_TYPES.REQUEST_OTP: {
+          const payload = message.payload as { email: string; mode: 'commercial' };
+          const result = await authService.requestOtp(payload.email);
+          return { success: true, data: result };
+        }
+
+        case MESSAGE_TYPES.VERIFY_OTP:
           return {
             success: true,
-            data: await authService.register(
-              message.payload as {
-                email: string;
-                password: string;
-                name: string;
-                mode: 'commercial';
-              },
+            data: await authService.verifyOtp(
+              message.payload as { email: string; otp: string; mode: 'commercial' },
             ),
           };
 

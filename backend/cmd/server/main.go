@@ -11,6 +11,7 @@ import (
 	"github.com/personal-os/backend/internal/dashboard"
 	"github.com/personal-os/backend/internal/entity"
 	"github.com/personal-os/backend/internal/relation"
+	"github.com/personal-os/backend/internal/readingprogress"
 	"github.com/personal-os/backend/internal/reminder"
 	"github.com/personal-os/backend/internal/search"
 	"github.com/personal-os/backend/internal/storage"
@@ -95,6 +96,10 @@ func main() {
 
 	aiHandler := ai.NewHandler(aiSvc)
 	aiHandler.RegisterRoutes(protected.Group("/ai"))
+
+	readingProgressSvc := readingprogress.NewService(db)
+	readingProgressHandler := readingprogress.NewHandler(readingProgressSvc)
+	readingProgressHandler.RegisterRoutes(protected.Group("/reading-progress"))
 
 	reminderHandler := reminder.NewHandler(reminderSvc)
 	reminderHandler.RegisterRoutes(protected.Group("/reminders"))

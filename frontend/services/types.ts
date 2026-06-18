@@ -79,3 +79,22 @@ export interface LoginResponse {
   token: string;
   user: User;
 }
+
+export interface ReadingProgress {
+  id: string;
+  user_id: string;
+  story_id: string;
+  story_title: string;
+  chapter_id?: string;
+  chapter_title?: string;
+  current_url: string;
+  progress_percentage: number;
+  scroll_y: number;
+  reading_time_seconds: number;
+  site_id: string;
+  metadata?: Record<string, unknown>;
+  client_timestamp?: string;
+  last_read_at: string;
+  created_at: string;
+  updated_at: string;
+}

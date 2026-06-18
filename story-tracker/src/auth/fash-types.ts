@@ -2,6 +2,7 @@ export type FashLoginRequest = {
   email: string;
   password: string;
   application_id: string;
+  client_channel?: string;
 };
 
 export type FashRefreshRequest = {
@@ -14,11 +15,17 @@ export type FashLogoutRequest = {
   application_id: string;
 };
 
-export type FashRegisterRequest = {
+export type FashOtpEmailRequest = {
   email: string;
-  password: string;
   application_id: string;
-  name: string;
+  client_channel?: string;
+};
+
+export type FashOtpVerifyRequest = {
+  email: string;
+  otp: string;
+  application_id: string;
+  client_channel?: string;
 };
 
 export type FashTokenResponse = {
@@ -27,6 +34,7 @@ export type FashTokenResponse = {
   token_type: 'bearer';
   expires_in: number;
   refresh_expires_in: number;
+  is_new_user?: boolean;
 };
 
 export type FashErrorBody = {

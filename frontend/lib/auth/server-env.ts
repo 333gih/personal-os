@@ -22,6 +22,8 @@ export function getCookieSecureFromHeaders(headers: Headers): boolean {
 export type ServerAuthEnv = {
   API_URL: string;
   APPLICATION_ID: string;
+  INTERNAL_APPLICATION_ID?: string;
+  COMMERCIAL_APPLICATION_ID?: string;
   AUTH_LOCALE: string;
   PERSONAL_OS_API_URL: string;
   cookieSecure: boolean;
@@ -51,6 +53,8 @@ export function getServerAuthEnv(): ServerAuthEnv {
   cached = {
     API_URL: API_URL.replace(/\/+$/, ""),
     APPLICATION_ID: APPLICATION_ID.trim(),
+    INTERNAL_APPLICATION_ID: readEnv("INTERNAL_APPLICATION_ID")?.trim(),
+    COMMERCIAL_APPLICATION_ID: readEnv("COMMERCIAL_APPLICATION_ID")?.trim(),
     AUTH_LOCALE: (readEnv("AUTH_LOCALE") || "vi").trim(),
     PERSONAL_OS_API_URL: PERSONAL_OS_API_URL.replace(/\/+$/, ""),
     cookieSecure:

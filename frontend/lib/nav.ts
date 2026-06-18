@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BookOpen,
   Briefcase,
+  Gamepad2,
   Home,
   Inbox,
   Rocket,
@@ -22,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/learning", label: "Learning", icon: BookOpen },
   { href: "/work", label: "Work", icon: Briefcase },
   { href: "/startup", label: "Startup", icon: Rocket },
+  { href: "/entertainment", label: "Entertainment", icon: Gamepad2 },
   { href: "/search", label: "Search", icon: Search, mobileTab: true },
   { href: "/settings", label: "Settings", icon: Settings, mobileTab: true },
 ];

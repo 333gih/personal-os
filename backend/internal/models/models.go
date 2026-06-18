@@ -65,12 +65,32 @@ type File struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+type ReadingProgress struct {
+	ID                 uuid.UUID         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID             uuid.UUID         `gorm:"type:uuid;index;not null" json:"user_id"`
+	StoryID            string            `gorm:"type:varchar(128);not null" json:"story_id"`
+	StoryTitle         string            `gorm:"type:varchar(500);not null" json:"story_title"`
+	ChapterID          string            `gorm:"type:varchar(128)" json:"chapter_id,omitempty"`
+	ChapterTitle       string            `gorm:"type:varchar(500)" json:"chapter_title,omitempty"`
+	CurrentURL         string            `gorm:"type:text" json:"current_url"`
+	ProgressPercentage int               `gorm:"not null;default:0" json:"progress_percentage"`
+	ScrollY            int               `gorm:"not null;default:0" json:"scroll_y"`
+	ReadingTimeSeconds int               `gorm:"not null;default:0" json:"reading_time_seconds"`
+	SiteID             string            `gorm:"type:varchar(64);not null;default:'generic'" json:"site_id"`
+	Metadata           datatypes.JSONMap `gorm:"type:jsonb;default:'{}'" json:"metadata"`
+	ClientTimestamp    *time.Time        `json:"client_timestamp,omitempty"`
+	LastReadAt         time.Time         `gorm:"index;not null" json:"last_read_at"`
+	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          time.Time         `json:"updated_at"`
+}
+
 // Entity type constants
 const (
 	DomainInbox    = "inbox"
 	DomainLearning = "learning"
 	DomainWork     = "work"
-	DomainStartup  = "startup"
+	DomainStartup      = "startup"
+	DomainEntertainment = "entertainment"
 
 	TypeInboxText       = "inbox_text"
 	TypeInboxURL        = "inbox_url"

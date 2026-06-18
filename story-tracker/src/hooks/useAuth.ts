@@ -38,19 +38,34 @@ export function useAuth() {
     return false;
   };
 
-  const register = async (email: string, password: string, name: string) => {
+  const requestOtp = async (email: string) => {
     setError(null);
     setLoading(true);
     const response = await browser.runtime.sendMessage({
-      type: MESSAGE_TYPES.REGISTER,
-      payload: { email, password, name, mode: 'commercial' },
+      type: MESSAGE_TYPES.REQUEST_OTP,
+      payload: { email, mode: 'commercial' },
+    });
+    setLoading(false);
+    if (response?.success) {
+      return response.data as { isNewUser?: boolean };
+    }
+    setError(response?.error ?? 'Could not send verification code');
+    return null;
+  };
+
+  const verifyOtp = async (email: string, otp: string) => {
+    setError(null);
+    setLoading(true);
+    const response = await browser.runtime.sendMessage({
+      type: MESSAGE_TYPES.VERIFY_OTP,
+      payload: { email, otp, mode: 'commercial' },
     });
     setLoading(false);
     if (response?.success) {
       setAuth(response.data as AuthState);
       return true;
     }
-    setError(response?.error ?? 'Registration failed');
+    setError(response?.error ?? 'Verification failed');
     return false;
   };
 
@@ -59,5 +74,5 @@ export function useAuth() {
     setAuth(null);
   };
 
-  return { auth, loading, error, login, register, logout, refresh };
+  return { auth, loading, error, login, requestOtp, verifyOtp, logout, refresh };
 }

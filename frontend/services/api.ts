@@ -150,6 +150,9 @@ export const api = {
 
   completeReminder: (id: string) =>
     request(`/reminders/${id}/complete`, { method: "POST" }),
+
+  currentReadingProgress: () =>
+    request<{ items: import("./types").ReadingProgress[] }>("/reading-progress/current"),
 };
 
 import type { Reminder } from "./types";

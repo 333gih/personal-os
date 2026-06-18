@@ -12,7 +12,20 @@ export class ReadingProgressService {
 
   async saveProgress(payload: ReadingProgressPayload): Promise<void> {
     const config = createGatewayApiConfig();
-    await this.client.post(config.endpoints.readingProgress, payload);
+    await this.client.post(config.endpoints.readingProgress, {
+      story_id: payload.storyId,
+      story_title: payload.storyTitle,
+      chapter_id: payload.chapterId,
+      chapter_title: payload.chapterTitle,
+      current_url: payload.currentUrl,
+      progress: {
+        percentage: payload.progress.percentage,
+        scroll_y: payload.progress.scrollY,
+        reading_time_seconds: payload.progress.readingTimeSeconds,
+      },
+      metadata: payload.metadata,
+      client_timestamp: payload.clientTimestamp,
+    });
   }
 
   async getCurrentProgress(): Promise<ReadingProgressCurrentResponse> {

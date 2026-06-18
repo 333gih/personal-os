@@ -39,9 +39,27 @@ const DOMAIN_TYPES: Record<string, { label: string; types?: { value: string; lab
       { value: "startup_competitor", label: "Competitor" },
     ],
   },
+  entertainment: {
+    label: "Entertainment",
+    types: [
+      { value: "entertainment_story", label: "Story" },
+      { value: "entertainment_manga", label: "Manga" },
+      { value: "entertainment_anime", label: "Anime" },
+      { value: "entertainment_game", label: "Game" },
+      { value: "entertainment_note", label: "Note" },
+    ],
+  },
 };
 
-export function DomainPage({ domain }: { domain: string }) {
+export function DomainPage({
+  domain,
+  embedded = false,
+  sectionTitle,
+}: {
+  domain: string;
+  embedded?: boolean;
+  sectionTitle?: string;
+}) {
   const config = DOMAIN_TYPES[domain];
 
   const { data, isLoading } = useQuery({
@@ -51,12 +69,21 @@ export function DomainPage({ domain }: { domain: string }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">{config?.label || domain}</h1>
-        <p className="text-muted-foreground">
-          {data?.total ?? 0} items tracked
-        </p>
-      </div>
+      {!embedded ? (
+        <div>
+          <h1 className="text-xl font-bold sm:text-2xl">{config?.label || domain}</h1>
+          <p className="text-muted-foreground">
+            {data?.total ?? 0} items tracked
+          </p>
+        </div>
+      ) : sectionTitle ? (
+        <div>
+          <h2 className="text-lg font-semibold">{sectionTitle}</h2>
+          <p className="text-sm text-muted-foreground">
+            {data?.total ?? 0} items tracked
+          </p>
+        </div>
+      ) : null}
 
       {domain === "inbox" && <InboxCapture />}
 

@@ -31,6 +31,7 @@ func Connect(dsn string, appEnv string) (*gorm.DB, error) {
 			&models.Relationship{},
 			&models.Reminder{},
 			&models.File{},
+			&models.ReadingProgress{},
 		); err != nil {
 			return nil, fmt.Errorf("auto migrate: %w", err)
 		}

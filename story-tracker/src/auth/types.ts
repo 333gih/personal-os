@@ -29,7 +29,6 @@ export interface LoginCredentials {
 
 export interface RegisterCredentials {
   email: string;
-  password: string;
-  name: string;
+  otp: string;
   mode: 'commercial';
 }

@@ -1,10 +1,12 @@
 import type {
   FashLoginRequest,
   FashLogoutRequest,
-  FashRegisterRequest,
+  FashOtpEmailRequest,
+  FashOtpVerifyRequest,
   FashTokenResponse,
 } from './fash-types';
 import { getApplicationId, joinAuthUrl } from './auth-api-config';
+import { clientChannelForMode } from './channels';
 import type { AuthMode } from './types';
 import { lockedRefresh } from './locked-refresh';
 
@@ -49,23 +51,32 @@ export class FashAuthService {
       email: email.trim(),
       password,
       application_id: getApplicationId(mode),
+      client_channel: clientChannelForMode(),
     };
     return postAuthJson<FashTokenResponse>('/api/v1/auth/login', body);
   }
 
-  async register(
-    email: string,
-    password: string,
-    name: string,
-    mode: AuthMode,
-  ): Promise<FashTokenResponse> {
-    const body: FashRegisterRequest = {
+  async requestOtp(email: string, mode: AuthMode): Promise<{ is_new_user: boolean }> {
+    const body: FashOtpEmailRequest = {
       email: email.trim(),
-      password,
-      name: name.trim(),
       application_id: getApplicationId(mode),
+      client_channel: clientChannelForMode(),
     };
-    return postAuthJson<FashTokenResponse>('/api/v1/auth/register', body);
+    const result = await postAuthJson<{ ok?: boolean; is_new_user?: boolean }>(
+      '/api/v1/auth/otp/request',
+      body,
+    );
+    return { is_new_user: result.is_new_user ?? false };
+  }
+
+  async verifyOtp(email: string, otp: string, mode: AuthMode): Promise<FashTokenResponse> {
+    const body: FashOtpVerifyRequest = {
+      email: email.trim(),
+      otp: otp.trim(),
+      application_id: getApplicationId(mode),
+      client_channel: clientChannelForMode(),
+    };
+    return postAuthJson<FashTokenResponse>('/api/v1/auth/otp/verify', body);
   }
 
   async refresh(refreshToken: string, mode: AuthMode): Promise<FashTokenResponse> {
