@@ -1,0 +1,6 @@
+{
+  "apiHostPermissions": [
+    "https://api-personal-os.fashandcurious.com/*",
+    "https://api-auth.fashandcurious.com/*"
+  ]
+}

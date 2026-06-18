@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Story Tracker",
+  "version": "1.0.0",
+  "description": "Automatically track and sync your reading progress across novel and manga websites.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png"
+    },
+    "default_title": "Story Tracker"
+  },
+  "background": {
+    "scripts": ["src/background/index.ts"],
+    "type": "module"
+  },
+  "options_ui": {
+    "page": "src/options/index.html",
+    "open_in_tab": true
+  },
+  "permissions": ["storage", "activeTab"],
+  "content_scripts": [],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "story-tracker@personal-os.local",
+      "strict_min_version": "109.0"
+    }
+  }
+}

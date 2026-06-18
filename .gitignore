@@ -11,6 +11,11 @@ backend/.env*
 frontend/.env.local
 frontend/.env.*
 
+# Story Tracker extension
+story-tracker/node_modules/
+story-tracker/dist/
+story-tracker/.env
+
 
 # Go
 backend/server
