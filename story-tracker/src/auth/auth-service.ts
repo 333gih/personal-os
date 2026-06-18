@@ -39,6 +39,23 @@ export class AuthService {
     return this.finalizeAuth(tokens, credentials.mode);
   }
 
+  async completeWebHandoff(payload: {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    refresh_expires_in: number;
+    mode: AuthMode;
+  }): Promise<AuthState> {
+    const tokens: FashTokenResponse = {
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token,
+      token_type: 'bearer',
+      expires_in: payload.expires_in,
+      refresh_expires_in: payload.refresh_expires_in,
+    };
+    return this.finalizeAuth(tokens, payload.mode);
+  }
+
   async logout(): Promise<void> {
     const auth = await storageService.getAuth();
     if (auth) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import browser from 'webextension-polyfill';
-import type { AuthMode, AuthState } from '../auth/types';
+import type { AuthState } from '../auth/types';
 import { MESSAGE_TYPES } from '../shared/messages';
 
 export function useAuth() {
@@ -22,50 +22,18 @@ export function useAuth() {
     void refresh();
   }, [refresh]);
 
-  const login = async (email: string, password: string, mode: AuthMode) => {
+  const startWebAuth = async () => {
     setError(null);
     setLoading(true);
     const response = await browser.runtime.sendMessage({
-      type: MESSAGE_TYPES.LOGIN,
-      payload: { email, password, mode },
+      type: MESSAGE_TYPES.START_WEB_AUTH,
     });
     setLoading(false);
     if (response?.success) {
       setAuth(response.data as AuthState);
       return true;
     }
-    setError(response?.error ?? 'Login failed');
-    return false;
-  };
-
-  const requestOtp = async (email: string) => {
-    setError(null);
-    setLoading(true);
-    const response = await browser.runtime.sendMessage({
-      type: MESSAGE_TYPES.REQUEST_OTP,
-      payload: { email, mode: 'commercial' },
-    });
-    setLoading(false);
-    if (response?.success) {
-      return response.data as { isNewUser?: boolean };
-    }
-    setError(response?.error ?? 'Could not send verification code');
-    return null;
-  };
-
-  const verifyOtp = async (email: string, otp: string) => {
-    setError(null);
-    setLoading(true);
-    const response = await browser.runtime.sendMessage({
-      type: MESSAGE_TYPES.VERIFY_OTP,
-      payload: { email, otp, mode: 'commercial' },
-    });
-    setLoading(false);
-    if (response?.success) {
-      setAuth(response.data as AuthState);
-      return true;
-    }
-    setError(response?.error ?? 'Verification failed');
+    setError(response?.error ?? 'Sign-in failed');
     return false;
   };
 
@@ -74,5 +42,5 @@ export function useAuth() {
     setAuth(null);
   };
 
-  return { auth, loading, error, login, requestOtp, verifyOtp, logout, refresh };
+  return { auth, loading, error, startWebAuth, logout, refresh };
 }

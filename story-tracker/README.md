@@ -196,9 +196,18 @@ Add an entry to `SUPPORTED_SITES` in `src/shared/constants.ts`.
 
 ## API Integration Guide
 
-### Authentication (fash-auth-service)
+### Authentication (Personal OS web — same as frontend)
 
-Same contract as Personal OS frontend BFF upstream:
+Story Tracker does **not** collect credentials in the extension popup. Sign-in opens Personal OS web (`/extension/connect`), which supports:
+
+| Mode | Flow (same as Personal OS FE) |
+|------|-------------------------------|
+| **Internal** | Admin Portal SSO → session handoff |
+| **Commercial** | Google, email/password, or OTP |
+
+After sign-in, tokens are passed to the extension via a secure handoff page. Configure `PERSONAL_OS_FE_URL` in `.env` (prod: `https://personal-os-fe.fashandcurious.com`).
+
+### fash-auth-service (refresh / logout only)
 
 | Method | Path | Body |
 |--------|------|------|

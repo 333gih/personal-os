@@ -2,5 +2,9 @@
   "apiHostPermissions": [
     "https://api-personal-os.fashandcurious.com/*",
     "https://api-auth.fashandcurious.com/*"
+  ],
+  "personalOsFeHostPermissions": [
+    "https://personal-os-fe.fashandcurious.com/*",
+    "http://localhost:3000/*"
   ]
 }

@@ -22,11 +22,30 @@ function loadHostPermissions(): string[] {
     resolve(__dirname, 'public/manifest/host-permissions.json'),
     { hostPermissions: [] },
   );
-  const api = loadJsonFile<{ apiHostPermissions: string[] }>(
+  const api = loadJsonFile<{ apiHostPermissions: string[]; personalOsFeHostPermissions?: string[] }>(
     resolve(__dirname, 'public/manifest/api-host-permissions.json'),
-    { apiHostPermissions: [] },
+    { apiHostPermissions: [], personalOsFeHostPermissions: [] },
   );
-  return [...story.hostPermissions, ...api.apiHostPermissions];
+  return [
+    ...story.hostPermissions,
+    ...api.apiHostPermissions,
+    ...(api.personalOsFeHostPermissions ?? []),
+  ];
+}
+
+function loadStoryContentMatches(): string[] {
+  return loadJsonFile<{ hostPermissions: string[] }>(
+    resolve(__dirname, 'public/manifest/host-permissions.json'),
+    { hostPermissions: [] },
+  ).hostPermissions;
+}
+
+function loadPersonalOsFeConnectMatches(env: Record<string, string>): string[] {
+  const fe = (env.PERSONAL_OS_FE_URL ?? 'https://personal-os-fe.fashandcurious.com').replace(
+    /\/+$/,
+    '',
+  );
+  return [`${fe}/extension/connect*`];
 }
 
 export default defineConfig(({ mode }) => {
@@ -41,14 +60,21 @@ export default defineConfig(({ mode }) => {
   );
 
   const hostPermissions = loadHostPermissions();
+  const storyMatches = loadStoryContentMatches();
+  const connectMatches = loadPersonalOsFeConnectMatches(env);
 
   const manifest = {
     ...baseManifest,
     host_permissions: hostPermissions,
     content_scripts: [
       {
-        matches: hostPermissions.filter((p) => !p.includes('api-')),
+        matches: storyMatches,
         js: ['src/content/index.ts'],
+        run_at: 'document_idle',
+      },
+      {
+        matches: connectMatches,
+        js: ['src/content/extension-connect-bridge.ts'],
         run_at: 'document_idle',
       },
     ],
@@ -72,6 +98,9 @@ export default defineConfig(({ mode }) => {
       ),
       __DEFAULT_SYNC_INTERVAL_MS__: JSON.stringify(
         Number(env.DEFAULT_SYNC_INTERVAL_MS ?? 30000),
+      ),
+      __PERSONAL_OS_FE_URL__: JSON.stringify(
+        env.PERSONAL_OS_FE_URL ?? 'https://personal-os-fe.fashandcurious.com',
       ),
       __BROWSER_TARGET__: JSON.stringify(target),
     },

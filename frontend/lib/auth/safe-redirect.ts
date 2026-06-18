@@ -8,7 +8,12 @@ const DEFAULT_ALLOWED_PREFIXES = [
   "/search",
   "/settings",
   "/entities",
+  "/extension/connect",
 ] as const;
+
+function pathOnly(next: string): string {
+  return next.split("?")[0] ?? next;
+}
 
 export function sanitizeAppNext(
   next: string | null | undefined,
@@ -19,8 +24,9 @@ export function sanitizeAppNext(
   if (!value.startsWith("/") || value.startsWith("//") || value.includes("://")) {
     return fallback;
   }
+  const pathname = pathOnly(value);
   for (const prefix of DEFAULT_ALLOWED_PREFIXES) {
-    if (value === prefix || value.startsWith(`${prefix}/`)) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
       return value;
     }
   }

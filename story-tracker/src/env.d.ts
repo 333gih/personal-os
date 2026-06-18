@@ -7,4 +7,5 @@ declare const __COMMERCIAL_APPLICATION_ID__: string;
 declare const __API_READING_PROGRESS__: string;
 declare const __API_READING_PROGRESS_CURRENT__: string;
 declare const __DEFAULT_SYNC_INTERVAL_MS__: number;
+declare const __PERSONAL_OS_FE_URL__: string;
 declare const __BROWSER_TARGET__: string;

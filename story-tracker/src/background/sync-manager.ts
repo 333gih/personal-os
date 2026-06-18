@@ -3,6 +3,7 @@ import type { AuthMode } from '../auth/types';
 import type { ReadingInfo, ReadingSession } from '../types/reading';
 import { syncService } from '../services/sync-service';
 import { authService } from '../auth/auth-service';
+import { startPersonalOsWebAuth } from '../auth/web-auth';
 import { storageService } from '../storage/storage-service';
 import { MESSAGE_TYPES, type ExtensionMessage, type MessageResponse } from '../shared/messages';
 import { onConnectivityChange } from '../services/reading-progress-service';
@@ -78,6 +79,12 @@ export class SyncManager {
               message.payload as { email: string; password: string; mode: AuthMode },
             ),
           };
+
+        case MESSAGE_TYPES.START_WEB_AUTH:
+          return { success: true, data: await startPersonalOsWebAuth() };
+
+        case MESSAGE_TYPES.WEB_AUTH_HANDOFF:
+          return { success: true };
 
         case MESSAGE_TYPES.REQUEST_OTP: {
           const payload = message.payload as { email: string; mode: 'commercial' };
