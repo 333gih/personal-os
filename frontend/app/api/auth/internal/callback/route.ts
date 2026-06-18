@@ -5,7 +5,8 @@ import { isAdminFromToken } from "@/lib/auth/internal-access";
 import { sanitizeAppNext } from "@/lib/auth/safe-redirect";
 import { verifySsoHandoffTicket } from "@/lib/auth/sso-handoff";
 import { getCookieSecureFromHeaders, getServerAuthEnv } from "@/lib/auth/server-env";
-import { absolutePublicUrl } from "@/lib/request-public-origin";
+import { getExtensionConnectOrigin, isExtensionConnectPath } from "@/lib/extension-connect";
+import { absolutePublicUrl, getPublicOriginFromHeaders } from "@/lib/request-public-origin";
 
 function readSsoSecret(): string | null {
   const secret = process.env.PERSONAL_OS_SSO_HANDOFF_SECRET?.trim();
@@ -40,7 +41,10 @@ export async function GET(request: Request) {
 
     getServerAuthEnv();
 
-    const res = NextResponse.redirect(absolutePublicUrl(headers, next));
+    const redirectOrigin = isExtensionConnectPath(next)
+      ? getExtensionConnectOrigin()
+      : getPublicOriginFromHeaders(headers);
+    const res = NextResponse.redirect(new URL(next, redirectOrigin));
     applyTokenCookies(
       res.cookies,
       {

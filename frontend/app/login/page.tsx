@@ -4,6 +4,11 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getAccessToken } from "@/lib/auth/access-token";
 import { buildAdminPortalInternalLoginUrl } from "@/lib/auth/admin-portal-sso";
+import {
+  buildExtensionConnectUrl,
+  getExtensionConnectOrigin,
+  isExtensionConnectPath,
+} from "@/lib/extension-connect";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +57,15 @@ function LoginForm() {
 
   const goNext = async () => {
     await getAccessToken(true);
-    router.push(safeNext());
+    const next = safeNext();
+    if (isExtensionConnectPath(next) && typeof window !== "undefined") {
+      const target = buildExtensionConnectUrl(next);
+      if (window.location.origin !== getExtensionConnectOrigin()) {
+        window.location.href = target;
+        return;
+      }
+    }
+    router.push(next);
   };
 
   const handleAdminPortalRedirect = () => {

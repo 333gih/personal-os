@@ -68,3 +68,5 @@ Production template: `frontend/.env.prod` (Jenkins secret `env-personal-os-fe-pr
 curl https://api-personal-os.fashandcurious.com/health
 curl -I https://personal-os-fe.fashandcurious.com/login
 ```
+
+Nếu `/health` trả `503` + `failure to get a peer from the ring-balancer`: Kong không reach được `personal-os-api` trên `iot-public-net-*`. Xem [fash-integration/README.md — Troubleshooting](fash-integration/README.md#troubleshooting-failure-to-get-a-peer-from-the-ring-balancer-503).

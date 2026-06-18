@@ -1,10 +1,13 @@
+import { getExtensionConnectOrigin, isExtensionConnectPath } from "@/lib/extension-connect";
 import { resolveClientSiteOrigin } from "@/lib/site-url";
 
 export function buildAdminPortalInternalLoginUrl(next = "/dashboard"): string {
   const adminLogin =
     process.env.NEXT_PUBLIC_ADMIN_PORTAL_URL?.trim() ||
     "https://fashandcurious.com/management/auth/login";
-  const siteOrigin = resolveClientSiteOrigin();
+  const siteOrigin = isExtensionConnectPath(next)
+    ? getExtensionConnectOrigin()
+    : resolveClientSiteOrigin();
 
   const callback = `${siteOrigin}/api/auth/internal/callback`;
   const url = new URL(adminLogin);

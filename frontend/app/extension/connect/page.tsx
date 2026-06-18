@@ -2,7 +2,11 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import {
+  buildExtensionConnectUrl,
+  ensureCanonicalExtensionConnectHost,
+} from "@/lib/extension-connect";
 
 const HANDOFF_MESSAGE_TYPE = "PERSONAL_OS_EXTENSION_HANDOFF";
 const HANDOFF_ACK_TYPE = "PERSONAL_OS_EXTENSION_HANDOFF_ACK";
@@ -69,7 +73,6 @@ function deliverHandoff(payload: HandoffPayload): Promise<void> {
 }
 
 function ExtensionConnectInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const startedRef = useRef(false);
   const [status, setStatus] = useState<
@@ -78,27 +81,37 @@ function ExtensionConnectInner() {
   const [error, setError] = useState("");
   const [handoffPayload, setHandoffPayload] = useState<HandoffPayload | null>(null);
 
+  const nonce =
+    searchParams.get("nonce") ??
+    (typeof window !== "undefined"
+      ? window.sessionStorage.getItem(HANDOFF_NONCE_STORAGE_KEY)
+      : null);
+
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
+
+    if (ensureCanonicalExtensionConnectHost()) return;
 
     const nonceFromUrl = searchParams.get("nonce");
     const nonceFromStorage =
       typeof window !== "undefined"
         ? window.sessionStorage.getItem(HANDOFF_NONCE_STORAGE_KEY)
         : null;
-    const nonce = nonceFromUrl ?? nonceFromStorage;
-    if (nonce && typeof window !== "undefined") {
-      window.sessionStorage.setItem(HANDOFF_NONCE_STORAGE_KEY, nonce);
+    const handoffNonce = nonceFromUrl ?? nonceFromStorage;
+    if (handoffNonce && typeof window !== "undefined") {
+      window.sessionStorage.setItem(HANDOFF_NONCE_STORAGE_KEY, handoffNonce);
     }
-    const nextPath = `/extension/connect${nonce ? `?nonce=${encodeURIComponent(nonce)}` : ""}`;
+    const nextPath = `/extension/connect${handoffNonce ? `?nonce=${encodeURIComponent(handoffNonce)}` : ""}`;
 
     async function run() {
       try {
         const sessionRes = await fetch("/api/auth/session", { credentials: "same-origin" });
         if (!sessionRes.ok) {
           setStatus("redirecting");
-          router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
+          const loginUrl = new URL("/login", buildExtensionConnectUrl("/"));
+          loginUrl.searchParams.set("next", nextPath);
+          window.location.replace(loginUrl.href);
           return;
         }
 
@@ -119,7 +132,7 @@ function ExtensionConnectInner() {
 
         const payload: HandoffPayload = {
           ...(body as Omit<HandoffPayload, "nonce">),
-          nonce,
+          nonce: handoffNonce,
         };
 
         flushSync(() => {
@@ -138,7 +151,7 @@ function ExtensionConnectInner() {
     }
 
     void run();
-  }, [router, searchParams]);
+  }, [searchParams, nonce]);
 
   if (status === "redirecting") {
     return (
@@ -155,7 +168,12 @@ function ExtensionConnectInner() {
         <button
           type="button"
           className="text-sm font-medium text-primary underline"
-          onClick={() => router.replace(`/login?next=${encodeURIComponent("/extension/connect")}`)}
+          onClick={() => {
+            const retryPath = `/extension/connect${nonce ? `?nonce=${encodeURIComponent(nonce)}` : ""}`;
+            const loginUrl = new URL("/login", buildExtensionConnectUrl("/"));
+            loginUrl.searchParams.set("next", retryPath);
+            window.location.replace(loginUrl.href);
+          }}
         >
           Try signing in again
         </button>

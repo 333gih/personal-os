@@ -8,7 +8,18 @@ import { storageService } from '../storage/storage-service';
 import { logger } from '../utils/logger';
 
 function formatSyncError(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
+  if (error instanceof ApiError) {
+    if (
+      error.status === 503 &&
+      /ring-balancer|failure to get a peer/i.test(error.message)
+    ) {
+      return 'Personal OS API is down (gateway has no backend). Redeploy the API or fix Kong upstream.';
+    }
+    if (error.status === 502 || error.status === 504) {
+      return `Personal OS API unavailable (${error.status}). Try again after the server is back online.`;
+    }
+    return error.message;
+  }
   if (error instanceof Error) return error.message;
   return 'Sync failed';
 }

@@ -337,7 +337,7 @@ pipeline {
                             fi
 
                             # Idempotent SQL migrations (safe on every deploy).
-                            for mig in 003_storage_key_prefix.sql 004_fix_users_email_constraint.sql; do
+                            for mig in 003_storage_key_prefix.sql 004_fix_users_email_constraint.sql 005_reading_progress.sql 006_reading_progress_latest_per_story.sql; do
                                 if [ -f "backend/migrations/\${mig}" ]; then
                                     echo "[INFO] Applying migration \${mig}..."
                                     cat "backend/migrations/\${mig}" | docker exec -i ${pgContainer} \\
@@ -359,7 +359,9 @@ pipeline {
                                 --label environment=${params.ENVIRONMENT} \\
                                 ${env.API_FULL_IMAGE}
 
-                            docker network connect ${extNetwork} ${apiContainer} || true
+                            # Kong resolves PERSONAL_OS_API_HOST=personal-os-api:8080 on iot-public-net.
+                            # Network aliases from personal-os-net do not carry over — set alias here.
+                            docker network connect --alias personal-os-api ${extNetwork} ${apiContainer} || true
                             if docker network inspect ${env.SEAWEEDFS_NET} >/dev/null 2>&1; then
                                 docker network connect ${env.SEAWEEDFS_NET} ${apiContainer} || true
                             else
@@ -391,6 +393,23 @@ pipeline {
                             if [ "\$API_OK" -ne 1 ]; then
                                 echo "[ERROR] API failed health check — aborting FE deploy"
                                 docker logs ${apiContainer} --tail 80
+                                exit 1
+                            fi
+
+                            echo "[INFO] Verifying Kong upstream DNS on ${extNetwork} (personal-os-api:8080)..."
+                            UPSTREAM_OK=0
+                            for i in \$(seq 1 12); do
+                                if docker run --rm --network ${extNetwork} curlimages/curl:8.5.0 -sf http://personal-os-api:8080/health >/dev/null 2>&1; then
+                                    echo "[INFO] Kong upstream reachable on ${extNetwork} ✅"
+                                    UPSTREAM_OK=1
+                                    break
+                                fi
+                                sleep 2
+                            done
+                            if [ "\$UPSTREAM_OK" -ne 1 ]; then
+                                echo "[ERROR] personal-os-api not reachable on ${extNetwork} — Kong will return 503 ring-balancer"
+                                echo "[HINT] docker network connect --alias personal-os-api ${extNetwork} ${apiContainer}"
+                                docker logs ${apiContainer} --tail 40
                                 exit 1
                             fi
 
