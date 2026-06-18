@@ -92,6 +92,8 @@ export async function processWebAuthHandoff(
       pendingWebAuth = null;
     }
 
+    void import('../services/pull-progress').then(({ pullRemoteProgress }) => pullRemoteProgress());
+
     return { success: true, data: state };
   } catch (error) {
     return {

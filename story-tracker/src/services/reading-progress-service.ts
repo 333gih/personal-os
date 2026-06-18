@@ -30,9 +30,28 @@ export class ReadingProgressService {
 
   async getCurrentProgress(): Promise<ReadingProgressCurrentResponse> {
     const config = createGatewayApiConfig();
-    return this.client.get<ReadingProgressCurrentResponse>(
+    const raw = await this.client.get<{ items: Array<Record<string, unknown>> }>(
       config.endpoints.readingProgressCurrent,
     );
+
+    return {
+      items: (raw.items ?? []).map((item) => ({
+        storyId: String(item.story_id ?? ''),
+        storyTitle: String(item.story_title ?? ''),
+        chapterId: item.chapter_id ? String(item.chapter_id) : undefined,
+        chapterTitle: item.chapter_title ? String(item.chapter_title) : undefined,
+        currentUrl: String(item.current_url ?? ''),
+        progress: {
+          percentage: Number(item.progress_percentage ?? 0),
+          scrollY: Number(item.scroll_y ?? 0),
+          readingTimeSeconds: Number(item.reading_time_seconds ?? 0),
+        },
+        metadata: (item.metadata as Record<string, unknown> | undefined) ?? undefined,
+        clientTimestamp: item.last_read_at
+          ? Date.parse(String(item.last_read_at))
+          : Date.now(),
+      })),
+    };
   }
 }
 

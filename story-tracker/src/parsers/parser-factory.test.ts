@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ParserFactoryRegistry } from './parser-factory';
+import { ParserFactoryRegistry, extractReadingInfo } from './parser-factory';
 import { createGenericParser } from './generic-parser';
 import { createTruyenFullParser } from './truyenfull-parser';
 import type { ParserContext } from '../types/parser';
@@ -55,16 +55,25 @@ describe('ParserFactoryRegistry', () => {
   });
 });
 
+describe('extractReadingInfo', () => {
+  it('returns null for truyenfull home page', async () => {
+    const info = await extractReadingInfo(
+      createContext('<html><body></body></html>', 'https://truyenfull.today/'),
+    );
+    expect(info).toBeNull();
+  });
+});
+
 describe('GenericParser', () => {
   it('extracts title from document.title', async () => {
     const ctx = createContext(
       '<html><head><title>Chapter 3 - Test Story</title></head><body></body></html>',
-      'https://example.com/page',
+      'https://example.com/chuong-3/',
     );
     const parser = createGenericParser(ctx);
     const info = await parser.extract();
     expect(info.storyTitle).toBe('Test Story');
-    expect(info.chapterTitle).toBe('Chapter 3');
+    expect(info.chapterTitle).toBe('Chương 3');
   });
 });
 

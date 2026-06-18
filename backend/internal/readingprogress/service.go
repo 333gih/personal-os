@@ -65,11 +65,12 @@ func (s *Service) Save(userID uuid.UUID, input SaveInput) (*models.ReadingProgre
 	}
 
 	err := s.db.Where(
-		"user_id = ? AND story_id = ? AND COALESCE(chapter_id, '') = ?",
-		userID, input.StoryID, input.ChapterID,
+		"user_id = ? AND story_id = ?",
+		userID, input.StoryID,
 	).Assign(map[string]any{
-		"story_title":          row.StoryTitle,
+		"chapter_id":           row.ChapterID,
 		"chapter_title":        row.ChapterTitle,
+		"story_title":          row.StoryTitle,
 		"current_url":          row.CurrentURL,
 		"progress_percentage":  row.ProgressPercentage,
 		"scroll_y":             row.ScrollY,
@@ -83,6 +84,10 @@ func (s *Service) Save(userID uuid.UUID, input SaveInput) (*models.ReadingProgre
 	if err != nil {
 		return nil, err
 	}
+
+	_ = s.db.Where("user_id = ? AND story_id = ? AND id <> ?", userID, input.StoryID, row.ID).
+		Delete(&models.ReadingProgress{}).Error
+
 	return &row, nil
 }
 

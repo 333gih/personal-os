@@ -107,7 +107,7 @@ Login/register/refresh go to fash-auth at `{AUTH_API_URL}/{AUTH_LOCALE}/api/v1/a
 
 ### Configure Site Permissions
 
-Edit `public/manifest/host-permissions.json` to add or remove supported websites without changing source code.
+Edit `src/config/site-registry.json` to add built-in sites (host patterns + parser id). Runtime can auto-discover new chapter-reading domains when **Auto-track new reading sites** is enabled in extension settings.
 
 ## Development
 
@@ -191,7 +191,7 @@ Add your factory function to `PARSER_FACTORIES` in `src/parsers/parser-factory.t
 
 ### 3. Add host permission
 
-Add the site's URL pattern to `public/manifest/host-permissions.json`.
+Add the site to `src/config/site-registry.json` (or let auto-discover register it at runtime).
 
 ### 4. Add site toggle (optional)
 
@@ -302,7 +302,7 @@ Configurable paths (relative to `API_BASE_URL`):
 1. Backend implements the configurable endpoint contracts above
 2. Backend upserts reading progress by `storyId` + `chapterId`
 3. JWT `expiresIn` is in seconds (defaults to 3600 if omitted)
-4. Content scripts only run on hosts listed in `host-permissions.json`
+4. Content scripts run on hosts from `site-registry.json` plus user-discovered origins
 5. Edge uses the Chrome build (Chromium WebExtensions)
 
 ## License

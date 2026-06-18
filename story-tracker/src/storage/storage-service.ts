@@ -73,9 +73,32 @@ export class StorageService {
   }
 
   async upsertReadingSession(session: ReadingSession): Promise<void> {
-    await this.update(STORAGE_KEYS.READING_SESSIONS, (sessions) => ({
-      ...sessions,
-      [session.id]: session,
+    const storyId = session.readingInfo.storyId;
+    await this.update(STORAGE_KEYS.READING_SESSIONS, (sessions) => {
+      const pruned = Object.fromEntries(
+        Object.entries(sessions).filter(([, value]) => value.readingInfo.storyId !== storyId),
+      );
+      return {
+        ...pruned,
+        [storyId]: { ...session, id: storyId },
+      };
+    });
+  }
+
+  async upsertStoryCatalog(entry: ReadingHistoryEntry): Promise<void> {
+    await this.update(STORAGE_KEYS.STORY_CATALOG, (catalog) => ({
+      ...catalog,
+      [entry.storyId]: {
+        storyId: entry.storyId,
+        storyTitle: entry.storyTitle,
+        siteId: entry.siteId,
+        hostname: safeHostname(entry.currentUrl),
+        lastChapterId: entry.chapterId,
+        lastChapterTitle: entry.chapterTitle,
+        lastReadAt: entry.lastReadAt,
+        lastProgress: entry.progress.percentage,
+        currentUrl: entry.currentUrl,
+      },
     }));
   }
 
@@ -84,6 +107,7 @@ export class StorageService {
       const filtered = history.filter((h) => h.storyId !== entry.storyId);
       return [entry, ...filtered].slice(0, 50);
     });
+    await this.upsertStoryCatalog(entry);
   }
 
   async getReadingHistory(): Promise<ReadingHistoryEntry[]> {
@@ -108,6 +132,7 @@ export class StorageService {
       readingSessions:
         (data[STORAGE_KEYS.READING_SESSIONS] as StorageSchema['readingSessions']) ?? {},
       readingHistory: (data[STORAGE_KEYS.READING_HISTORY] as ReadingHistoryEntry[]) ?? [],
+      storyCatalog: (data[STORAGE_KEYS.STORY_CATALOG] as StorageSchema['storyCatalog']) ?? {},
       syncStatus: (data[STORAGE_KEYS.SYNC_STATUS] as SyncStatus) ?? DEFAULT_SYNC_STATUS,
       settings: (data[STORAGE_KEYS.SETTINGS] as ExtensionSettings) ?? DEFAULT_SETTINGS,
     };
@@ -125,6 +150,8 @@ export class StorageService {
         return {} as StorageSchema[K];
       case STORAGE_KEYS.READING_HISTORY:
         return [] as StorageSchema[K];
+      case STORAGE_KEYS.STORY_CATALOG:
+        return {} as StorageSchema[K];
       case STORAGE_KEYS.SYNC_STATUS:
         return DEFAULT_SYNC_STATUS as StorageSchema[K];
       case STORAGE_KEYS.SETTINGS:
@@ -136,3 +163,11 @@ export class StorageService {
 }
 
 export const storageService = new StorageService();
+
+function safeHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}

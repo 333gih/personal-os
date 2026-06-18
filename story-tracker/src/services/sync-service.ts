@@ -132,6 +132,13 @@ export class SyncService {
   }
 
   private toPayload(info: ReadingInfo): ReadingProgressPayload {
+    let hostname = '';
+    try {
+      hostname = new URL(info.currentUrl).hostname;
+    } catch {
+      hostname = '';
+    }
+
     return {
       storyId: info.storyId,
       storyTitle: info.storyTitle,
@@ -139,7 +146,11 @@ export class SyncService {
       chapterTitle: info.chapterTitle,
       currentUrl: info.currentUrl,
       progress: { ...info.progress },
-      metadata: info.metadata,
+      metadata: {
+        ...info.metadata,
+        page_kind: 'chapter',
+        hostname,
+      },
       clientTimestamp: Date.now(),
     };
   }

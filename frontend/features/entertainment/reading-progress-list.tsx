@@ -68,9 +68,11 @@ function ReadingCard({ item }: { item: ReadingProgress }) {
 }
 
 export function ReadingProgressList() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, isFetching } = useQuery({
     queryKey: ["reading-progress", "current"],
     queryFn: () => api.currentReadingProgress(),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   if (isLoading) {
@@ -99,10 +101,15 @@ export function ReadingProgressList() {
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {items.map((item) => (
-        <ReadingCard key={item.id} item={item} />
-      ))}
+    <div className="space-y-3">
+      {isFetching && !isLoading ? (
+        <p className="text-xs text-muted-foreground">Refreshing from Story Tracker…</p>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {items.map((item) => (
+          <ReadingCard key={item.id} item={item} />
+        ))}
+      </div>
     </div>
   );
 }

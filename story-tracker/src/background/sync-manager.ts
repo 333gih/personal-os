@@ -8,6 +8,8 @@ import { startPersonalOsWebAuth, processWebAuthHandoff } from '../auth/web-auth'
 import { storageService } from '../storage/storage-service';
 import { MESSAGE_TYPES, type ExtensionMessage, type MessageResponse } from '../shared/messages';
 import { onConnectivityChange } from '../services/reading-progress-service';
+import { pullRemoteProgress } from '../services/pull-progress';
+import { registerKnownContentScripts, maybeDiscoverOrigin } from './origin-registry';
 import { logger } from '../utils/logger';
 
 export class SyncManager {
@@ -41,6 +43,15 @@ export class SyncManager {
       void this.handleMessage(message as ExtensionMessage).then(sendResponse);
       return true;
     });
+
+    browser.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+      if (changeInfo.status === 'complete' && tab.url) {
+        void maybeDiscoverOrigin(tab.url);
+      }
+    });
+
+    void registerKnownContentScripts();
+    void pullRemoteProgress();
 
     logger.info('Sync manager initialized');
   }
@@ -116,10 +127,10 @@ export class SyncManager {
 
         case MESSAGE_TYPES.GET_CURRENT_READING: {
           const sessions = await storageService.get('readingSessions');
-          const active = this.activeTabId ?
-            Object.values(sessions).sort((a, b) => b.lastUpdatedAt - a.lastUpdatedAt)[0]
-          : Object.values(sessions).sort((a, b) => b.lastUpdatedAt - a.lastUpdatedAt)[0];
-          return { success: true, data: active ?? null };
+          const sorted = Object.values(sessions).sort(
+            (a, b) => b.lastUpdatedAt - a.lastUpdatedAt,
+          );
+          return { success: true, data: sorted[0] ?? null };
         }
 
         case MESSAGE_TYPES.GET_STATE:
@@ -148,7 +159,7 @@ export class SyncManager {
     forceFlush = false,
   ): Promise<MessageResponse> {
     const session: ReadingSession = {
-      id: `${info.storyId}:${info.chapterId ?? 'default'}`,
+      id: info.storyId,
       readingInfo: info,
       startedAt: Date.now(),
       lastUpdatedAt: Date.now(),
@@ -168,6 +179,9 @@ export class SyncManager {
     });
 
     const synced = await syncService.syncReadingUpdate(info);
+    if (synced) {
+      void pullRemoteProgress();
+    }
 
     if (info.isUnload || forceFlush) {
       await syncService.flushQueue();

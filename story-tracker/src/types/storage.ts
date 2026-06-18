@@ -1,12 +1,25 @@
 import type { ReadingHistoryEntry, ReadingSession, SyncStatus } from './reading';
 import type { AuthState } from '../auth/types';
 
+export interface StoryCatalogEntry {
+  storyId: string;
+  storyTitle: string;
+  siteId: string;
+  hostname: string;
+  lastChapterId?: string;
+  lastChapterTitle?: string;
+  lastReadAt: number;
+  lastProgress: number;
+  currentUrl: string;
+}
+
 export interface StorageSchema {
   auth: AuthState | null;
   unsyncedEvents: UnsyncedEvent[];
   parserCache: Record<string, ParserCacheEntry>;
   readingSessions: Record<string, ReadingSession>;
   readingHistory: ReadingHistoryEntry[];
+  storyCatalog: Record<string, StoryCatalogEntry>;
   syncStatus: SyncStatus;
   settings: ExtensionSettings;
 }
@@ -26,16 +39,22 @@ export interface ParserCacheEntry {
   data: Record<string, unknown>;
 }
 
+import type { CustomOrigin } from './site-registry';
+
 export interface ExtensionSettings {
   syncIntervalMs: number;
   enabledSites: Record<string, boolean>;
   autoSync: boolean;
+  autoDiscoverSites: boolean;
+  customOrigins: CustomOrigin[];
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
   syncIntervalMs: __DEFAULT_SYNC_INTERVAL_MS__,
   enabledSites: {},
   autoSync: true,
+  autoDiscoverSites: true,
+  customOrigins: [],
 };
 
 export const STORAGE_KEYS = {
@@ -44,6 +63,7 @@ export const STORAGE_KEYS = {
   PARSER_CACHE: 'parserCache',
   READING_SESSIONS: 'readingSessions',
   READING_HISTORY: 'readingHistory',
+  STORY_CATALOG: 'storyCatalog',
   SYNC_STATUS: 'syncStatus',
   SETTINGS: 'settings',
 } as const;

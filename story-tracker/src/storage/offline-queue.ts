@@ -14,7 +14,8 @@ export class OfflineQueue {
     };
 
     await storageService.update('unsyncedEvents', (events) => {
-      const next = [...events, event];
+      const withoutStory = events.filter((e) => e.payload.storyId !== payload.storyId);
+      const next = [...withoutStory, event];
       if (next.length > OFFLINE_QUEUE_MAX_SIZE) {
         logger.warn('Offline queue full, dropping oldest events');
         return next.slice(-OFFLINE_QUEUE_MAX_SIZE);

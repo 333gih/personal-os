@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import webExtension from 'vite-plugin-web-extension';
 import { resolve } from 'path';
 import { readFileSync } from 'fs';
+import type { SiteRegistry } from './src/types/site-registry';
 
 const target = process.env.TARGET ?? 'firefox';
 const isFirefox = target === 'firefox' || target === 'firefox-dev';
@@ -24,23 +25,20 @@ function personalOsFeOrigin(env: Record<string, string>): string {
   );
 }
 
-function loadHostPermissions(env: Record<string, string>): string[] {
-  const story = loadJsonFile<{ hostPermissions: string[] }>(
-    resolve(__dirname, 'public/manifest/host-permissions.json'),
-    { hostPermissions: [] },
+function loadSiteRegistryHostPatterns(): string[] {
+  const registry = loadJsonFile<SiteRegistry>(
+    resolve(__dirname, 'src/config/site-registry.json'),
+    { sites: [] },
   );
+  return registry.sites.flatMap((site) => site.hostPatterns);
+}
+
+function loadHostPermissions(env: Record<string, string>): string[] {
   const api = loadJsonFile<{ apiHostPermissions: string[] }>(
     resolve(__dirname, 'public/manifest/api-host-permissions.json'),
     { apiHostPermissions: [] },
   );
-  return [...story.hostPermissions, ...api.apiHostPermissions, `${personalOsFeOrigin(env)}/*`];
-}
-
-function loadStoryContentMatches(): string[] {
-  return loadJsonFile<{ hostPermissions: string[] }>(
-    resolve(__dirname, 'public/manifest/host-permissions.json'),
-    { hostPermissions: [] },
-  ).hostPermissions;
+  return [...loadSiteRegistryHostPatterns(), ...api.apiHostPermissions, `${personalOsFeOrigin(env)}/*`];
 }
 
 function loadPersonalOsFeConnectMatches(env: Record<string, string>): string[] {
@@ -59,12 +57,13 @@ export default defineConfig(({ mode }) => {
   );
 
   const hostPermissions = loadHostPermissions(env);
-  const storyMatches = loadStoryContentMatches();
+  const storyMatches = loadSiteRegistryHostPatterns();
   const connectMatches = loadPersonalOsFeConnectMatches(env);
 
   const manifest = {
     ...baseManifest,
     host_permissions: hostPermissions,
+    optional_host_permissions: ['*://*/*'],
     content_scripts: [
       {
         matches: storyMatches,

@@ -5,12 +5,12 @@ import { MESSAGE_TYPES } from '../shared/messages';
 import { SCROLL_THROTTLE_MS, SYNC_DEBOUNCE_MS } from '../shared/constants';
 import { debounce, throttle } from '../utils/debounce';
 import { logger } from '../utils/logger';
+import { isChapterPage } from '../parsers/page-classifier';
 
 export class ReadingTracker {
   private readingTimeSeconds = 0;
-  private lastChapterKey: string | null = null;
+  private lastStoryId: string | null = null;
   private isVisible = !document.hidden;
-  private visibilityStart = Date.now();
   private timerInterval: ReturnType<typeof setInterval> | null = null;
   private latestInfo: ReadingInfo | null = null;
 
@@ -23,7 +23,12 @@ export class ReadingTracker {
   }, SCROLL_THROTTLE_MS);
 
   start(): void {
-    logger.debug('Reading tracker started');
+    if (!isChapterPage(window.location.href)) {
+      logger.debug('Skipping tracker — not a chapter page', window.location.href);
+      return;
+    }
+
+    logger.debug('Reading tracker started on chapter page');
     window.addEventListener('scroll', this.onScroll, { passive: true });
     document.addEventListener('visibilitychange', this.onVisibilityChange);
     window.addEventListener('beforeunload', this.onUnload);
@@ -55,9 +60,6 @@ export class ReadingTracker {
     if (!nowVisible && this.isVisible) {
       void this.flushUpdate();
     }
-    if (nowVisible && !this.isVisible) {
-      this.visibilityStart = Date.now();
-    }
     this.isVisible = nowVisible;
   };
 
@@ -76,19 +78,23 @@ export class ReadingTracker {
         url: window.location.href,
       });
 
+      if (!info) {
+        logger.debug('No chapter reading info for this page');
+        return null;
+      }
+
       info.progress.readingTimeSeconds = this.readingTimeSeconds;
 
-      const chapterKey = `${info.storyId}:${info.chapterId ?? info.currentUrl}`;
-      const chapterChanged = this.lastChapterKey !== null && this.lastChapterKey !== chapterKey;
+      const storyChanged = this.lastStoryId !== null && this.lastStoryId !== info.storyId;
 
-      if (chapterChanged) {
+      if (storyChanged) {
         await browser.runtime.sendMessage({
           type: MESSAGE_TYPES.CHAPTER_CHANGED,
           payload: info,
         });
       }
 
-      this.lastChapterKey = chapterKey;
+      this.lastStoryId = info.storyId;
       this.latestInfo = info;
 
       if (force || manual) {

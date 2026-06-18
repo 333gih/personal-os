@@ -24,6 +24,6 @@
     "page": "src/options/index.html",
     "open_in_tab": true
   },
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "scripting"],
   "content_scripts": []
 }

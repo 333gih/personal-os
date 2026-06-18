@@ -73,6 +73,20 @@ export function App() {
       <div className="section">
         <h2>Sync Settings</h2>
         <div className="setting-row">
+          <label htmlFor="auto-discover">Auto-track new reading sites</label>
+          <label className="toggle">
+            <input
+              id="auto-discover"
+              type="checkbox"
+              checked={settings.autoDiscoverSites}
+              onChange={() =>
+                void saveSettings({ ...settings, autoDiscoverSites: !settings.autoDiscoverSites })
+              }
+            />
+            <span className="toggle-slider" />
+          </label>
+        </div>
+        <div className="setting-row">
           <label htmlFor="sync-interval">Sync interval (seconds)</label>
           <input
             id="sync-interval"
@@ -96,6 +110,18 @@ export function App() {
           </label>
         </div>
       </div>
+
+      {settings.customOrigins.length > 0 ? (
+        <div className="section">
+          <h2>Discovered Sites</h2>
+          {settings.customOrigins.map((origin) => (
+            <div key={origin.pattern} className="site-toggle">
+              <span>{origin.label}</span>
+              <code style={{ fontSize: 11 }}>{origin.pattern}</code>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="section">
         <h2>Data Management</h2>

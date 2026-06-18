@@ -1,4 +1,6 @@
 import type { ParserContext, StoryParser } from '../types/parser';
+import type { ReadingInfo } from '../types/reading';
+import { isChapterPage } from './page-classifier';
 import { createNetTruyenParser } from './nettruyen-parser';
 import { createTruyenQQParser } from './truyenqq-parser';
 import { createTruyenFullParser } from './truyenfull-parser';
@@ -44,7 +46,11 @@ export class ParserFactoryRegistry {
 
 export const parserFactory = new ParserFactoryRegistry();
 
-export async function extractReadingInfo(ctx: ParserContext) {
+export async function extractReadingInfo(ctx: ParserContext): Promise<ReadingInfo | null> {
+  if (!isChapterPage(ctx.url)) {
+    return null;
+  }
+
   const parser = parserFactory.resolve(ctx);
   return parser.extract();
 }

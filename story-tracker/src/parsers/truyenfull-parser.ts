@@ -1,6 +1,7 @@
 import { BaseParser } from './base-parser';
 import type { ParserContext } from '../types/parser';
 import type { ReadingInfo } from '../types/reading';
+import { classifyReadingPage } from './page-classifier';
 
 export class TruyenFullParser extends BaseParser {
   readonly siteId = 'truyenfull';
@@ -11,7 +12,12 @@ export class TruyenFullParser extends BaseParser {
   }
 
   async extract(): Promise<ReadingInfo> {
-    const urlMeta = this.extractFromUrl();
+    const page = classifyReadingPage(this.ctx.url);
+    if (page.kind !== 'chapter') {
+      throw new Error('Not a chapter page');
+    }
+
+    const urlMeta = this.extractFromUrl(page);
     const titleMeta = this.extractFromTruyenFullTitle();
     const breadcrumbs = this.getBreadcrumbTexts();
 
@@ -36,13 +42,19 @@ export class TruyenFullParser extends BaseParser {
     return this.buildReadingInfo({
       storyId: urlMeta.storyId,
       storyTitle: storyTitle ?? 'Unknown story',
-      chapterId: urlMeta.chapterId,
-      chapterTitle,
-      metadata: { parser: this.siteId, site: 'truyenfull' },
+      chapterId: urlMeta.chapterId ?? page.chapterId,
+      chapterTitle: chapterTitle ?? page.chapterTitle,
+      metadata: {
+        parser: this.siteId,
+        site: 'truyenfull',
+        pageKind: 'chapter',
+        storySlug: page.storySlug ?? urlMeta.storyId,
+        hostname: new URL(this.ctx.url).hostname,
+      },
     });
   }
 
-  private extractFromUrl(): {
+  private extractFromUrl(page: ReturnType<typeof classifyReadingPage>): {
     storyId?: string;
     storyTitle?: string;
     chapterId?: string;
@@ -52,8 +64,8 @@ export class TruyenFullParser extends BaseParser {
       const parts = new URL(this.ctx.url).pathname.split('/').filter(Boolean);
       if (parts.length < 2) return {};
 
-      const storySlug = parts[0];
-      const chapterSegment = parts[1];
+      const storySlug = page.storySlug ?? parts[0];
+      const chapterSegment = parts[parts.length - 1];
       const chapterMatch = chapterSegment.match(/^chuong-(\d+(?:\.\d+)?)$/i);
       if (!chapterMatch) return { storyId: storySlug };
 

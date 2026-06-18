@@ -1,0 +1,33 @@
+{
+  "_comment": "Single source for story sites. Build reads hostPatterns; parsers use id. Add custom origins at runtime via extension settings.",
+  "sites": [
+    {
+      "id": "nettruyen",
+      "label": "NetTruyen",
+      "hostPatterns": ["*://*.nettruyen.com/*", "*://*.nettruyenngay.com/*"],
+      "parser": "nettruyen"
+    },
+    {
+      "id": "truyenqq",
+      "label": "TruyenQQ",
+      "hostPatterns": ["*://*.truyenqq.com/*", "*://*.truyenqqno.com/*"],
+      "parser": "truyenqq"
+    },
+    {
+      "id": "vietnamthuquan",
+      "label": "Vietnam Thu Quan",
+      "hostPatterns": ["*://*.thuquansach.com/*", "*://*.vietnamthuquan.com/*"],
+      "parser": "vietnamthuquan"
+    },
+    {
+      "id": "truyenfull",
+      "label": "TruyenFull",
+      "hostPatterns": [
+        "*://*.truyenfull.today/*",
+        "*://*.truyenfull.vn/*",
+        "*://*.truyenfull.vision/*"
+      ],
+      "parser": "truyenfull"
+    }
+  ]
+}
