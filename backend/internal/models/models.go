@@ -84,6 +84,10 @@ type ReadingProgress struct {
 	UpdatedAt          time.Time         `json:"updated_at"`
 }
 
+func (ReadingProgress) TableName() string {
+	return "reading_progress"
+}
+
 // Entity type constants
 const (
 	DomainInbox    = "inbox"
