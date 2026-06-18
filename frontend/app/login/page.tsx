@@ -224,7 +224,7 @@ function LoginForm() {
         <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
           <button
             type="button"
-            className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            className={`min-h-11 rounded-md px-3 text-sm font-medium transition-colors active:scale-[0.98] ${
               mode === "commercial" ? "bg-background shadow-sm" : "text-muted-foreground"
             }`}
             onClick={() => {
@@ -238,7 +238,7 @@ function LoginForm() {
           </button>
           <button
             type="button"
-            className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            className={`min-h-11 rounded-md px-3 text-sm font-medium transition-colors active:scale-[0.98] ${
               mode === "internal" ? "bg-background shadow-sm" : "text-muted-foreground"
             }`}
             onClick={() => {
@@ -368,9 +368,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-muted/30 p-4">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-muted/30 p-4 pt-safe pb-safe">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Loading...</p>}>
-        <LoginForm />
+        <div className="w-full max-w-md">
+          <LoginForm />
+        </div>
       </Suspense>
     </div>
   );

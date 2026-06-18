@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { clearAccessTokenCache } from "@/lib/auth/access-token";
+import { navLabelForPath } from "@/lib/nav";
 import { BottomNav } from "@/components/bottom-nav";
 import { SidebarFooter, SidebarNav } from "@/components/sidebar-nav";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,9 @@ import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const pageTitle = navLabelForPath(pathname);
 
   const logout = async () => {
     clearAccessTokenCache();
@@ -45,35 +48,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(85vw,18rem)] flex-col border-r bg-card shadow-xl transition-transform duration-200 lg:hidden",
-          menuOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-50 flex w-[min(85vw,18rem)] flex-col border-r bg-card pl-safe shadow-xl transition-transform duration-200 lg:hidden",
+          menuOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex items-center justify-between border-b p-4">
+        <div className="flex items-center justify-between border-b p-4 pt-safe pr-4">
           <div>
             <h1 className="text-lg font-bold">Personal OS</h1>
             <p className="text-xs text-muted-foreground">Knowledge Platform</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setMenuOpen(false)}>
+          <Button variant="ghost" size="icon" onClick={() => setMenuOpen(false)} aria-label="Close menu">
             <X className="h-5 w-5" />
           </Button>
         </div>
-        <SidebarNav onNavigate={() => setMenuOpen(false)} />
+        <SidebarNav mobile onNavigate={() => setMenuOpen(false)} />
         <SidebarFooter onLogout={logout} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-30 flex min-h-[3.25rem] items-center gap-2 border-b bg-card/95 px-3 pt-safe backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:hidden">
           <Button variant="ghost" size="icon" onClick={() => setMenuOpen(true)} aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </Button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">Personal OS</p>
+            <p className="truncate text-base font-semibold">{pageTitle}</p>
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 pb-24 sm:p-5 lg:p-8 lg:pb-8">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-mobile-nav sm:p-5 lg:p-8 lg:pb-8">
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>

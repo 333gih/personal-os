@@ -10,24 +10,26 @@ import { Button } from "./ui/button";
 type SidebarNavProps = {
   onNavigate?: () => void;
   className?: string;
+  mobile?: boolean;
 };
 
-export function SidebarNav({ onNavigate, className }: SidebarNavProps) {
+export function SidebarNav({ onNavigate, className, mobile }: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav className={cn("flex-1 space-y-1 p-3 sm:p-4", className)}>
+    <nav className={cn("flex-1 space-y-1 overflow-y-auto p-3 sm:p-4", className)}>
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
           href={href}
           onClick={onNavigate}
           className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent",
-            pathname.startsWith(href) && "bg-accent text-accent-foreground"
+            "flex items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors hover:bg-accent active:bg-accent/80",
+            mobile ? "min-h-11 py-2.5" : "py-2.5",
+            pathname.startsWith(href) && "bg-accent text-accent-foreground",
           )}
         >
-          <Icon className="h-4 w-4 shrink-0" />
+          <Icon className="h-5 w-5 shrink-0" />
           {label}
         </Link>
       ))}
@@ -41,8 +43,8 @@ type SidebarFooterProps = {
 
 export function SidebarFooter({ onLogout }: SidebarFooterProps) {
   return (
-    <div className="border-t p-3 sm:p-4">
-      <Button variant="ghost" className="w-full justify-start" onClick={onLogout}>
+    <div className="border-t p-3 pb-safe sm:p-4">
+      <Button variant="ghost" className="min-h-11 w-full justify-start" onClick={onLogout}>
         <LogOut className="mr-2 h-4 w-4" />
         Logout
       </Button>
