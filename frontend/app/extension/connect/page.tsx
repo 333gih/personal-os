@@ -48,7 +48,7 @@ function deliverHandoff(payload: HandoffPayload): Promise<void> {
           new Error(
             bridgeReady
               ? "Story Tracker could not complete sign-in. Reload the extension in about:debugging, then try again."
-              : "Story Tracker extension is not active on this page. Reload the extension in about:debugging, rebuild with matching PERSONAL_OS_FE_URL (use npm run build:firefox:dev:local for Docker localhost:3000), then try again.",
+              : "Story Tracker extension is not active on this page. Reload the extension in about:debugging and try again.",
           ),
         );
       }
