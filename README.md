@@ -87,6 +87,6 @@ Production base URL: `https://api-personal-os.fashandcurious.com/api/v1`
 |-----|----------|-----|
 | prod | `personal-os-fe.fashandcurious.com` | `api-personal-os.fashandcurious.com` |
 
-FE gọi API qua `NEXT_PUBLIC_API_URL=https://api-personal-os.fashandcurious.com/api/v1`
+FE gọi API qua same-origin BFF: `NEXT_PUBLIC_API_URL=/api/v1` (template: `frontend/.env.prod`)
 
 Chi tiết VPS: [`deploy/ubuntu-vps.md`](deploy/ubuntu-vps.md)

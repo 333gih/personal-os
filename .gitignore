@@ -9,7 +9,10 @@ frontend/out/
 docker/.env*
 backend/.env*
 frontend/.env.local
-frontend/.env.*
+frontend/.env.*.local
+!frontend/.env.example
+!frontend/.env.prod
+!frontend/.env.local.prod
 
 # Story Tracker extension
 story-tracker/node_modules/

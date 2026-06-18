@@ -21,7 +21,7 @@ Browser → api-personal-os.fashandcurious.com  → Traefik → Kong → persona
 
 ```bash
 NEXT_PUBLIC_SITE_URL=https://personal-os-fe.fashandcurious.com
-NEXT_PUBLIC_API_URL=https://api-personal-os.fashandcurious.com/api/v1
+NEXT_PUBLIC_API_URL=/api/v1
 CORS_ORIGINS=https://personal-os-fe.fashandcurious.com
 ```
 
