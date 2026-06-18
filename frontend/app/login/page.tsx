@@ -1,23 +1,28 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getAccessToken } from "@/lib/auth/access-token";
-import type { AuthMode } from "@/lib/auth/channels";
+import { buildAdminPortalInternalLoginUrl } from "@/lib/auth/admin-portal-sso";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type CommercialStep = "sign-in" | "otp-request" | "otp-verify";
-
-const ADMIN_PORTAL_URL =
-  process.env.NEXT_PUBLIC_ADMIN_PORTAL_URL?.trim() ||
-  "https://fashandcurious.com/management/auth/login";
+type AuthMode = "internal" | "commercial";
 
 const DEFAULT_INTERNAL_LOGIN_ENABLED =
   process.env.NEXT_PUBLIC_INTERNAL_DEFAULT_LOGIN_ENABLED === "true" ||
   process.env.NODE_ENV === "development";
+
+const SSO_ERROR_MESSAGES: Record<string, string> = {
+  missing_ticket: "Admin Portal did not return a session ticket.",
+  invalid_ticket: "Session ticket expired or invalid. Please sign in again.",
+  not_admin: "Your Admin Portal account is not authorized for Personal OS internal access.",
+  sso_not_configured: "Internal SSO is not configured on this deployment.",
+  callback_failed: "Could not complete Admin Portal sign-in.",
+};
 
 function LoginForm() {
   const router = useRouter();
@@ -32,10 +37,54 @@ function LoginForm() {
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const code = searchParams.get("error");
+    if (code && SSO_ERROR_MESSAGES[code]) {
+      setError(SSO_ERROR_MESSAGES[code] ?? "");
+      setMode("internal");
+    }
+  }, [searchParams]);
+
+  const safeNext = (): string => {
+    const next = searchParams.get("next");
+    return next && next.startsWith("/") ? next : "/dashboard";
+  };
+
   const goNext = async () => {
     await getAccessToken(true);
-    const next = searchParams.get("next");
-    router.push(next && next.startsWith("/") ? next : "/dashboard");
+    router.push(safeNext());
+  };
+
+  const handleAdminPortalRedirect = () => {
+    setError("");
+    window.location.href = buildAdminPortalInternalLoginUrl(safeNext());
+  };
+
+  const handleDefaultInternalLogin = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/internal/default-login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ remember_me: remember }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(
+          (typeof body.error === "string" && body.error) ||
+            (typeof body.message === "string" && body.message) ||
+            "Default login failed",
+        );
+        return;
+      }
+      await goNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Default login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCommercialPasswordLogin = async (e: React.FormEvent) => {
@@ -52,73 +101,16 @@ function LoginForm() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg =
+        setError(
           (typeof body.error === "string" && body.error) ||
-          (typeof body.message === "string" && body.message) ||
-          "Login failed";
-        setError(res.status > 0 ? `[${res.status}] ${msg}` : msg);
+            (typeof body.message === "string" && body.message) ||
+            "Login failed",
+        );
         return;
       }
       await goNext();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInternalLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setInfo("");
-    try {
-      const res = await fetch("/api/auth/internal/login", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ email, password, remember_me: remember }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg =
-          (typeof body.error === "string" && body.error) ||
-          (typeof body.message === "string" && body.message) ||
-          "Login failed";
-        setError(res.status > 0 ? `[${res.status}] ${msg}` : msg);
-        return;
-      }
-      await goNext();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDefaultInternalLogin = async () => {
-    setLoading(true);
-    setError("");
-    setInfo("");
-    try {
-      const res = await fetch("/api/auth/internal/default-login", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ remember_me: remember }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg =
-          (typeof body.error === "string" && body.error) ||
-          (typeof body.message === "string" && body.message) ||
-          "Default login failed";
-        setError(msg);
-        return;
-      }
-      await goNext();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Default login failed");
     } finally {
       setLoading(false);
     }
@@ -127,7 +119,6 @@ function LoginForm() {
   const handleGoogleCredential = async (credential: string) => {
     setLoading(true);
     setError("");
-    setInfo("");
     try {
       const res = await fetch("/api/auth/social-login", {
         method: "POST",
@@ -142,16 +133,14 @@ function LoginForm() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg =
+        setError(
           (typeof body.error === "string" && body.error) ||
-          (typeof body.message === "string" && body.message) ||
-          "Google sign-in failed";
-        setError(msg);
+            (typeof body.message === "string" && body.message) ||
+            "Google sign-in failed",
+        );
         return;
       }
-      if (body.is_new_user) {
-        setInfo("Welcome! Your Fash account was created and synced.");
-      }
+      if (body.is_new_user) setInfo("Welcome! Your Fash account was created and synced.");
       await goNext();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
@@ -164,7 +153,6 @@ function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setInfo("");
     try {
       const res = await fetch("/api/auth/otp/request", {
         method: "POST",
@@ -174,11 +162,11 @@ function LoginForm() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg =
+        setError(
           (typeof body.error === "string" && body.error) ||
-          (typeof body.message === "string" && body.message) ||
-          "Could not send verification code";
-        setError(msg);
+            (typeof body.message === "string" && body.message) ||
+            "Could not send verification code",
+        );
         return;
       }
       setCommercialStep("otp-verify");
@@ -207,15 +195,12 @@ function LoginForm() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const msg =
+        setError(
           (typeof body.error === "string" && body.error) ||
-          (typeof body.message === "string" && body.message) ||
-          "Verification failed";
-        setError(msg);
+            (typeof body.message === "string" && body.message) ||
+            "Verification failed",
+        );
         return;
-      }
-      if (body.is_new_user) {
-        setInfo("Account created and synced with Fash apps.");
       }
       await goNext();
     } catch (err) {
@@ -231,8 +216,8 @@ function LoginForm() {
         <CardTitle className="text-2xl">Personal OS</CardTitle>
         <CardDescription>
           {mode === "internal"
-            ? "Internal staff — provisioned via Admin Portal"
-            : "Commercial access — same Fash account as mobile apps"}
+            ? "Internal — sign in via Fash Admin Portal"
+            : "Commercial — same Fash account as mobile apps"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -268,56 +253,14 @@ function LoginForm() {
 
         {mode === "internal" ? (
           <div className="space-y-4">
-            <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
-              <p>
-                Internal accounts must be created and granted Personal OS access in the{" "}
-                <a
-                  href={ADMIN_PORTAL_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-foreground underline"
-                >
-                  Fash Admin Portal
-                </a>
-                . After an admin assigns your application access, sign in below.
-              </p>
-            </div>
-
-            <form onSubmit={handleInternalLogin} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Staff email</label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Password</label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                />
-                Remember me
-              </label>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing in..." : "Sign in (provisioned staff)"}
-              </Button>
-            </form>
-
+            <p className="text-sm text-muted-foreground">
+              Internal access uses your Admin Portal session. You will be redirected to Fash Admin
+              Portal to sign in; after success, your session is passed back here automatically.
+            </p>
+            <Button type="button" className="w-full" disabled={loading} onClick={handleAdminPortalRedirect}>
+              Continue to Admin Portal
+            </Button>
+            {error && <p className="text-sm text-destructive">{error}</p>}
             {DEFAULT_INTERNAL_LOGIN_ENABLED ? (
               <>
                 <div className="relative">
@@ -325,23 +268,18 @@ function LoginForm() {
                     <span className="w-full border-t" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">or</span>
+                    <span className="bg-card px-2 text-muted-foreground">dev only</span>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Bootstrap / local default internal account (server-configured credentials).
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    disabled={loading}
-                    onClick={() => void handleDefaultInternalLogin()}
-                  >
-                    {loading ? "Signing in..." : "Sign in with default internal account"}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={loading}
+                  onClick={() => void handleDefaultInternalLogin()}
+                >
+                  Default internal account
+                </Button>
               </>
             ) : null}
           </div>
@@ -359,13 +297,7 @@ function LoginForm() {
             <form onSubmit={handleCommercialPasswordLogin} className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Email</label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               </div>
               <div>
                 <label className="text-sm font-medium">Password</label>
@@ -374,15 +306,10 @@ function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  autoComplete="current-password"
                 />
               </div>
               <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                />
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
                 Remember me
               </label>
               {error && <p className="text-sm text-destructive">{error}</p>}
@@ -398,7 +325,6 @@ function LoginForm() {
               onClick={() => {
                 setCommercialStep("otp-request");
                 setError("");
-                setInfo("");
               }}
             >
               Sign up or sign in with email code
@@ -406,67 +332,27 @@ function LoginForm() {
           </div>
         ) : commercialStep === "otp-request" ? (
           <form onSubmit={handleOtpRequest} className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Enter your email to receive a one-time code. New accounts sync to Fash iOS/Android.
-            </p>
             <div>
               <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Sending..." : "Send verification code"}
+              Send verification code
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={() => setCommercialStep("sign-in")}
-            >
+            <Button type="button" variant="ghost" className="w-full" onClick={() => setCommercialStep("sign-in")}>
               Back
             </Button>
           </form>
         ) : (
           <form onSubmit={handleOtpVerify} className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Enter the code sent to <strong>{email}</strong>
-            </p>
             <div>
               <label className="text-sm font-medium">Verification code</label>
-              <Input
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                required
-                inputMode="numeric"
-                autoComplete="one-time-code"
-              />
+              <Input value={otp} onChange={(e) => setOtp(e.target.value)} required inputMode="numeric" />
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-              Remember me
-            </label>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            {info && <p className="text-sm text-muted-foreground">{info}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Verifying..." : "Verify & continue"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={() => setCommercialStep("otp-request")}
-            >
-              Resend code
+              Verify & continue
             </Button>
           </form>
         )}
