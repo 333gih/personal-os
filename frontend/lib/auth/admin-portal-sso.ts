@@ -1,11 +1,10 @@
+import { resolveClientSiteOrigin } from "@/lib/site-url";
+
 export function buildAdminPortalInternalLoginUrl(next = "/dashboard"): string {
   const adminLogin =
     process.env.NEXT_PUBLIC_ADMIN_PORTAL_URL?.trim() ||
     "https://fashandcurious.com/management/auth/login";
-  const siteOrigin = (
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000")
-  ).replace(/\/+$/, "");
+  const siteOrigin = resolveClientSiteOrigin();
 
   const callback = `${siteOrigin}/api/auth/internal/callback`;
   const url = new URL(adminLogin);

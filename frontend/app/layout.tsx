@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "Personal OS",
   description: "Personal knowledge platform for learning, work, and startup ideas",
   metadataBase: process.env.NEXT_PUBLIC_SITE_URL
-    ? new URL(process.env.NEXT_PUBLIC_SITE_URL)
+    ? new URL(process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, ""))
     : undefined,
 };
 

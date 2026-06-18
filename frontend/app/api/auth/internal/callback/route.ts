@@ -5,6 +5,7 @@ import { isAdminFromToken } from "@/lib/auth/internal-access";
 import { sanitizeAppNext } from "@/lib/auth/safe-redirect";
 import { verifySsoHandoffTicket } from "@/lib/auth/sso-handoff";
 import { getCookieSecureFromHeaders, getServerAuthEnv } from "@/lib/auth/server-env";
+import { absolutePublicUrl } from "@/lib/request-public-origin";
 
 function readSsoSecret(): string | null {
   const secret = process.env.PERSONAL_OS_SSO_HANDOFF_SECRET?.trim();
@@ -13,32 +14,33 @@ function readSsoSecret(): string | null {
 }
 
 export async function GET(request: Request) {
+  const headers = request.headers;
   try {
     const url = new URL(request.url);
     const ticket = url.searchParams.get("ticket")?.trim();
     const next = sanitizeAppNext(url.searchParams.get("next"));
 
     if (!ticket) {
-      return NextResponse.redirect(new URL("/login?error=missing_ticket", url.origin));
+      return NextResponse.redirect(absolutePublicUrl(headers, "/login?error=missing_ticket"));
     }
 
     const secret = readSsoSecret();
     if (!secret) {
-      return NextResponse.redirect(new URL("/login?error=sso_not_configured", url.origin));
+      return NextResponse.redirect(absolutePublicUrl(headers, "/login?error=sso_not_configured"));
     }
 
     const payload = verifySsoHandoffTicket(ticket, secret);
     if (!payload) {
-      return NextResponse.redirect(new URL("/login?error=invalid_ticket", url.origin));
+      return NextResponse.redirect(absolutePublicUrl(headers, "/login?error=invalid_ticket"));
     }
 
     if (!isAdminFromToken(payload.access_token)) {
-      return NextResponse.redirect(new URL("/login?error=not_admin", url.origin));
+      return NextResponse.redirect(absolutePublicUrl(headers, "/login?error=not_admin"));
     }
 
     getServerAuthEnv();
 
-    const res = NextResponse.redirect(new URL(next, url.origin));
+    const res = NextResponse.redirect(absolutePublicUrl(headers, next));
     applyTokenCookies(
       res.cookies,
       {
@@ -54,6 +56,6 @@ export async function GET(request: Request) {
     return res;
   } catch (e) {
     console.error("[internal/callback]", e);
-    return NextResponse.redirect(new URL("/login?error=callback_failed", request.url));
+    return NextResponse.redirect(absolutePublicUrl(request.headers, "/login?error=callback_failed"));
   }
 }
