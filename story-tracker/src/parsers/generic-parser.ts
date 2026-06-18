@@ -69,17 +69,31 @@ export class GenericParser extends BaseParser {
       let chapterId: string | undefined;
       let storyId: string | undefined;
 
-      for (const part of parts) {
-        const chapterMatch = part.match(chapterPatterns);
-        if (chapterMatch) {
-          chapterId = chapterMatch[2];
-          chapterTitle = `Chapter ${chapterMatch[2]}`;
-          continue;
-        }
+    for (const part of parts) {
+      const chapterMatch = part.match(chapterPatterns);
+      if (chapterMatch) {
+        chapterId = chapterMatch[2];
+        chapterTitle = `Chương ${chapterMatch[2]}`;
+        continue;
+      }
+      const slugChapterMatch = part.match(/^chuong-(\d+(?:\.\d+)?)$/i);
+      if (slugChapterMatch) {
+        chapterId = slugChapterMatch[1];
+        chapterTitle = `Chương ${slugChapterMatch[1]}`;
+        continue;
+      }
         const storyMatch = part.match(storyPatterns);
         if (storyMatch) {
           storyId = storyMatch[2];
           storyTitle = decodeURIComponent(storyMatch[2].replace(/-/g, ' '));
+        }
+      }
+
+      if (parts.length >= 2 && !storyId) {
+        const chapterPart = parts[parts.length - 1];
+        if (/^chuong-\d/i.test(chapterPart)) {
+          storyId = parts[parts.length - 2];
+          storyTitle = decodeURIComponent(parts[parts.length - 2].replace(/-/g, ' '));
         }
       }
 

@@ -9,6 +9,7 @@ export const OFFLINE_QUEUE_MAX_SIZE = 500;
 export const SUPPORTED_SITES = [
   { id: 'nettruyen', label: 'NetTruyen', pattern: '*://*.nettruyen*.com/*' },
   { id: 'truyenqq', label: 'TruyenQQ', pattern: '*://*.truyenqq*.com/*' },
+  { id: 'truyenfull', label: 'TruyenFull', pattern: '*://*.truyenfull.*/*' },
   { id: 'vietnamthuquan', label: 'Vietnam Thu Quan', pattern: '*://*.thuquansach.com/*' },
   { id: 'generic', label: 'Generic (fallback)', pattern: '*' },
 ] as const;

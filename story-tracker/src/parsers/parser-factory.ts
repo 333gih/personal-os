@@ -1,6 +1,7 @@
 import type { ParserContext, StoryParser } from '../types/parser';
 import { createNetTruyenParser } from './nettruyen-parser';
 import { createTruyenQQParser } from './truyenqq-parser';
+import { createTruyenFullParser } from './truyenfull-parser';
 import { createVietnamThuQuanParser } from './vietnamthuquan-parser';
 import { createGenericParser } from './generic-parser';
 import { logger } from '../utils/logger';
@@ -10,6 +11,7 @@ type ParserFactory = (ctx: ParserContext) => StoryParser;
 const PARSER_FACTORIES: ParserFactory[] = [
   createNetTruyenParser,
   createTruyenQQParser,
+  createTruyenFullParser,
   createVietnamThuQuanParser,
 ];
 

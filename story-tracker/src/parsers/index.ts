@@ -3,4 +3,5 @@ export { BaseParser } from './base-parser';
 export { GenericParser } from './generic-parser';
 export { NetTruyenParser } from './nettruyen-parser';
 export { TruyenQQParser } from './truyenqq-parser';
+export { TruyenFullParser } from './truyenfull-parser';
 export { VietnamThuQuanParser } from './vietnamthuquan-parser';

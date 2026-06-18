@@ -5,7 +5,10 @@
     "*://*.truyenqq.com/*",
     "*://*.truyenqqno.com/*",
     "*://*.thuquansach.com/*",
-    "*://*.vietnamthuquan.com/*"
+    "*://*.vietnamthuquan.com/*",
+    "*://*.truyenfull.today/*",
+    "*://*.truyenfull.vn/*",
+    "*://*.truyenfull.vision/*"
   ],
   "_comment": "Edit this file to add or remove site permissions without changing source code."
 }

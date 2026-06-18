@@ -14,9 +14,19 @@ export abstract class BaseParser implements StoryParser {
 
   protected getScrollProgress(): { percentage: number; scrollY: number } {
     const { document, window } = this.ctx;
+    const contentRoot =
+      document.querySelector<HTMLElement>(
+        '#chapter-content, .chapter-c, .chapter-content, .reading-content, .content-chapter, .truyen',
+      ) ?? document.documentElement;
+
     const scrollY = window.scrollY;
-    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-    const percentage = docHeight > 0 ? Math.min(100, Math.round((scrollY / docHeight) * 100)) : 0;
+    const viewportBottom = scrollY + window.innerHeight;
+    const contentTop = contentRoot.getBoundingClientRect().top + scrollY;
+    const contentHeight = contentRoot.scrollHeight;
+    const readableHeight = Math.max(contentHeight, 1);
+    const readThrough = Math.max(0, viewportBottom - contentTop);
+    const percentage = Math.min(100, Math.round((readThrough / readableHeight) * 100));
+
     return { percentage, scrollY };
   }
 
