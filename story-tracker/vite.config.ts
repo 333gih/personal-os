@@ -5,7 +5,9 @@ import { resolve } from 'path';
 import { readFileSync } from 'fs';
 
 const target = process.env.TARGET ?? 'firefox';
-const isFirefox = target === 'firefox';
+const isFirefox = target === 'firefox' || target === 'firefox-dev';
+const manifestFile =
+  target === 'firefox-dev' ? 'firefox-dev.manifest.json' : `${target}.manifest.json`;
 
 function loadJsonFile<T>(path: string, fallback: T): T {
   try {
@@ -33,7 +35,7 @@ export default defineConfig(({ mode }) => {
 
   const baseManifest = JSON.parse(
     readFileSync(
-      resolve(__dirname, `public/manifest/${target}.manifest.json`),
+      resolve(__dirname, `public/manifest/${manifestFile}`),
       'utf-8',
     ),
   );

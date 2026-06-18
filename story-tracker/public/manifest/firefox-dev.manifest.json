@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Story Tracker (Dev)",
+  "version": "1.0.1",
+  "description": "Developer / personal build — same code as Story Tracker, separate add-on ID for AMO or local testing.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png"
+    },
+    "default_title": "Story Tracker (Dev)"
+  },
+  "background": {
+    "scripts": ["src/background/index.ts"],
+    "type": "module"
+  },
+  "options_ui": {
+    "page": "src/options/index.html",
+    "open_in_tab": true
+  },
+  "permissions": ["storage", "activeTab"],
+  "content_scripts": [],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "story-tracker-dev@personal-os.local",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "websiteActivity",
+          "websiteContent",
+          "authenticationInfo"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  }
+}

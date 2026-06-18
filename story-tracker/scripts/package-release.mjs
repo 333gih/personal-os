@@ -69,11 +69,11 @@ async function main() {
   const target = process.argv[2] ?? 'all';
   const targets =
     target === 'all' ? ['firefox', 'chrome']
-    : target === 'firefox' || target === 'chrome' ? [target]
+    : target === 'firefox' || target === 'firefox-dev' || target === 'chrome' ? [target]
     : null;
 
   if (!targets) {
-    console.error('Usage: node scripts/package-release.mjs [firefox|chrome|all]');
+    console.error('Usage: node scripts/package-release.mjs [firefox|firefox-dev|chrome|all]');
     process.exit(1);
   }
 

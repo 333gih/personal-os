@@ -125,9 +125,19 @@ npm run build:chrome   # dist/chrome/
 ### Firefox (AMO)
 
 1. Run `npm run build:firefox`
-2. Zip the `dist/firefox/` directory
+2. Run `npm run package:firefox` → `release/story-tracker-firefox.zip`
 3. Submit at [addons.mozilla.org](https://addons.mozilla.org/developers/)
-4. Ensure `browser_specific_settings.gecko.id` in the manifest matches your AMO extension ID
+4. `browser_specific_settings.gecko.id` must match the **single** AMO listing for that add-on (`story-tracker@personal-os.local`)
+
+**Duplicate add-on ID:** AMO allows each `gecko.id` on **one listing only**. Do not upload the same zip to a second listing (public + unlisted/self-test). Options:
+
+| Goal | What to do |
+|------|------------|
+| New version of the same public add-on | Upload to the **existing** listing (Versions → Upload new version) |
+| Personal / dev build on AMO (unlisted) | Use dev ID: `npm run build:firefox:dev && npm run package:firefox:dev` → `story-tracker-firefox-dev.zip` (`story-tracker-dev@personal-os.local`) — **new** AMO listing |
+| Local test while public review pending | `about:debugging` → Load Temporary Add-on → `dist/firefox/manifest.json` (no AMO upload) |
+
+Both public and dev builds can be installed side-by-side in Firefox (different IDs).
 
 ### Chrome Web Store
 
