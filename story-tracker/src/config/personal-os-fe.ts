@@ -1,4 +1,6 @@
 export const EXTENSION_HANDOFF_MESSAGE_TYPE = 'PERSONAL_OS_EXTENSION_HANDOFF';
+export const EXTENSION_HANDOFF_ACK_TYPE = 'PERSONAL_OS_EXTENSION_HANDOFF_ACK';
+export const EXTENSION_HANDOFF_DOM_ID = 'personal-os-extension-handoff';
 
 export type WebAuthHandoffPayload = {
   access_token: string;

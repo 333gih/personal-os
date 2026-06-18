@@ -17,20 +17,23 @@ function loadJsonFile<T>(path: string, fallback: T): T {
   }
 }
 
-function loadHostPermissions(): string[] {
+function personalOsFeOrigin(env: Record<string, string>): string {
+  return (env.PERSONAL_OS_FE_URL ?? 'https://personal-os-fe.fashandcurious.com').replace(
+    /\/+$/,
+    '',
+  );
+}
+
+function loadHostPermissions(env: Record<string, string>): string[] {
   const story = loadJsonFile<{ hostPermissions: string[] }>(
     resolve(__dirname, 'public/manifest/host-permissions.json'),
     { hostPermissions: [] },
   );
-  const api = loadJsonFile<{ apiHostPermissions: string[]; personalOsFeHostPermissions?: string[] }>(
+  const api = loadJsonFile<{ apiHostPermissions: string[] }>(
     resolve(__dirname, 'public/manifest/api-host-permissions.json'),
-    { apiHostPermissions: [], personalOsFeHostPermissions: [] },
+    { apiHostPermissions: [] },
   );
-  return [
-    ...story.hostPermissions,
-    ...api.apiHostPermissions,
-    ...(api.personalOsFeHostPermissions ?? []),
-  ];
+  return [...story.hostPermissions, ...api.apiHostPermissions, `${personalOsFeOrigin(env)}/*`];
 }
 
 function loadStoryContentMatches(): string[] {
@@ -41,11 +44,7 @@ function loadStoryContentMatches(): string[] {
 }
 
 function loadPersonalOsFeConnectMatches(env: Record<string, string>): string[] {
-  const fe = (env.PERSONAL_OS_FE_URL ?? 'https://personal-os-fe.fashandcurious.com').replace(
-    /\/+$/,
-    '',
-  );
-  return [`${fe}/extension/connect*`];
+  return [`${personalOsFeOrigin(env)}/extension/connect*`];
 }
 
 export default defineConfig(({ mode }) => {
@@ -59,7 +58,7 @@ export default defineConfig(({ mode }) => {
     ),
   );
 
-  const hostPermissions = loadHostPermissions();
+  const hostPermissions = loadHostPermissions(env);
   const storyMatches = loadStoryContentMatches();
   const connectMatches = loadPersonalOsFeConnectMatches(env);
 
@@ -75,7 +74,7 @@ export default defineConfig(({ mode }) => {
       {
         matches: connectMatches,
         js: ['src/content/extension-connect-bridge.ts'],
-        run_at: 'document_idle',
+        run_at: 'document_start',
       },
     ],
   };

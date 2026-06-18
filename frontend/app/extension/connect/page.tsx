@@ -1,9 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const HANDOFF_MESSAGE_TYPE = "PERSONAL_OS_EXTENSION_HANDOFF";
+const HANDOFF_ACK_TYPE = "PERSONAL_OS_EXTENSION_HANDOFF_ACK";
+const HANDOFF_DOM_ID = "personal-os-extension-handoff";
 
 type HandoffPayload = {
   access_token: string;
@@ -16,15 +19,55 @@ type HandoffPayload = {
   nonce: string | null;
 };
 
+function deliverHandoff(payload: HandoffPayload): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + 30_000;
+
+    const onAck = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      if ((event.data as { type?: string })?.type !== HANDOFF_ACK_TYPE) return;
+      cleanup();
+      resolve();
+    };
+
+    const tick = () => {
+      window.postMessage({ type: HANDOFF_MESSAGE_TYPE, payload }, window.location.origin);
+      if (Date.now() > deadline) {
+        cleanup();
+        reject(
+          new Error(
+            "Story Tracker did not pick up the session. Reload the extension in about:debugging and try again.",
+          ),
+        );
+      }
+    };
+
+    const interval = window.setInterval(tick, 400);
+
+    function cleanup() {
+      window.clearInterval(interval);
+      window.removeEventListener("message", onAck);
+    }
+
+    window.addEventListener("message", onAck);
+    tick();
+  });
+}
+
 function ExtensionConnectInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<"checking" | "redirecting" | "handoff" | "done" | "error">(
-    "checking",
-  );
+  const startedRef = useRef(false);
+  const [status, setStatus] = useState<
+    "checking" | "redirecting" | "handoff" | "waiting" | "done" | "error"
+  >("checking");
   const [error, setError] = useState("");
+  const [handoffPayload, setHandoffPayload] = useState<HandoffPayload | null>(null);
 
   useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+
     const nonce = searchParams.get("nonce");
     const nextPath = `/extension/connect${nonce ? `?nonce=${encodeURIComponent(nonce)}` : ""}`;
 
@@ -57,7 +100,11 @@ function ExtensionConnectInner() {
           nonce,
         };
 
-        window.postMessage({ type: HANDOFF_MESSAGE_TYPE, payload }, window.location.origin);
+        flushSync(() => {
+          setHandoffPayload(payload);
+          setStatus("waiting");
+        });
+        await deliverHandoff(payload);
         setStatus("done");
       } catch (e) {
         setStatus("error");
@@ -83,7 +130,7 @@ function ExtensionConnectInner() {
         <button
           type="button"
           className="text-sm font-medium text-primary underline"
-          onClick={() => router.replace("/login?next=/extension/connect")}
+          onClick={() => router.replace(`/login?next=${encodeURIComponent("/extension/connect")}`)}
         >
           Try signing in again
         </button>
@@ -92,11 +139,23 @@ function ExtensionConnectInner() {
   }
 
   return (
-    <p className="text-sm text-muted-foreground">
-      {status === "done"
-        ? "Signed in. You can close this tab and return to Story Tracker."
-        : "Connecting Story Tracker to your Personal OS session…"}
-    </p>
+    <>
+      {handoffPayload ? (
+        <div
+          id={HANDOFF_DOM_ID}
+          hidden
+          data-handoff={JSON.stringify(handoffPayload)}
+          aria-hidden
+        />
+      ) : null}
+      <p className="text-sm text-muted-foreground">
+        {status === "done"
+          ? "Signed in. You can close this tab and return to Story Tracker."
+          : status === "waiting"
+            ? "Waiting for Story Tracker to receive your session…"
+            : "Connecting Story Tracker to your Personal OS session…"}
+      </p>
+    </>
   );
 }
 

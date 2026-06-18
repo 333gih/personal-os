@@ -2,9 +2,9 @@
  * Copy env profile into .env for Vite build (bakes __API_*__ / __PERSONAL_OS_FE_URL__).
  *
  * Usage:
- *   node scripts/prepare-env.mjs local        # .env.example → .env
+ *   node scripts/prepare-env.mjs local        # .env.example → .env (localhost FE; dev:local only)
  *   node scripts/prepare-env.mjs local-prod   # .env.local.prod → .env
- *   node scripts/prepare-env.mjs prod         # .env.prod → .env
+ *   node scripts/prepare-env.mjs prod         # .env.prod → .env (default for all npm run build*)
  */
 import { copyFileSync, existsSync } from 'fs';
 import { dirname, join } from 'path';

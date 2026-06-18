@@ -81,13 +81,15 @@ Templates (synced with `frontend/.env.prod` and `backend/.env.prod`):
 
 | File | Use |
 |------|-----|
-| `.env.example` | Local dev defaults |
-| `.env.local.prod` | Local build → prod APIs (`npm run prepare-env local-prod`) |
-| `.env.prod` | **Production / AMO release** (`npm run prepare-env prod`) |
+| `.env.prod` | **Source of truth** — prod host URLs (synced with FE/BE `.env.prod`) |
+| `.env.example` | Localhost FE only for `npm run dev:local` |
+| `.env.local.prod` | Same prod hosts as `.env.prod` (optional `prepare-env local-prod`) |
+
+All `npm run build*` scripts automatically run `prepare-env prod` and bake `.env.prod` into the extension (API + FE hosts, connect URL, manifest permissions). No manual `cp` needed.
 
 ```bash
-npm run prepare-env prod    # .env.prod → .env (prod URLs baked into extension)
-npm run release:prod        # prepare-env prod + build + zip all targets
+npm run build:firefox:dev   # dist/firefox-dev/ — prod URLs from .env.prod
+npm run release:prod        # build all targets + zip
 ```
 
 Prod values (must stay aligned with FE/BE):
