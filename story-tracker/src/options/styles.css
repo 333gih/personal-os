@@ -1,116 +1,164 @@
+@import '../shared/ui.css';
+
 body {
   width: auto;
   min-height: 100vh;
-  background: #f0f2f5;
+  margin: 0;
+  font-family: var(--st-font);
+  font-size: 14px;
+  color: var(--st-text);
+  background: var(--st-bg);
 }
 
 .options-container {
   max-width: 640px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 28px 20px 40px;
 }
 
-.options-container h1 {
-  font-size: 24px;
-  margin-bottom: 24px;
+.options-header {
+  margin-bottom: 20px;
+}
+
+.options-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.options-header__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--st-primary), #8b5cf6);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.options-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.options-header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--st-text-muted);
 }
 
 .section {
-  background: #fff;
-  border: 1px solid #e8eaed;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 16px;
+  background: var(--st-surface);
+  border: 1px solid var(--st-border);
+  border-radius: var(--st-radius-lg);
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--st-shadow-sm);
 }
 
 .section h2 {
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #666;
-  margin-bottom: 12px;
+  letter-spacing: 0.06em;
+  color: var(--st-text-subtle);
+  margin: 0 0 6px;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: var(--st-text-muted);
+  margin: 0 0 12px;
+  line-height: 1.45;
 }
 
 .site-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f5;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--st-border);
 }
 
 .site-toggle:last-child {
   border-bottom: none;
+  padding-bottom: 0;
 }
 
-.toggle {
-  position: relative;
-  width: 40px;
-  height: 22px;
+.site-toggle--discovered {
+  align-items: flex-start;
 }
 
-.toggle input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  inset: 0;
-  background: #ccc;
-  border-radius: 22px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  left: 3px;
-  bottom: 3px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform 0.2s;
-}
-
-.toggle input:checked + .toggle-slider {
-  background: #6366f1;
-}
-
-.toggle input:checked + .toggle-slider::before {
-  transform: translateX(18px);
+.origin-code {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--st-text-subtle);
+  word-break: break-all;
 }
 
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--st-border);
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.setting-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.setting-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--st-text-subtle);
+  margin-top: 2px;
 }
 
 .setting-row input[type='number'] {
-  width: 100px;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  width: 88px;
+  padding: 8px 10px;
+  border: 1px solid var(--st-border-strong);
+  border-radius: var(--st-radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.danger-zone .btn {
-  margin-right: 8px;
-  margin-top: 8px;
+.setting-row input[type='number']:focus {
+  outline: none;
+  border-color: var(--st-primary);
+  box-shadow: var(--st-focus);
+}
+
+.danger-zone {
+  border-color: #f5c2c7;
+  background: #fffbfb;
 }
 
 .export-output {
   margin-top: 12px;
   padding: 12px;
-  background: #f8f9fc;
-  border-radius: 8px;
-  font-family: monospace;
+  background: var(--st-surface-muted);
+  border: 1px solid var(--st-border);
+  border-radius: var(--st-radius-sm);
+  font-family: ui-monospace, Consolas, monospace;
   font-size: 11px;
-  max-height: 200px;
+  max-height: 220px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;

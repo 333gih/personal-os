@@ -1,17 +1,32 @@
 import { useEffect, useState } from 'react';
 import browser from 'webextension-polyfill';
+import { ActionButton } from '../components/ActionButton';
 import { useAuth } from '../hooks/useAuth';
 import { useReadingState } from '../hooks/useReadingState';
 import { useSyncStatus } from '../hooks/useSyncStatus';
+import { useActionFeedback } from '../hooks/useActionFeedback';
 import { MESSAGE_TYPES } from '../shared/messages';
 import type { ReadingHistoryEntry } from '../types/reading';
+
+function ReadingSkeleton() {
+  return (
+    <div className="st-card" aria-hidden>
+      <div className="st-skeleton" style={{ height: 12, width: '40%', marginBottom: 10 }} />
+      <div className="st-skeleton" style={{ height: 16, width: '90%', marginBottom: 8 }} />
+      <div className="st-skeleton" style={{ height: 12, width: '55%', marginBottom: 12 }} />
+      <div className="st-skeleton" style={{ height: 8, width: '100%' }} />
+    </div>
+  );
+}
 
 export function App() {
   const { auth, loading: authLoading, error, startWebAuth, logout } = useAuth();
   const { session, loading: readingLoading } = useReadingState();
   const { status, syncNow } = useSyncStatus();
   const [history, setHistory] = useState<ReadingHistoryEntry[]>([]);
-  const [syncing, setSyncing] = useState(false);
+  const saveAction = useActionFeedback();
+  const syncAction = useActionFeedback();
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     void browser.runtime
@@ -21,17 +36,26 @@ export function App() {
       });
   }, [session]);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    await syncNow();
-    setSyncing(false);
+  useEffect(() => {
+    if (saveAction.isError) setToast('Could not save on this page.');
+    else if (syncAction.isError) setToast('Sync failed. Check login or network.');
+    else if (saveAction.isSuccess) setToast('Progress saved.');
+    else if (syncAction.isSuccess) setToast('Synced to Personal OS.');
+    else setToast(null);
+  }, [saveAction.isError, saveAction.isSuccess, syncAction.isError, syncAction.isSuccess]);
+
+  const handleSync = () => {
+    void syncAction.run(async () => {
+      await syncNow();
+    });
   };
 
-  const handleManualSave = async () => {
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) {
+  const handleManualSave = () => {
+    void saveAction.run(async () => {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) throw new Error('No active tab');
       await browser.tabs.sendMessage(tab.id, { type: MESSAGE_TYPES.MANUAL_SAVE });
-    }
+    });
   };
 
   const openOptions = () => {
@@ -40,105 +64,166 @@ export function App() {
 
   if (!auth) {
     return (
-      <div className="container">
-        <div className="header">
-          <h1>Story Tracker</h1>
-        </div>
+      <div className="popup">
+        <header className="popup__header">
+          <div className="popup__brand">
+            <span className="popup__logo" aria-hidden>
+              ST
+            </span>
+            <div>
+              <h1 className="popup__title">Story Tracker</h1>
+              <p className="popup__subtitle">Personal OS reading sync</p>
+            </div>
+          </div>
+        </header>
 
-        <div className="card">
-          <h2>Sign in with Personal OS</h2>
-          <p className="auth-hint">
-            Uses the same login as Personal OS web: Internal (Admin Portal SSO) or Commercial
-            (Google, email code, password).
+        <section className="st-card auth-card">
+          <p className="st-card__eyebrow">Sign in</p>
+          <h2 className="auth-card__heading">Continue with Personal OS</h2>
+          <p className="auth-card__hint">
+            Same login as the web app: Internal SSO (Admin Portal) or Commercial (Google, email,
+            password).
           </p>
-          {error && <p className="error-text">{error}</p>}
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ marginTop: 12 }}
-            disabled={authLoading}
+          {error ?
+            <p className="auth-card__error" role="alert">
+              {error}
+            </p>
+          : null}
+          <ActionButton
+            variant="primary"
+            block
+            loading={authLoading}
+            loadingLabel="Opening Personal OS…"
             onClick={() => void startWebAuth()}
+            style={{ marginTop: 14 }}
           >
-            {authLoading ? 'Opening Personal OS…' : 'Continue to Personal OS'}
-          </button>
-          <p className="auth-hint" style={{ marginTop: 12 }}>
-            Channel: <code>story_tracker_extension</code>
+            Continue to Personal OS
+          </ActionButton>
+          <p className="auth-card__meta">
+            Channel <code>story_tracker_extension</code>
           </p>
-        </div>
+        </section>
       </div>
     );
   }
 
+  const modeBadge =
+    auth.mode === 'internal' ? 'st-badge--internal' : 'st-badge--commercial';
+
   return (
-    <div className="container">
-      <div className="header">
-        <h1>Story Tracker</h1>
-        <button type="button" className="btn-icon" onClick={openOptions} title="Settings">
+    <div className="popup">
+      <header className="popup__header">
+        <div className="popup__brand">
+          <span className="popup__logo" aria-hidden>
+            ST
+          </span>
+          <div>
+            <h1 className="popup__title">Story Tracker</h1>
+            <p className="popup__subtitle">{auth.user.email}</p>
+          </div>
+        </div>
+        <ActionButton variant="icon" onClick={openOptions} title="Settings" aria-label="Settings">
           ⚙
+        </ActionButton>
+      </header>
+
+      <div className="popup__toolbar">
+        <span className={`st-badge ${modeBadge}`}>{auth.mode}</span>
+        <span className={`st-badge ${status.online ? 'st-badge--online' : 'st-badge--offline'}`}>
+          <span className={`status-dot ${status.online ? 'online' : 'offline'}`} />
+          {status.online ? 'Online' : 'Offline'}
+          {status.pendingCount > 0 ? ` · ${status.pendingCount} pending` : ''}
+        </span>
+        <button type="button" className="link-btn" onClick={() => void logout()}>
+          Log out
         </button>
       </div>
 
-      <div className="user-bar">
-        <span>{auth.user.email}</span>
-        <span className="badge">{auth.mode}</span>
-        <button type="button" className="btn-link" onClick={() => void logout()}>
-          Logout
-        </button>
-      </div>
+      {toast ?
+        <div
+          className={`st-toast ${saveAction.isError || syncAction.isError ? 'st-toast--error' : 'st-toast--success'}`}
+          role="status"
+        >
+          {toast}
+        </div>
+      : null}
 
       {readingLoading ?
-        <p>Loading...</p>
+        <ReadingSkeleton />
       : session ?
-        <div className="card">
-          <h2>Currently Reading</h2>
-          <p className="story-title">{session.readingInfo.storyTitle}</p>
-          <p className="chapter-title">{session.readingInfo.chapterTitle ?? 'Current chapter'}</p>
-          <div className="progress-bar">
+        <section className="st-card reading-card">
+          <p className="st-card__eyebrow">Currently reading</p>
+          <h2 className="reading-card__title">{session.readingInfo.storyTitle}</h2>
+          <p className="reading-card__chapter">
+            {session.readingInfo.chapterTitle ?? 'Current chapter'}
+          </p>
+          <div className="st-progress" aria-hidden>
             <div
-              className="progress-fill"
+              className="st-progress__fill"
               style={{ width: `${session.readingInfo.progress.percentage}%` }}
             />
           </div>
-          <p className="progress-text">{session.readingInfo.progress.percentage}% complete</p>
-        </div>
-      : <div className="card empty-state">
-          <p>No active reading session on this tab.</p>
-        </div>
+          <div className="reading-card__meta">
+            <span>{session.readingInfo.progress.percentage}% read</span>
+            {session.readingInfo.progress.readingTimeSeconds > 0 ?
+              <span>{Math.round(session.readingInfo.progress.readingTimeSeconds / 60)} min</span>
+            : null}
+          </div>
+        </section>
+      : <section className="st-card empty-card">
+          <p className="empty-card__icon" aria-hidden>
+            📖
+          </p>
+          <p className="empty-card__title">No chapter detected</p>
+          <p className="empty-card__hint">
+            Open a chapter page (e.g. TruyenFull <code>/chuong-26/</code>) on this tab, then use Save
+            Now.
+          </p>
+        </section>
       }
 
-      <div className="actions">
-        <button type="button" className="btn btn-secondary" onClick={() => void handleManualSave()}>
-          Save Now
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => void handleSync()}
-          disabled={syncing || !status.online}
+      <div className="popup__actions">
+        <ActionButton
+          variant="secondary"
+          block
+          loading={saveAction.isLoading}
+          success={saveAction.isSuccess}
+          loadingLabel="Saving…"
+          successLabel="Saved"
+          onClick={handleManualSave}
         >
-          {syncing ? 'Syncing...' : 'Sync'}
-        </button>
+          Save now
+        </ActionButton>
+        <ActionButton
+          variant="primary"
+          block
+          loading={syncAction.isLoading}
+          success={syncAction.isSuccess}
+          loadingLabel="Syncing…"
+          successLabel="Synced"
+          disabled={!status.online && !syncAction.isLoading}
+          onClick={handleSync}
+        >
+          Sync
+        </ActionButton>
       </div>
 
-      <div className="sync-status">
-        <span className={`status-dot ${status.online ? 'online' : 'offline'}`} />
-        {status.online ? 'Online' : 'Offline'}
-        {status.pendingCount > 0 && ` · ${status.pendingCount} pending`}
-      </div>
-
-      {history.length > 0 && (
-        <div className="card">
-          <h3>Recent</h3>
+      {history.length > 0 ?
+        <section className="st-card history-card">
+          <p className="st-card__eyebrow">Recent stories</p>
           <ul className="history-list">
             {history.slice(0, 5).map((entry) => (
-              <li key={`${entry.storyId}:${entry.chapterId ?? ''}:${entry.lastReadAt}`}>
-                <strong>{entry.storyTitle}</strong>
-                <span>{entry.chapterTitle ?? entry.chapterId}</span>
+              <li key={`${entry.storyId}:${entry.lastReadAt}`} className="history-item">
+                <div className="history-item__main">
+                  <strong>{entry.storyTitle}</strong>
+                  <span>{entry.chapterTitle ?? entry.chapterId ?? 'Latest chapter'}</span>
+                </div>
+                <span className="history-item__pct">{entry.progress.percentage}%</span>
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        </section>
+      : null}
     </div>
   );
 }
