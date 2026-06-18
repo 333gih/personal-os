@@ -26,6 +26,10 @@ export type ServerAuthEnv = {
   COMMERCIAL_APPLICATION_ID?: string;
   AUTH_LOCALE: string;
   PERSONAL_OS_API_URL: string;
+  ADMIN_PORTAL_URL: string;
+  INTERNAL_DEFAULT_USER_EMAIL?: string;
+  INTERNAL_DEFAULT_USER_PASSWORD?: string;
+  internalDefaultLoginEnabled: boolean;
   cookieSecure: boolean;
 };
 
@@ -57,6 +61,14 @@ export function getServerAuthEnv(): ServerAuthEnv {
     COMMERCIAL_APPLICATION_ID: readEnv("COMMERCIAL_APPLICATION_ID")?.trim(),
     AUTH_LOCALE: (readEnv("AUTH_LOCALE") || "vi").trim(),
     PERSONAL_OS_API_URL: PERSONAL_OS_API_URL.replace(/\/+$/, ""),
+    ADMIN_PORTAL_URL: (
+      readEnv("NEXT_PUBLIC_ADMIN_PORTAL_URL") ||
+      readEnv("ADMIN_PORTAL_URL") ||
+      "https://fashandcurious.com/management/auth/login"
+    ).replace(/\/+$/, ""),
+    INTERNAL_DEFAULT_USER_EMAIL: readEnv("INTERNAL_DEFAULT_USER_EMAIL")?.trim(),
+    INTERNAL_DEFAULT_USER_PASSWORD: readEnv("INTERNAL_DEFAULT_USER_PASSWORD"),
+    internalDefaultLoginEnabled: readEnv("INTERNAL_DEFAULT_LOGIN_ENABLED") === "true",
     cookieSecure:
       readEnv("AUTH_COOKIE_SECURE") === "true" ||
       (readEnv("AUTH_COOKIE_SECURE") !== "false" && process.env.NODE_ENV === "production"),

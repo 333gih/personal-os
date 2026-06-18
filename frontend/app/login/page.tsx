@@ -11,6 +11,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 type CommercialStep = "sign-in" | "otp-request" | "otp-verify";
 
+const ADMIN_PORTAL_URL =
+  process.env.NEXT_PUBLIC_ADMIN_PORTAL_URL?.trim() ||
+  "https://fashandcurious.com/management/auth/login";
+
+const DEFAULT_INTERNAL_LOGIN_ENABLED =
+  process.env.NEXT_PUBLIC_INTERNAL_DEFAULT_LOGIN_ENABLED === "true" ||
+  process.env.NODE_ENV === "development";
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,7 +38,7 @@ function LoginForm() {
     router.push(next && next.startsWith("/") ? next : "/dashboard");
   };
 
-  const handlePasswordLogin = async (e: React.FormEvent) => {
+  const handleCommercialPasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -40,7 +48,7 @@ function LoginForm() {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ email, password, remember_me: remember, mode }),
+        body: JSON.stringify({ email, password, remember_me: remember }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -54,6 +62,63 @@ function LoginForm() {
       await goNext();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInternalLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setInfo("");
+    try {
+      const res = await fetch("/api/auth/internal/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ email, password, remember_me: remember }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg =
+          (typeof body.error === "string" && body.error) ||
+          (typeof body.message === "string" && body.message) ||
+          "Login failed";
+        setError(res.status > 0 ? `[${res.status}] ${msg}` : msg);
+        return;
+      }
+      await goNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDefaultInternalLogin = async () => {
+    setLoading(true);
+    setError("");
+    setInfo("");
+    try {
+      const res = await fetch("/api/auth/internal/default-login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ remember_me: remember }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg =
+          (typeof body.error === "string" && body.error) ||
+          (typeof body.message === "string" && body.message) ||
+          "Default login failed";
+        setError(msg);
+        return;
+      }
+      await goNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Default login failed");
     } finally {
       setLoading(false);
     }
@@ -166,7 +231,7 @@ function LoginForm() {
         <CardTitle className="text-2xl">Personal OS</CardTitle>
         <CardDescription>
           {mode === "internal"
-            ? "Internal staff access (admin required)"
+            ? "Internal staff — provisioned via Admin Portal"
             : "Commercial access — same Fash account as mobile apps"}
         </CardDescription>
       </CardHeader>
@@ -202,40 +267,84 @@ function LoginForm() {
         </div>
 
         {mode === "internal" ? (
-          <form onSubmit={handlePasswordLogin} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+              <p>
+                Internal accounts must be created and granted Personal OS access in the{" "}
+                <a
+                  href={ADMIN_PORTAL_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-foreground underline"
+                >
+                  Fash Admin Portal
+                </a>
+                . After an admin assigns your application access, sign in below.
+              </p>
             </div>
-            <div>
-              <label className="text-sm font-medium">Password</label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => setRemember(e.target.checked)}
-              />
-              Remember me
-            </label>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In (Internal)"}
-            </Button>
-          </form>
+
+            <form onSubmit={handleInternalLogin} className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Staff email</label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Password</label>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                />
+                Remember me
+              </label>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing in..." : "Sign in (provisioned staff)"}
+              </Button>
+            </form>
+
+            {DEFAULT_INTERNAL_LOGIN_ENABLED ? (
+              <>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">or</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Bootstrap / local default internal account (server-configured credentials).
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={loading}
+                    onClick={() => void handleDefaultInternalLogin()}
+                  >
+                    {loading ? "Signing in..." : "Sign in with default internal account"}
+                  </Button>
+                </div>
+              </>
+            ) : null}
+          </div>
         ) : commercialStep === "sign-in" ? (
           <div className="space-y-4">
             <GoogleSignInButton disabled={loading} onCredential={handleGoogleCredential} />
@@ -247,7 +356,7 @@ function LoginForm() {
                 <span className="bg-card px-2 text-muted-foreground">or email</span>
               </div>
             </div>
-            <form onSubmit={handlePasswordLogin} className="space-y-4">
+            <form onSubmit={handleCommercialPasswordLogin} className="space-y-4">
               <div>
                 <label className="text-sm font-medium">Email</label>
                 <Input
@@ -363,7 +472,7 @@ function LoginForm() {
         )}
 
         <p className="text-center text-xs text-muted-foreground">
-          Login channel:{" "}
+          Channel:{" "}
           <code>{mode === "internal" ? "personal_os_web_internal" : "personal_os_web_commercial"}</code>
         </p>
       </CardContent>

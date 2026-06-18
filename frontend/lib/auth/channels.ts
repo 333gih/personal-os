@@ -1,5 +1,6 @@
 export const AUTH_CLIENT_CHANNELS = {
   PERSONAL_OS_WEB_INTERNAL: "personal_os_web_internal",
+  PERSONAL_OS_WEB_INTERNAL_DEFAULT: "personal_os_web_internal_default",
   PERSONAL_OS_WEB_COMMERCIAL: "personal_os_web_commercial",
   STORY_TRACKER_EXTENSION: "story_tracker_extension",
   FASH_IOS_APP: "fash_ios_app",
