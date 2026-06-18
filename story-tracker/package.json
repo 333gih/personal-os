@@ -6,6 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite build --watch --mode development",
+    "prepare-env": "node scripts/prepare-env.mjs",
+    "dev:local": "node scripts/prepare-env.mjs local && vite build --watch --mode development",
+    "build:prod": "node scripts/prepare-env.mjs prod && npm run build:firefox && npm run build:firefox:dev && npm run build:chrome",
+    "release:prod": "node scripts/prepare-env.mjs prod && npm run release",
     "build": "node scripts/generate-icons.mjs && npm run build:firefox && npm run build:chrome",
     "build:firefox": "cross-env TARGET=firefox vite build",
     "build:firefox:dev": "cross-env TARGET=firefox-dev vite build",

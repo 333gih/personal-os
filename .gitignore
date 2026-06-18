@@ -18,6 +18,9 @@ frontend/.env.*.local
 story-tracker/node_modules/
 story-tracker/dist/
 story-tracker/.env
+!story-tracker/.env.example
+!story-tracker/.env.prod
+!story-tracker/.env.local.prod
 
 
 # Go

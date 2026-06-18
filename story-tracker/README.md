@@ -77,19 +77,27 @@ node scripts/generate-icons.mjs
 
 ### Configure environment
 
-Copy `.env.example` to `.env` and set application IDs from fash-auth-service (same as `NEXT_PUBLIC_APP_ID` in Personal OS frontend):
+Templates (synced with `frontend/.env.prod` and `backend/.env.prod`):
+
+| File | Use |
+|------|-----|
+| `.env.example` | Local dev defaults |
+| `.env.local.prod` | Local build → prod APIs (`npm run prepare-env local-prod`) |
+| `.env.prod` | **Production / AMO release** (`npm run prepare-env prod`) |
+
+```bash
+npm run prepare-env prod    # .env.prod → .env (prod URLs baked into extension)
+npm run release:prod        # prepare-env prod + build + zip all targets
+```
+
+Prod values (must stay aligned with FE/BE):
 
 ```env
-# Personal OS API (Kong gateway — Bearer required)
-API_BASE_URL=https://api-personal-os.fashandcurious.com/api/v1
-
-# Fash Auth Service
-AUTH_API_URL=https://api-auth.fashandcurious.com
-AUTH_LOCALE=vi
-
-# Application IDs registered in fash-auth-service
-INTERNAL_APPLICATION_ID=<staff-app-id>
-COMMERCIAL_APPLICATION_ID=<commercial-app-id>
+PERSONAL_OS_FE_URL=https://personal-os-fe.fashandcurious.com   # frontend NEXT_PUBLIC_SITE_URL
+AUTH_API_URL=https://api-auth.fashandcurious.com               # frontend API_URL
+API_BASE_URL=https://api-personal-os.fashandcurious.com/api/v1 # backend APP_PUBLIC_URL + /api/v1
+INTERNAL_APPLICATION_ID=personal-os-internal                   # frontend INTERNAL_APPLICATION_ID
+COMMERCIAL_APPLICATION_ID=web                                  # frontend COMMERCIAL_APPLICATION_ID
 ```
 
 All data API calls go to `API_BASE_URL` with `Authorization: Bearer <access_token>`.
