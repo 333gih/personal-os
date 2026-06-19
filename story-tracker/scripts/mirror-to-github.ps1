@@ -71,11 +71,9 @@ if (-not [string]::IsNullOrWhiteSpace($Token)) {
     git -C $Staging push $PushUrl "HEAD:${Branch}" --force
 } else {
     gh auth setup-git | Out-Null
-    git -C $Staging remote remove $RemoteName 2>$null
-    git -C $Staging remote add $RemoteName $PushUrl
     Write-Host "==> Push via gh auth ($Branch)"
-    git -C $Staging push $RemoteName "HEAD:${Branch}" --force
-    git -C $Staging remote remove $RemoteName 2>$null
+    git -C $Staging push $PushUrl "HEAD:${Branch}" --force
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 Remove-Item -Recurse -Force $Staging
