@@ -262,7 +262,18 @@ pipeline {
                             env_get() {
                                 local key="\$1" file="\$2" val=""
                                 val=\$(grep -E "^\${key}=" "\$file" 2>/dev/null | head -1 | cut -d= -f2- || true)
+                                case "\$val" in
+                                    \"*\") val="\${val#\\"}"; val="\${val%\\"}" ;;
+                                    \'*\') val="\${val#\\'}"; val="\${val%\\'}" ;;
+                                esac
                                 printf '%s' "\$val"
+                            }
+
+                            verify_pg_tcp_auth() {
+                                docker run --rm --network ${appNetwork} \\
+                                    -e PGPASSWORD="\${POSTGRES_DATABASE_PASSWORD}" \\
+                                    pgvector/pgvector:pg17 \\
+                                    psql -h personal-os-pg -p 5432 -U "\${POSTGRES_DATABASE_USER}" -d "\${POSTGRES_DATABASE_NAME}" -c 'SELECT 1' >/dev/null 2>&1
                             }
 
                             # Kong upstream network — often iot-public-net-dev while ENVIRONMENT=prod
@@ -342,6 +353,16 @@ pipeline {
                             else
                                 echo "[INFO] PostgreSQL already running: ${pgContainer}"
                             fi
+
+                            if ! verify_pg_tcp_auth; then
+                                echo '[ERROR] PostgreSQL TCP auth failed for API credentials.'
+                                echo '[HINT] PG password is set only on first volume init. Either:'
+                                echo '       1) Set POSTGRES_DATABASE_PASSWORD in env-personal-os-api-prod to the ORIGINAL password, or'
+                                echo '       2) Reset volume (DATA LOSS): docker rm -f ${pgContainer} && docker volume rm ${pgVolume}'
+                                echo '[HINT] Passwords with $ must be quoted in the env file: POSTGRES_DATABASE_PASSWORD="\$yourpass"'
+                                exit 1
+                            fi
+                            echo "[INFO] PostgreSQL TCP auth OK for API user ✅"
 
                             # Idempotent SQL migrations (safe on every deploy).
                             for mig in 003_storage_key_prefix.sql 004_fix_users_email_constraint.sql 005_reading_progress.sql 006_reading_progress_latest_per_story.sql; do
