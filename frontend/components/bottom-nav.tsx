@@ -50,12 +50,15 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
               key={href}
               href={href}
               className={cn(
-                "flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium active:scale-95 sm:text-xs",
+                "relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium active:scale-95 sm:text-xs",
                 active ? "text-primary" : "text-muted-foreground",
               )}
             >
               <Icon className={cn("h-5 w-5 shrink-0", active && "stroke-[2.5]")} />
               <span className="max-w-full truncate">{label}</span>
+              {active && iosApp ? (
+                <span className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-primary" />
+              ) : null}
             </Link>
           );
         })}

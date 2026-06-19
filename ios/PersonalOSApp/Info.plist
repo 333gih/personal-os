@@ -35,6 +35,8 @@
 	<false/>
 	<key>PERSONAL_OS_FE_URL</key>
 	<string>https://personal-os-fe.fashandcurious.com/dashboard</string>
+	<key>PERSONAL_OS_API_URL</key>
+	<string>https://api-personal-os.fashandcurious.com/api/v1</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

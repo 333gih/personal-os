@@ -4,7 +4,7 @@ Native iOS package at **monorepo root** (`personal-os/ios/`).
 
 | Target | Product | Bundle ID |
 |--------|---------|-----------|
-| **PersonalOS** | Personal OS (WKWebView → hosted frontend) | `com.personalos.story-tracker` |
+| **PersonalOS** | Personal OS (native SwiftUI + API; WKWebView for login & detail) | `com.personalos.story-tracker` |
 | **StoryTrackerExtension** | Story Tracker Safari Web Extension (embedded) | `com.personalos.story-tracker.extension` |
 
 `story-tracker/` builds extension JS only — no `ios/` folder inside story-tracker.
@@ -46,8 +46,12 @@ Secrets: [../docs/CI-IOS.md](../docs/CI-IOS.md)
 ```
 ios/
   project.yml                 # XcodeGen → PersonalOS.xcodeproj
-  PersonalOSApp/              # WKWebView shell
-    WebAppView.swift
+  PersonalOSApp/
+    Design/                   # POSTheme, shared components
+    Models/                   # API models
+    Services/                 # APIClient, SessionManager
+    Views/                    # Home, Work, Learning, Search, More, Shell, Auth
+    WebAppView.swift          # WKWebView for sheets (detail, connect)
     PersonalOSAppConfig.swift
     Resources/connect-bridge.js   # from story-tracker build:ios-bridge
   StoryTrackerExtension/        # Safari Web Extension
@@ -58,8 +62,8 @@ ios/
 
 ## Architecture
 
-- **App**: loads `frontend` (Work, Learning, Startup, Search, Settings, …)
+- **App**: native SwiftUI shell (Home, Work, Learning, Search, More) with design system; data from API; WKWebView for sign-in, entity detail, Safari extension connect
 - **Extension**: reading progress on story sites in Safari (unchanged)
-- **Auth**: login in app; extension connect via Safari (`/extension/connect`)
+- **Auth**: web login sheet → token bridged to native API client; extension connect via Safari (`/extension/connect`)
 
 See [../story-tracker/docs/SAFARI-IOS.md](../story-tracker/docs/SAFARI-IOS.md) for extension development.

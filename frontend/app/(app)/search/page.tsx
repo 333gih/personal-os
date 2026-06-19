@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { domainLabel, typeLabel } from "@/lib/utils";
+import { SearchMobile } from "@/features/search/search-mobile";
 
-export default function SearchPage() {
+function SearchDesktop() {
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [mode, setMode] = useState("hybrid");
@@ -34,7 +35,7 @@ export default function SearchPage() {
         <p className="text-muted-foreground">Full-text and semantic search across your knowledge</p>
       </div>
 
-      <form onSubmit={handleSearch} className="sticky top-[calc(3.25rem+var(--safe-top))] z-20 -mx-4 flex flex-col gap-2 bg-background/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <form onSubmit={handleSearch} className="flex flex-col gap-2 sm:flex-row">
         <Input
           placeholder="Search courses, projects, ideas..."
           value={query}
@@ -95,5 +96,18 @@ export default function SearchPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <>
+      <div className="lg:hidden">
+        <SearchMobile />
+      </div>
+      <div className="hidden lg:block">
+        <SearchDesktop />
+      </div>
+    </>
   );
 }

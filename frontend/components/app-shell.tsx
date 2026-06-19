@@ -1,22 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { Menu, Settings, X } from "lucide-react";
 import { clearAccessTokenCache } from "@/lib/auth/access-token";
 import { IOS_DRAWER_ITEMS, navLabelForPath } from "@/lib/nav";
 import { isPersonalOSIosApp } from "@/lib/ios-app";
+import { api } from "@/services/api";
 import { BottomNav } from "@/components/bottom-nav";
 import { SidebarFooter, SidebarNav } from "@/components/sidebar-nav";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+function userInitials(name?: string) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const iosApp = isPersonalOSIosApp();
-  const pageTitle = navLabelForPath(pathname);
+  const [iosApp, setIosApp] = useState(false);
+
+  useEffect(() => {
+    setIosApp(isPersonalOSIosApp());
+  }, []);
+
+  const { data: user } = useQuery({
+    queryKey: ["me"],
+    queryFn: () => api.me(),
+    enabled: iosApp,
+  });
+
+  const pageTitle = navLabelForPath(pathname, iosApp);
 
   const logout = async () => {
     clearAccessTokenCache();
@@ -28,11 +49,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-[100dvh] bg-background">
+    <div className={cn("flex min-h-[100dvh] bg-background", iosApp && "personal-os-ios")}>
       {/* Desktop sidebar */}
       <aside className="hidden h-[100dvh] w-64 shrink-0 flex-col border-r bg-card lg:flex">
         <div className="border-b p-5">
-          <h1 className="text-lg font-bold tracking-tight">Personal OS</h1>
+          <h1 className="font-display text-lg font-bold tracking-tight">Personal OS</h1>
           <p className="text-xs text-muted-foreground">Knowledge Platform</p>
         </div>
         <SidebarNav />
@@ -56,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <div className="flex items-center justify-between border-b p-4 pt-safe pr-4">
           <div>
-            <h1 className="text-lg font-bold">Personal OS</h1>
+            <h1 className="font-display text-lg font-bold">Personal OS</h1>
             <p className="text-xs text-muted-foreground">Knowledge Platform</p>
           </div>
           <Button variant="ghost" size="icon" onClick={() => setMenuOpen(false)} aria-label="Close menu">
@@ -73,16 +94,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="sticky top-0 z-30 flex min-h-[3.25rem] items-center gap-2 border-b bg-card/95 px-3 pt-safe backdrop-blur supports-[backdrop-filter]:bg-card/80 lg:hidden">
-          <Button variant="ghost" size="icon" onClick={() => setMenuOpen(true)} aria-label="Open menu">
-            <Menu className="h-5 w-5" />
-          </Button>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-semibold">{pageTitle}</p>
-            {iosApp ? (
-              <p className="truncate text-[11px] text-muted-foreground">Personal OS · iOS</p>
-            ) : null}
+        <header className="sticky top-0 z-30 flex min-h-[3.25rem] items-center gap-2 border-b bg-background/95 px-3 pt-safe backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden">
+          {iosApp ? (
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary"
+              aria-label="Open menu"
+            >
+              {userInitials(user?.name)}
+            </button>
+          ) : (
+            <Button variant="ghost" size="icon" onClick={() => setMenuOpen(true)} aria-label="Open menu">
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
+          <div className="min-w-0 flex-1 text-center">
+            <p className="truncate font-display text-base font-semibold">{pageTitle}</p>
           </div>
+          {iosApp ? (
+            <Button variant="ghost" size="icon" asChild aria-label="Settings">
+              <Link href="/settings">
+                <Settings className="h-5 w-5 text-primary" />
+              </Link>
+            </Button>
+          ) : (
+            <div className="w-9 shrink-0" />
+          )}
         </header>
 
         <main

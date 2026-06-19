@@ -48,7 +48,20 @@ export const IOS_DRAWER_ITEMS = NAV_ITEMS.filter(
   (item) => !IOS_TAB_ITEMS.some((tab) => tab.href === item.href && !tab.iosMenuTrigger),
 );
 
-export function navLabelForPath(pathname: string): string {
+const IOS_PAGE_TITLES: Record<string, string> = {
+  "/dashboard": "Personal OS",
+  "/work": "Career Path",
+  "/learning": "Personal OS",
+  "/search": "Personal OS",
+  "/settings": "Personal OS",
+  "/startup": "Startup Ecosystem",
+};
+
+export function navLabelForPath(pathname: string, iosApp = false): string {
+  if (iosApp) {
+    const iosMatch = Object.entries(IOS_PAGE_TITLES).find(([href]) => pathname.startsWith(href));
+    if (iosMatch) return iosMatch[1];
+  }
   const match = NAV_ITEMS.find((item) => pathname.startsWith(item.href));
   if (match) return match.label;
   if (pathname.startsWith("/entities")) return "Detail";

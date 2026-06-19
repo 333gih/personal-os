@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { IosSafariExtensionCard } from "@/components/ios-safari-extension-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SettingsMobile } from "@/features/settings/settings-mobile";
 
-export default function SettingsPage() {
+function SettingsDesktop() {
   const { data: user, refetch } = useQuery({
     queryKey: ["me"],
     queryFn: () => api.me(),
@@ -43,7 +44,6 @@ export default function SettingsPage() {
       setNewPassword("");
     },
   });
-
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4 sm:space-y-6">
@@ -102,5 +102,18 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <>
+      <div className="lg:hidden">
+        <SettingsMobile />
+      </div>
+      <div className="hidden lg:block">
+        <SettingsDesktop />
+      </div>
+    </>
   );
 }

@@ -41,6 +41,14 @@ module.exports = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        "3xl": "1.5rem",
+      },
+      fontFamily: {
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Georgia", "serif"],
+      },
+      boxShadow: {
+        card: "0 4px 24px -8px hsl(24 10% 10% / 0.08)",
       },
     },
   },

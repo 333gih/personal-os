@@ -6,6 +6,7 @@ import Link from "next/link";
 import { EntityList } from "@/components/entity-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardMobile } from "@/features/dashboard/dashboard-mobile";
 import { api } from "@/services/api";
 import { formatDateTime } from "@/lib/utils";
 
@@ -16,7 +17,7 @@ const domainIcons = {
   startup: Rocket,
 };
 
-export default function DashboardPage() {
+function DashboardDesktop() {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => api.dashboard(),
@@ -82,5 +83,18 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <>
+      <div className="lg:hidden">
+        <DashboardMobile />
+      </div>
+      <div className="hidden lg:block">
+        <DashboardDesktop />
+      </div>
+    </>
   );
 }

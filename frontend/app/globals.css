@@ -94,4 +94,12 @@
   .personal-os-ios select {
     font-size: 16px;
   }
+
+  .font-display {
+    font-family: var(--font-display), Georgia, serif;
+  }
+
+  .mobile-card {
+    @apply rounded-3xl bg-card shadow-card ring-1 ring-border/50;
+  }
 }

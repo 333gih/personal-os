@@ -7,21 +7,77 @@ import { buildExtensionConnectUrl } from "@/lib/extension-connect";
 import { isPersonalOSIosApp } from "@/lib/ios-app";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 const SAFARI_STEPS = [
-  "Open Personal OS at least once after installing from TestFlight.",
-  "Settings → Safari → Extensions → enable Story Tracker.",
-  "In Safari: tap aA in the address bar → Manage Extensions → enable Story Tracker.",
-  "On a story site: tap aA → Story Tracker to save reading progress.",
-  "If the icon is missing: Settings → Safari → Extensions → Story Tracker → Allow on all websites.",
+  "Open Safari on this device.",
+  "Tap the AA or puzzle icon in the search bar.",
+  "Select Manage Extensions from the menu.",
+  "Toggle Personal OS / Story Tracker to enable.",
 ];
 
-export function IosSafariExtensionCard() {
+type IosSafariExtensionCardProps = {
+  variant?: "default" | "featured";
+};
+
+export function IosSafariExtensionCard({ variant = "default" }: IosSafariExtensionCardProps) {
   const [open, setOpen] = useState(true);
   const iosApp = isPersonalOSIosApp();
   const connectUrl = buildExtensionConnectUrl("/extension/connect");
 
   if (!iosApp) return null;
+
+  if (variant === "featured") {
+    return (
+      <div className="overflow-hidden rounded-3xl bg-card shadow-card ring-1 ring-border/50">
+        <div className="relative bg-gradient-to-br from-orange-500 via-primary to-rose-700 px-5 pb-8 pt-5 text-white">
+          <span className="rounded-md bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+            Featured
+          </span>
+          <h3 className="mt-3 font-display text-2xl font-semibold leading-tight">
+            Safari Extension
+            <br />
+            Story Tracker
+          </h3>
+        </div>
+        <div className="space-y-4 p-5">
+          <p className="text-sm text-muted-foreground">
+            Track reading progress and save inspirations directly from your mobile browser.
+          </p>
+          {open ? (
+            <ol className="space-y-2 text-sm text-muted-foreground">
+              {SAFARI_STEPS.map((step, i) => (
+                <li key={step} className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-foreground">
+                    {i + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+          <div className="flex flex-col gap-2">
+            <Button asChild className="min-h-11 w-full rounded-2xl">
+              <a href={connectUrl}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Connect in Safari
+              </a>
+            </Button>
+            <Button variant="outline" asChild className="min-h-11 w-full rounded-2xl">
+              <Link href="/entertainment">View synced progress</Link>
+            </Button>
+            <button
+              type="button"
+              className="text-sm font-medium text-primary"
+              onClick={() => setOpen((v) => !v)}
+            >
+              {open ? "Hide steps" : "Show setup steps"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card>
@@ -70,7 +126,7 @@ export function IosSafariExtensionCard() {
         ) : (
           <button
             type="button"
-            className="text-sm font-medium text-primary underline"
+            className={cn("text-sm font-medium text-primary underline")}
             onClick={() => setOpen(true)}
           >
             Show Safari extension setup

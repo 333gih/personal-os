@@ -3,6 +3,7 @@ import WebKit
 import UIKit
 
 struct WebAppView: View {
+    var startURL: URL = PersonalOSAppConfig.frontendURL
     @State private var loadError: String?
     @State private var reloadToken = 0
 
@@ -14,7 +15,7 @@ struct WebAppView: View {
                     reloadToken += 1
                 }
             } else {
-                WebAppWebView(loadError: $loadError)
+                WebAppWebView(startURL: startURL, loadError: $loadError)
                     .id(reloadToken)
                     .ignoresSafeArea(edges: .bottom)
             }
@@ -23,6 +24,7 @@ struct WebAppView: View {
 }
 
 private struct WebAppWebView: UIViewRepresentable {
+    let startURL: URL
     @Binding var loadError: String?
 
     func makeCoordinator() -> Coordinator {
@@ -57,7 +59,7 @@ private struct WebAppWebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
 
-        let startURL = PersonalOSAppConfig.frontendURL
+        let startURL = self.startURL
         webView.load(URLRequest(url: startURL))
 
         return webView
