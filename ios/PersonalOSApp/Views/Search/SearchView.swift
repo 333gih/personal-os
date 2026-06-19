@@ -42,7 +42,7 @@ struct SearchView: View {
             }
         }
         .onAppear { loadRecent() }
-        .onChange(of: mode) { _, _ in
+        .onChange(of: mode) { _ in
             if hasSearched, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 runSearch()
             }
