@@ -38,12 +38,22 @@ git subtree split --prefix="${PREFIX}" -b "${SPLIT_BRANCH}"
 
 PUSH_URL="${REMOTE_URL}"
 if [[ -n "${GITHUB_MIRROR_TOKEN:-}" ]]; then
-  # https://x-access-token:TOKEN@github.com/owner/repo.git
   PUSH_URL="$(echo "${REMOTE_URL}" | sed -E "s#https://#https://x-access-token:${GITHUB_MIRROR_TOKEN}@#")"
+  echo "==> Push with GITHUB_MIRROR_TOKEN"
+  git push "${PUSH_URL}" "${SPLIT_BRANCH}:${BRANCH}" --force
+else
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "error: gh not found or set GITHUB_MIRROR_TOKEN" >&2
+    exit 1
+  fi
+  gh auth setup-git
+  REMOTE_NAME="story-tracker-github"
+  git remote remove "${REMOTE_NAME}" 2>/dev/null || true
+  git remote add "${REMOTE_NAME}" "${REMOTE_URL}"
+  echo "==> Push via gh auth (${BRANCH})"
+  git push "${REMOTE_NAME}" "${SPLIT_BRANCH}:${BRANCH}" --force
+  git remote remove "${REMOTE_NAME}" 2>/dev/null || true
 fi
-
-echo "==> Push ${SPLIT_BRANCH} → ${REMOTE_URL} (${BRANCH})"
-git push "${PUSH_URL}" "${SPLIT_BRANCH}:${BRANCH}" --force
 
 echo "==> Done. GitHub repo root = former monorepo/${PREFIX}/"
 echo "    Workflows: .github/workflows/ios-*.yml"

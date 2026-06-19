@@ -43,8 +43,8 @@ if (-not $AppProfile -or -not $ExtProfile) {
     }
 }
 
-$destApp = Join-Path $Secrets "StoryTracker_AppStore.mobileprovision"
-$destExt = Join-Path $Secrets "StoryTrackerExtension_AppStore.mobileprovision"
+$destApp = Join-Path $Secrets "Story_Tracker_App_Store.mobileprovision"
+$destExt = Join-Path $Secrets "Story_Tracker_Extension_App_Store.mobileprovision"
 
 if ($AppProfile) {
     Copy-Item $AppProfile $destApp -Force
