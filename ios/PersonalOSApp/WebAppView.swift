@@ -8,8 +8,8 @@ struct WebAppView: View {
 
     var body: some View {
         Group {
-            if let loadError {
-                WebAppFallbackView(message: loadError) {
+            if let errorMessage = loadError {
+                WebAppFallbackView(message: errorMessage) {
                     loadError = nil
                     reloadToken += 1
                 }
