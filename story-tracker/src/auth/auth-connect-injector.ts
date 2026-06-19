@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill';
 import { getPersonalOsFeOrigin } from '../config/personal-os-fe';
+import { platformCapabilities } from '../platform/capabilities';
 import { logger } from '../utils/logger';
 
 const BRIDGE_FILE = 'src/content/extension-connect-bridge.js';
@@ -17,6 +18,7 @@ export function isExtensionConnectUrl(url: string): boolean {
 }
 
 export async function injectConnectBridge(tabId: number): Promise<boolean> {
+  if (!platformCapabilities.scriptingInjection) return false;
   if (injectedTabs.has(tabId)) return true;
 
   try {
@@ -36,6 +38,8 @@ export async function injectConnectBridge(tabId: number): Promise<boolean> {
 export function registerConnectBridgeInjector(
   hasPendingSignIn: () => Promise<boolean>,
 ): void {
+  if (!platformCapabilities.scriptingInjection) return;
+
   browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status !== 'complete' || !tab.url || !isExtensionConnectUrl(tab.url)) {
       return;

@@ -5,7 +5,12 @@
     "moduleResolution": "bundler",
     "strict": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "node_modules/.cache/tsconfig.node",
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig.node.tsbuildinfo"
   },
   "include": ["vite.config.ts", "scripts"]
 }

@@ -122,6 +122,190 @@ export function findMulubenEntry(
   );
 }
 
+export function buildNoidungArgFromIds(tuaid: string, chuongid: string): string {
+  return `tuaid=${tuaid}&chuongid=${chuongid}`;
+}
+
+/** `tuaid` query param on VTQ reader URLs (e.g. truyen.aspx?tid=…&tuaid=33083). */
+export function readTuaidFromUrl(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    for (const key of ['tuaid', 'Tuaid', 'TUAID']) {
+      const value = parsed.searchParams.get(key)?.trim();
+      if (value && /^\d+$/.test(value)) return value;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+export function readTuaidFromCatalog(document: Document): string | undefined {
+  for (const entry of collectMulubenAcronyms(document)) {
+    if (entry.tuaid) return entry.tuaid;
+  }
+  return undefined;
+}
+
+function getNoidungWindow(document: Document): (Window & { noidung1?: (arg: string) => void }) | null {
+  return (document.defaultView ?? globalThis.window) as
+    | (Window & { noidung1?: (arg: string) => void })
+    | null;
+}
+
+function findNoidungClickTarget(
+  document: Document,
+  tuaid: string | undefined,
+  chuongid: string,
+  arg: string,
+): HTMLElement | null {
+  const container = getMulubenContainer(document);
+  if (!container) return null;
+
+  for (const acronym of container.querySelectorAll('acronym')) {
+    const onclick =
+      acronym.getAttribute('onclick') ??
+      acronym.querySelector('[onclick*="noidung"]')?.getAttribute('onclick') ??
+      '';
+    if (onclick.includes(arg)) {
+      return (
+        (acronym.querySelector('[onclick*="noidung"]') as HTMLElement | null) ??
+        (acronym.querySelector('div') as HTMLElement | null) ??
+        (acronym as HTMLElement)
+      );
+    }
+  }
+
+  for (const acronym of container.querySelectorAll('acronym')) {
+    const params = parseNoidungFromElement(acronym);
+    const displayNumber = extractDigits(
+      acronym.querySelector('.chuongso, [class*="chuongso"]')?.textContent,
+    );
+    const cid = params.chuongid ?? displayNumber;
+    if (cid !== chuongid) continue;
+    if (tuaid && params.tuaid && params.tuaid !== tuaid) continue;
+
+    return (
+      (acronym.querySelector('[onclick*="noidung"]') as HTMLElement | null) ??
+      (acronym.querySelector('div') as HTMLElement | null) ??
+      (acronym as HTMLElement)
+    );
+  }
+
+  return null;
+}
+
+/** Invoke VTQ postback with the exact onclick argument string. */
+export function invokeNoidungRaw(document: Document, arg: string): boolean {
+  const normalized = arg.trim();
+  if (!normalized) return false;
+
+  const win = getNoidungWindow(document);
+  if (typeof win?.noidung1 === 'function') {
+    win.noidung1(normalized);
+    return true;
+  }
+
+  const params = parseNoidungOnclick(`noidung1('${normalized}')`);
+  const chuongid = params.chuongid ?? '';
+  if (!chuongid) return false;
+
+  const clickTarget = findNoidungClickTarget(document, params.tuaid, chuongid, normalized);
+  if (clickTarget) {
+    clickTarget.click();
+    return true;
+  }
+
+  return false;
+}
+
+export function parseVtqResumeToken(token: string): {
+  chuongid: string;
+  tuaid?: string;
+  noidungArg?: string;
+} | null {
+  const decoded = decodeURIComponent(token).trim();
+  if (!decoded) return null;
+
+  if (/tuaid=/i.test(decoded) && /chuongid=/i.test(decoded)) {
+    const params = parseNoidungOnclick(`noidung1('${decoded}')`);
+    if (!params.chuongid) return null;
+    return {
+      chuongid: params.chuongid,
+      tuaid: params.tuaid,
+      noidungArg: decoded,
+    };
+  }
+
+  const [chuongid, tuaid] = decoded.split(':');
+  if (!chuongid) return null;
+  return {
+    chuongid,
+    tuaid: tuaid || undefined,
+    noidungArg: tuaid ? buildNoidungArgFromIds(tuaid, chuongid) : undefined,
+  };
+}
+
+export function readVtqResumeFromHash(url: string): {
+  chuongid: string;
+  tuaid?: string;
+  noidungArg?: string;
+} | null {
+  const match = url.match(/[#&]st_resume=([^&]+)/i);
+  if (!match?.[1]) return null;
+  return parseVtqResumeToken(match[1]);
+}
+
+export function appendVtqResumeHash(
+  url: string,
+  chuongid: string,
+  tuaid?: string,
+  noidungArg?: string,
+): string {
+  try {
+    const parsed = new URL(url);
+    const token = noidungArg
+      ? encodeURIComponent(noidungArg)
+      : tuaid
+        ? encodeURIComponent(`${chuongid}:${tuaid}`)
+        : encodeURIComponent(chuongid);
+
+    let hash = parsed.hash.replace(/^#/, '');
+    hash = hash.replace(/&?st_resume=[^&]*/gi, '').replace(/^&+|&+$/g, '');
+    parsed.hash = hash ? `${hash}&st_resume=${token}` : `st_resume=${token}`;
+    return parsed.href;
+  } catch {
+    return url;
+  }
+}
+
+export function isVtqReaderUrl(url: string): boolean {
+  return /vietnamthuquan|thuquansach/i.test(url) && /truyen\.aspx/i.test(url);
+}
+
+/** Invoke VTQ postback reader for an exact tuaid + chuongid pair. */
+export function invokeNoidung1(
+  document: Document,
+  tuaid: string,
+  chuongid: string,
+): boolean {
+  const arg = buildNoidungArgFromIds(tuaid, chuongid);
+  const win = getNoidungWindow(document);
+
+  if (typeof win?.noidung1 === 'function') {
+    win.noidung1(arg);
+    return true;
+  }
+
+  const clickTarget = findNoidungClickTarget(document, tuaid, chuongid, arg);
+  if (clickTarget) {
+    clickTarget.click();
+    return true;
+  }
+
+  return false;
+}
+
 export function buildNoidungArg(entry: VtqMulubenEntry): string | undefined {
   if (entry.onclickArg) return entry.onclickArg;
   if (entry.tuaid && entry.chuongid) return `tuaid=${entry.tuaid}&chuongid=${entry.chuongid}`;
@@ -133,7 +317,27 @@ export function triggerMulubenChapter(
   document: Document,
   chapterNumber: string,
   chuongid?: string,
+  tuaid?: string,
+  noidungArg?: string,
 ): boolean {
+  const savedArg = noidungArg?.trim();
+  if (savedArg && invokeNoidungRaw(document, savedArg)) {
+    return true;
+  }
+
+  const resolvedChuongid = chuongid ?? chapterNumber;
+  const pageUrl = document.defaultView?.location?.href;
+  const resolvedTuaid =
+    tuaid ??
+    (pageUrl ? readTuaidFromUrl(pageUrl) : undefined) ??
+    readTuaidFromCatalog(document);
+
+  if (resolvedTuaid && resolvedChuongid) {
+    if (invokeNoidung1(document, resolvedTuaid, resolvedChuongid)) {
+      return true;
+    }
+  }
+
   const container = getMulubenContainer(document);
   if (!container) return false;
 
@@ -144,28 +348,21 @@ export function triggerMulubenChapter(
   const entry = findMulubenEntry(document, chapterNumber, chuongid);
   if (!entry) return false;
 
-  for (const acronym of container.querySelectorAll('acronym')) {
-    const params = parseNoidungFromElement(acronym);
-    const displayNumber = extractDigits(
-      acronym.querySelector('.chuongso, [class*="chuongso"]')?.textContent,
-    );
-    const cid = params.chuongid ?? displayNumber;
-    if (cid !== entry.chuongid && displayNumber !== entry.displayNumber) continue;
+  const entryArg = buildNoidungArg(entry);
+  if (entryArg && invokeNoidungRaw(document, entryArg)) {
+    return true;
+  }
 
-    const win = (document.defaultView ?? globalThis.window) as
-      | (Window & { noidung1?: (arg: string) => void })
-      | null;
-    const arg = buildNoidungArg(entry) ?? params.raw;
-    if (arg && typeof win?.noidung1 === 'function') {
-      win.noidung1(arg);
+  const entryTuaid = entry.tuaid ?? resolvedTuaid;
+  if (entryTuaid && entry.chuongid) {
+    if (invokeNoidung1(document, entryTuaid, entry.chuongid)) {
       return true;
     }
+  }
 
-    const clickTarget =
-      acronym.querySelector('[onclick*="noidung"]') ??
-      acronym.querySelector('div') ??
-      acronym;
-    if (clickTarget instanceof HTMLElement) {
+  if (entryArg) {
+    const clickTarget = findNoidungClickTarget(document, entry.tuaid, entry.chuongid, entryArg);
+    if (clickTarget) {
       clickTarget.click();
       return true;
     }

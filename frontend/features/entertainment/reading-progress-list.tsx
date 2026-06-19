@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, BookOpen } from "lucide-react";
 import { api } from "@/services/api";
 import type { ReadingProgress } from "@/services/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function formatRelativeTime(value: string): string {
   const date = new Date(value);
@@ -20,50 +19,76 @@ function formatRelativeTime(value: string): string {
   return date.toLocaleDateString();
 }
 
+function siteLabel(siteId: string): string {
+  if (siteId === "vietnamthuquan") return "VTQ";
+  if (siteId === "nettruyen") return "NetTruyen";
+  if (siteId === "truyenfull") return "TruyenFull";
+  if (!siteId || siteId === "generic") return "Web";
+  return siteId.replace(/-/g, " ");
+}
+
 function ProgressBar({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, value));
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+      <div
+        className="h-full rounded-full bg-gradient-to-r from-primary to-[#ff7a8c] transition-all duration-300"
+        style={{ width: `${pct}%` }}
+      />
     </div>
   );
 }
 
 function ReadingCard({ item }: { item: ReadingProgress }) {
   const chapterLabel = item.chapter_title || item.chapter_id || "Current chapter";
+  const pct = Math.max(0, Math.min(100, item.progress_percentage));
+
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <article className="group relative overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+      <div
+        className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-[#ff7a8c] opacity-90"
+        aria-hidden
+      />
+      <div className="flex flex-col gap-3 p-4 pl-5">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <CardTitle className="line-clamp-2 text-base">{item.story_title}</CardTitle>
-            <p className="text-sm text-muted-foreground line-clamp-1">{chapterLabel}</p>
+          <div className="min-w-0 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {item.site_id && item.site_id !== "generic" ? (
+                <span className="inline-flex rounded-full border border-primary/20 bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent-foreground">
+                  {siteLabel(item.site_id)}
+                </span>
+              ) : null}
+              <span className="text-xs font-semibold text-muted-foreground">{pct}%</span>
+            </div>
+            <h3 className="line-clamp-2 text-base font-bold leading-snug tracking-tight text-foreground">
+              {item.story_title}
+            </h3>
+            <p className="line-clamp-1 text-sm text-muted-foreground">{chapterLabel}</p>
           </div>
           {item.current_url ? (
             <a
               href={item.current_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="shrink-0 text-muted-foreground hover:text-foreground"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:border-primary/30 hover:bg-accent hover:text-primary"
               aria-label="Open reading page"
             >
               <ExternalLink className="h-4 w-4" />
             </a>
           ) : null}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <ProgressBar value={item.progress_percentage} />
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>{item.progress_percentage}% read</span>
+
+        <ProgressBar value={pct} />
+
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-muted-foreground">
+          <span>{pct}% read</span>
           {item.reading_time_seconds > 0 ? (
             <span>{Math.round(item.reading_time_seconds / 60)} min</span>
           ) : null}
           <span>{formatRelativeTime(item.last_read_at)}</span>
-          {item.site_id && item.site_id !== "generic" ? <span>{item.site_id}</span> : null}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </article>
   );
 }
 
@@ -76,7 +101,17 @@ export function ReadingProgressList() {
   });
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading reading progress…</p>;
+    return (
+      <div className="space-y-3">
+        {[1, 2].map((i) => (
+          <div
+            key={i}
+            className="h-28 animate-pulse rounded-xl border border-border bg-muted/60"
+            aria-hidden
+          />
+        ))}
+      </div>
+    );
   }
 
   if (error) {
@@ -90,9 +125,11 @@ export function ReadingProgressList() {
   const items = data?.items ?? [];
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed p-8 text-center">
-        <BookOpen className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-        <p className="font-medium">No reading progress yet</p>
+      <div className="rounded-xl border border-dashed border-border bg-card/60 p-10 text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-primary">
+          <BookOpen className="h-6 w-6" />
+        </div>
+        <p className="font-semibold">No reading progress yet</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Install the Story Tracker extension and sign in to sync what you are reading.
         </p>
@@ -101,11 +138,19 @@ export function ReadingProgressList() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+          Recent stories
+        </p>
+        <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+          {items.length}
+        </span>
+      </div>
       {isFetching && !isLoading ? (
         <p className="text-xs text-muted-foreground">Refreshing from Story Tracker…</p>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         {items.map((item) => (
           <ReadingCard key={item.id} item={item} />
         ))}

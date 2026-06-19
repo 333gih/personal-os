@@ -128,7 +128,24 @@ Load the extension in your browser:
 npm run build          # Build both browsers
 npm run build:firefox  # dist/firefox/
 npm run build:chrome   # dist/chrome/
+npm run build:safari   # dist/safari/ (Safari / iOS Web Extension)
 ```
+
+### Safari (iOS)
+
+Standalone wrapper lives in `ios/` — **not** bundled with other app repos.
+
+```bash
+npm run build:safari
+npm run sync:safari-ios   # copies dist/safari → ios/StoryTrackerExtension/Resources
+cd ios && xcodegen generate && open StoryTracker.xcodeproj
+```
+
+See [docs/SAFARI-IOS.md](docs/SAFARI-IOS.md).
+
+### Android
+
+Use the Firefox build on Firefox for Android, or the Chrome build on Chromium browsers. See [docs/ANDROID.md](docs/ANDROID.md).
 
 ## Browser Publishing
 

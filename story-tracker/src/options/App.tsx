@@ -156,10 +156,11 @@ export function App() {
     <div className="options-container">
       <header className="options-header">
         <div className="options-header__brand">
-          <BrandLogo size={44} className="options-header__logo" />
-          <div>
-            <h1>Story Tracker Settings</h1>
-            <p>Reading sync & site preferences</p>
+          <BrandLogo size={44} />
+          <div className="options-header__text">
+            <p className="options-header__kicker">Settings</p>
+            <h1>Story Tracker</h1>
+            <p>Reading sync &amp; site preferences</p>
           </div>
         </div>
       </header>

@@ -23,21 +23,27 @@ body {
 .options-header__brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
-.options-header__logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  object-fit: contain;
-  background: #000;
+.options-header__text {
+  min-width: 0;
+}
+
+.options-header__kicker {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--st-text-subtle);
 }
 
 .options-header h1 {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   margin: 0;
+  letter-spacing: -0.02em;
 }
 
 .options-header p {
@@ -47,7 +53,7 @@ body {
 }
 
 .section {
-  background: var(--st-surface);
+  background: var(--st-surface-elevated);
   border: 1px solid var(--st-border);
   border-radius: var(--st-radius-lg);
   padding: 18px;
@@ -141,8 +147,8 @@ body {
 }
 
 .danger-zone {
-  border-color: #f5c2c7;
-  background: #fffbfb;
+  border-color: rgba(229, 115, 115, 0.28);
+  background: rgba(229, 115, 115, 0.06);
 }
 
 .export-output {
@@ -200,7 +206,7 @@ body {
 .btn-text-danger {
   border: none;
   background: none;
-  color: #c92a2a;
+  color: var(--st-danger);
   font-size: 12px;
   cursor: pointer;
   padding: 4px 8px;

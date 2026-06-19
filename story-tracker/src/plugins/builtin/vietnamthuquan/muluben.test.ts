@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildNoidungArgFromIds,
   collectMulubenAcronyms,
   countMulubenAcronyms,
+  invokeNoidung1,
+  invokeNoidungRaw,
   isNavigationNoiseTitle,
   parseNoidungOnclick,
   readHeaderChuongNumber,
+  readTuaidFromUrl,
   readVtqStoryTitle,
+  appendVtqResumeHash,
+  readVtqResumeFromHash,
   triggerMulubenChapter,
 } from './muluben';
 
@@ -90,6 +96,75 @@ describe('vtq-muluben', () => {
     try {
       expect(triggerMulubenChapter(doc, '103', '103')).toBe(true);
       expect(noidung1).toHaveBeenCalledWith('tuaid=33083&chuongid=103');
+    } finally {
+      win.noidung1 = previous;
+    }
+  });
+
+  it('reads tuaid from URL query string', () => {
+    expect(
+      readTuaidFromUrl(
+        'http://vietnamthuquan.eu/truyen/truyen.aspx?tid=abc&tuaid=33083#phandau',
+      ),
+    ).toBe('33083');
+  });
+
+  it('invokeNoidung1 uses exact tuaid+chuongid arg', () => {
+    const doc = new DOMParser().parseFromString(VTQ_MULUBEN_HTML, 'text/html');
+    const noidung1 = vi.fn();
+    const win = window as Window & { noidung1?: (arg: string) => void };
+    const previous = win.noidung1;
+    win.noidung1 = noidung1;
+
+    try {
+      expect(invokeNoidung1(doc, '33083', '10')).toBe(true);
+      expect(noidung1).toHaveBeenCalledWith(buildNoidungArgFromIds('33083', '10'));
+    } finally {
+      win.noidung1 = previous;
+    }
+  });
+
+  it('invokeNoidungRaw uses exact saved onclick arg', () => {
+    const doc = new DOMParser().parseFromString(VTQ_MULUBEN_HTML, 'text/html');
+    const noidung1 = vi.fn();
+    const win = window as Window & { noidung1?: (arg: string) => void };
+    const previous = win.noidung1;
+    win.noidung1 = noidung1;
+
+    try {
+      expect(invokeNoidungRaw(doc, 'tuaid=33083&chuongid=103')).toBe(true);
+      expect(noidung1).toHaveBeenCalledWith('tuaid=33083&chuongid=103');
+    } finally {
+      win.noidung1 = previous;
+    }
+  });
+
+  it('appendVtqResumeHash encodes resume token in URL hash', () => {
+    const url = appendVtqResumeHash(
+      'http://vietnamthuquan.eu/truyen/truyen.aspx?tid=abc#phandau',
+      '10',
+      '33083',
+      'tuaid=33083&chuongid=10',
+    );
+    expect(readVtqResumeFromHash(url)).toEqual({
+      chuongid: '10',
+      tuaid: '33083',
+      noidungArg: 'tuaid=33083&chuongid=10',
+    });
+  });
+
+  it('triggerMulubenChapter prefers saved noidung arg before catalog', () => {
+    const doc = new DOMParser().parseFromString('<html><body></body></html>', 'text/html');
+    const noidung1 = vi.fn();
+    const win = window as Window & { noidung1?: (arg: string) => void };
+    const previous = win.noidung1;
+    win.noidung1 = noidung1;
+
+    try {
+      expect(
+        triggerMulubenChapter(doc, '10', '10', '33083', 'tuaid=33083&chuongid=10'),
+      ).toBe(true);
+      expect(noidung1).toHaveBeenCalledWith('tuaid=33083&chuongid=10');
     } finally {
       win.noidung1 = previous;
     }

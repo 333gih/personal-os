@@ -2,13 +2,14 @@ import browser from 'webextension-polyfill';
 import { ReadingTracker } from './tracker';
 import { MESSAGE_TYPES } from '../shared/messages';
 import { logger } from '../utils/logger';
-import { resumeVtqChapter, type VtqResumePayload } from './vtq-navigator';
+import { resumeVtqChapter, tryAutoResumeVtq, type VtqResumePayload } from './vtq-navigator';
 
 const tracker = new ReadingTracker();
 
 function init(): void {
   logger.debug('Content script loaded on', window.location.href);
   void tracker.start();
+  void tryAutoResumeVtq();
 
   browser.runtime.onMessage.addListener((message) => {
     if (message?.type === MESSAGE_TYPES.MANUAL_SAVE) {

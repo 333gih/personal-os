@@ -35,5 +35,7 @@ export async function resumeWithSitePlugin(
     chapterNumber,
     chuongid: info.metadata?.chuongid ? String(info.metadata.chuongid) : undefined,
     tuaid: info.metadata?.tuaid ? String(info.metadata.tuaid) : undefined,
+    noidungArg:
+      typeof info.metadata?.noidung_arg === 'string' ? info.metadata.noidung_arg : undefined,
   });
 }

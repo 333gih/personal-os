@@ -1,0 +1,93 @@
+# Compile Story Tracker iOS on macOS (standalone repo — root is story-tracker/).
+name: iOS Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: ios-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build StoryTracker (Simulator)
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build Safari extension + sync iOS Resources
+        run: |
+          npm run build:safari
+          npm run sync:safari-ios
+
+      - name: Select Xcode 16.2
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.2"
+
+      - name: Prepare Xcode project
+        working-directory: ios
+        run: bash scripts/ci_ios_prepare.sh
+
+      - name: Build for iOS Simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project StoryTracker.xcodeproj \
+            -scheme StoryTracker \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5' \
+            -derivedDataPath DerivedData \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild.log
+
+      - name: Package simulator app
+        working-directory: ios
+        run: |
+          APP="$(find DerivedData/Build/Products -type d -name 'Story Tracker.app' -path '*iphonesimulator*' | head -1)"
+          if [[ -z "${APP}" ]]; then
+            echo "Story Tracker.app (simulator) not found"
+            find DerivedData/Build/Products -maxdepth 3 -type d 2>/dev/null || true
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "${APP}" "StoryTracker-Simulator.zip"
+
+      - name: Upload simulator app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-tracker-ios-simulator-${{ github.run_number }}
+          path: ios/StoryTracker-Simulator.zip
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Upload xcodebuild log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: story-tracker-xcodebuild-log-${{ github.run_number }}
+          path: ios/xcodebuild.log
+          retention-days: 7

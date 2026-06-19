@@ -1,0 +1,74 @@
+name: StoryTracker
+options:
+  bundleIdPrefix: com.personalos
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    MARKETING_VERSION: "1.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  StoryTracker:
+    type: application
+    platform: iOS
+    sources:
+      - StoryTrackerApp
+    settings:
+      base:
+        PRODUCT_NAME: Story Tracker
+        PRODUCT_BUNDLE_IDENTIFIER: com.personalos.story-tracker
+        INFOPLIST_FILE: StoryTrackerApp/Info.plist
+        CODE_SIGN_ENTITLEMENTS: StoryTrackerApp/StoryTrackerApp.entitlements
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: __CI_PROVISIONING_PROFILE__
+          DEVELOPMENT_TEAM: __CI_TEAM_ID__
+    dependencies:
+      - target: StoryTrackerExtension
+        embed: true
+    scheme:
+      testTargets: []
+
+  StoryTrackerExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - StoryTrackerExtension
+    resources:
+      - StoryTrackerExtension/Resources
+    settings:
+      base:
+        PRODUCT_NAME: StoryTrackerExtension
+        PRODUCT_BUNDLE_IDENTIFIER: com.personalos.story-tracker.extension
+        INFOPLIST_FILE: StoryTrackerExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: StoryTrackerExtension/StoryTrackerExtension.entitlements
+        SKIP_INSTALL: YES
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: __CI_EXTENSION_PROVISIONING_PROFILE__
+          DEVELOPMENT_TEAM: __CI_TEAM_ID__
+    dependencies: []
+
+schemes:
+  StoryTracker:
+    build:
+      targets:
+        StoryTracker: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
+configs:
+  Debug: debug
+  Release: release

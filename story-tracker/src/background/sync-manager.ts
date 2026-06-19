@@ -19,6 +19,7 @@ import {
   isGuestMode,
 } from '../guest/guest-mode';
 import { GUEST_MAX_STORIES } from '../shared/constants';
+import { shouldPersistChapterProgress } from '../utils/chapter-progress';
 
 export class SyncManager {
   private syncInterval: ReturnType<typeof setInterval> | null = null;
@@ -218,6 +219,18 @@ export class SyncManager {
         code: GUEST_LIMIT_CODE,
         error: GUEST_LIMIT_MESSAGE,
         data: { storyCount: GUEST_MAX_STORIES, maxStories: GUEST_MAX_STORIES },
+      };
+    }
+
+    const history = await storageService.getReadingHistory();
+    const existing = history.find((entry) => entry.storyId === info.storyId) ?? null;
+    if (!shouldPersistChapterProgress(existing, info)) {
+      logger.debug('Skipped save — incoming chapter below stored highest', {
+        storyId: info.storyId,
+      });
+      return {
+        success: true,
+        data: { synced: false, skippedLowerChapter: true, localOnly: await isGuestMode() },
       };
     }
 

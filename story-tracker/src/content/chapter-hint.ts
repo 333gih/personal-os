@@ -4,6 +4,7 @@ export type ChapterClickHint = {
   anchorId?: string;
   chuongid?: string;
   tuaid?: string;
+  noidungArg?: string;
   clickedAt: number;
 };
 
@@ -38,6 +39,7 @@ export function parseChapterFromElement(el: Element): ChapterClickHint | null {
         chapterTitle: `Chương ${number}`,
         chuongid: params.chuongid ?? number,
         tuaid: params.tuaid,
+        noidungArg: params.raw,
         clickedAt: Date.now(),
       };
     }

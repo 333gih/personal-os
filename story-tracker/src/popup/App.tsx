@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import browser from 'webextension-polyfill';
 import { ActionButton } from '../components/ActionButton';
 import { BrandLogo } from '../components/BrandLogo';
+import { HistoryStoryRow } from '../components/HistoryStoryRow';
 import { useAuth } from '../hooks/useAuth';
 import { useGuestStatus } from '../hooks/useGuestStatus';
 import { useReadingState } from '../hooks/useReadingState';
@@ -16,7 +17,7 @@ import {
 import { MESSAGE_TYPES } from '../shared/messages';
 import type { MessageResponse } from '../shared/messages';
 import type { ReadingHistoryEntry } from '../types/reading';
-import { formatChapterDisplay, formatPartLabel, historyEntryToReadingInfo } from '../utils/reading-display';
+import { formatChapterDisplay, formatPartLabel } from '../utils/reading-display';
 import { isVtqReading, openVtqChapter } from './vtq-open';
 
 function ReadingSkeleton() {
@@ -55,12 +56,18 @@ export function App() {
 
   useEffect(() => {
     if (saveAction.isError) setToast('Could not save on this page.');
-    else if (syncAction.isError) setToast(status.lastError ?? 'Sync failed. Check login or network.');
+    else if (syncAction.isError) {
+      setToast(
+        syncAction.lastError ??
+          status.lastError ??
+          'Sync failed. Check login or network.',
+      );
+    }
     else if (saveAction.isSuccess) {
       setToast(isGuest ? 'Progress saved locally.' : 'Progress saved.');
     } else if (syncAction.isSuccess) setToast('Synced to Personal OS.');
     else setToast(null);
-  }, [saveAction.isError, saveAction.isSuccess, syncAction.isError, syncAction.isSuccess, status.lastError, isGuest]);
+  }, [saveAction.isError, saveAction.isSuccess, syncAction.isError, syncAction.isSuccess, syncAction.lastError, status.lastError, isGuest]);
 
   const handleGuestLimit = (response: MessageResponse) => {
     if (response?.code === GUEST_LIMIT_CODE) {
@@ -145,32 +152,33 @@ export function App() {
 
   const modeLabel = auth ? auth.mode : 'Local only';
 
+  const visibleHistory = history.slice(0, isGuest ? guestStatus.maxStories : 5);
+
   return (
     <div className="popup">
-      <header className="popup__header">
+      <div className="popup__topbar">
         <div className="popup__brand">
-          <BrandLogo size={40} className="popup__logo" />
+          <BrandLogo size={36} />
           <div>
             <h1 className="popup__title">Story Tracker</h1>
-            <p className="popup__subtitle">{subtitle}</p>
+            <p className="popup__meta">{subtitle}</p>
           </div>
         </div>
         <ActionButton variant="icon" onClick={openOptions} title="Settings" aria-label="Settings">
           ⚙
         </ActionButton>
-      </header>
+      </div>
 
-      <div className="popup__toolbar">
+      <div className="popup__chips">
         <span className={`st-badge ${modeBadge}`}>{modeLabel}</span>
         {auth ? (
           <span className={`st-badge ${status.online !== false ? 'st-badge--online' : 'st-badge--offline'}`}>
             <span className={`status-dot ${status.online !== false ? 'online' : 'offline'}`} />
             {status.online !== false ? 'Online' : 'Offline'}
-            {status.pendingCount > 0 ? ` · ${status.pendingCount} pending` : ''}
-            {status.lastError && status.state === 'error' ? ' · sync error' : ''}
+            {status.pendingCount > 0 ? ` · ${status.pendingCount}` : ''}
           </span>
         ) : (
-          <span className="st-badge st-badge--guest-muted">No cloud sync</span>
+          <span className="st-badge st-badge--guest-muted">Local</span>
         )}
         {auth ? (
           <button type="button" className="link-btn" onClick={() => void logout()}>
@@ -187,6 +195,8 @@ export function App() {
           </button>
         )}
       </div>
+
+      <div className="popup__body">
 
       {isGuest ? (
         <section className="st-card guest-upsell" aria-label="Sign in benefits">
@@ -226,8 +236,8 @@ export function App() {
       {readingLoading ? (
         <ReadingSkeleton />
       ) : session ? (
-        <section className="st-card reading-card">
-          <p className="st-card__eyebrow">Currently reading</p>
+        <section className="st-card st-card--featured reading-card">
+          <p className="st-card__eyebrow">Reading</p>
           <h2 className="reading-card__title">{session.readingInfo.storyTitle}</h2>
           {formatPartLabel(session.readingInfo) ? (
             <p className="reading-card__part">{formatPartLabel(session.readingInfo)}</p>
@@ -240,7 +250,7 @@ export function App() {
                 className="reading-card__open-link"
                 onClick={() => void openVtqChapter(session.readingInfo)}
               >
-                Open at this chapter →
+                Open chapter
               </button>
             ) : (
               <a
@@ -249,7 +259,7 @@ export function App() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Open at this chapter →
+                Open chapter
               </a>
             )
           ) : null}
@@ -268,13 +278,9 @@ export function App() {
         </section>
       ) : (
         <section className="st-card empty-card">
-          <p className="empty-card__icon" aria-hidden>
-            📖
-          </p>
-          <p className="empty-card__title">No chapter detected</p>
+          <p className="empty-card__title">Chưa nhận diện chương</p>
           <p className="empty-card__hint">
-            Open a chapter page (e.g. TruyenFull <code>/chuong-26/</code>) on this tab, then use Save
-            Now.
+            Mở URL chương (vd. <code>/chuong-26/</code>) rồi bấm Save.
           </p>
         </section>
       )}
@@ -289,67 +295,50 @@ export function App() {
           successLabel="Saved"
           onClick={handleManualSave}
         >
-          Save now
+          Save progress
         </ActionButton>
         <ActionButton
           variant="primary"
           block
           loading={syncAction.isLoading}
           success={syncAction.isSuccess}
-          loadingLabel={isGuest ? 'Opening sign-in…' : 'Syncing…'}
-          successLabel={isGuest ? 'Sign in' : 'Synced'}
+          loadingLabel={isGuest ? 'Opening…' : 'Syncing…'}
+          successLabel={isGuest ? 'Done' : 'Synced'}
           disabled={!isGuest && status.online === false && !syncAction.isLoading}
           onClick={handleSync}
         >
-          {isGuest ? 'Sign in to sync' : 'Sync'}
+          {isGuest ? 'Sign in to sync' : 'Sync to Personal OS'}
         </ActionButton>
       </div>
 
-      {history.length > 0 ? (
+      {visibleHistory.length > 0 ? (
         <section className="st-card history-card">
-          <p className="st-card__eyebrow">Recent stories</p>
+          <div className="st-card__header">
+            <p className="st-card__eyebrow">History</p>
+            <span className="st-card__count">{visibleHistory.length}</span>
+          </div>
           {isGuest ? (
             <p className="history-card__hint">
-              Local only · max {guestStatus.maxStories}. Tap × to remove a story and free a slot.
+              Local only · max {guestStatus.maxStories}. Remove a story to free a slot.
             </p>
           ) : null}
           <ul className="history-list">
-            {history.slice(0, isGuest ? guestStatus.maxStories : 5).map((entry) => (
-              <li key={`${entry.storyId}:${entry.lastReadAt}`} className="history-item">
-                <div className="history-item__main">
-                  {entry.currentUrl ? (
-                    <a
-                      className="history-item__link"
-                      href={entry.currentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <strong>{entry.storyTitle}</strong>
-                    </a>
-                  ) : (
-                    <strong>{entry.storyTitle}</strong>
-                  )}
-                  <span>{formatChapterDisplay(historyEntryToReadingInfo(entry))}</span>
-                </div>
-                <div className="history-item__aside">
-                  <span className="history-item__pct">{entry.progress.percentage}%</span>
-                  {isGuest ? (
-                    <button
-                      type="button"
-                      className="history-item__remove"
-                      title="Remove from local progress"
-                      aria-label={`Remove ${entry.storyTitle}`}
-                      onClick={() => handleRemoveStory(entry.storyId, entry.storyTitle)}
-                    >
-                      ×
-                    </button>
-                  ) : null}
-                </div>
-              </li>
+            {visibleHistory.map((entry) => (
+              <HistoryStoryRow
+                key={`${entry.storyId}:${entry.lastReadAt}`}
+                entry={entry}
+                isGuest={isGuest}
+                onRemove={handleRemoveStory}
+              />
             ))}
           </ul>
         </section>
       ) : null}
+
+        <p className="popup__footer">
+          <strong>Fash</strong> · Personal OS
+        </p>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,10 @@ import { createReadingProgressService } from './reading-progress-service';
 import { tokenManager } from '../auth/token-manager';
 import { storageService } from '../storage/storage-service';
 import { logger } from '../utils/logger';
+import { shouldPersistChapterProgress } from '../utils/chapter-progress';
+import { historyEntryToReadingInfo } from '../utils/reading-display';
+import { shouldPersistChapterProgress } from '../utils/chapter-progress';
+import { historyEntryToReadingInfo } from '../utils/reading-display';
 
 type ServerReadingProgress = {
   story_id: string;
@@ -43,6 +47,7 @@ export async function pullRemoteProgress(): Promise<number> {
   try {
     const service = createReadingProgressService();
     const response = await service.getCurrentProgress();
+    const history = await storageService.getReadingHistory();
     let merged = 0;
 
     for (const item of response.items) {
@@ -57,7 +62,20 @@ export async function pullRemoteProgress(): Promise<number> {
         siteId: (item.metadata?.parser as string) ?? 'generic',
         metadata: item.metadata,
       };
+
+      const existing = history.find((row) => row.storyId === entry.storyId) ?? null;
+      const incoming = historyEntryToReadingInfo(entry);
+      if (!shouldPersistChapterProgress(existing, incoming)) {
+        continue;
+      }
+
       await storageService.addHistoryEntry(entry);
+      const index = history.findIndex((row) => row.storyId === entry.storyId);
+      if (index >= 0) {
+        history[index] = entry;
+      } else {
+        history.unshift(entry);
+      }
       merged += 1;
     }
 

@@ -8,9 +8,12 @@ export default function EntertainmentPage() {
     <div className="space-y-10">
       <section className="space-y-4">
         <div>
-          <h1 className="text-xl font-bold sm:text-2xl">Entertainment</h1>
+          <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-primary">
+            Fash &amp; Curious · Story Tracker
+          </p>
+          <h1 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">Entertainment</h1>
           <p className="text-muted-foreground">
-            Stories and reading progress synced from Story Tracker
+            Stories and reading progress synced from the extension
           </p>
         </div>
         <ReadingProgressList />

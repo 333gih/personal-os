@@ -4,9 +4,12 @@ import { countMulubenChapters, readCurrentChuongNumber } from '../../../parsers/
 import { extractUrlHashId, formatHashChapterTitle, isPartHashId } from '../../../parsers/url-detector';
 import type { DomChapterResult } from '../../../types/site-profile';
 import {
+  buildNoidungArgFromIds,
   collectMulubenAcronyms,
   findMulubenEntry,
   readHeaderChuongNumber,
+  readTuaidFromCatalog,
+  readTuaidFromUrl,
   readVtqStoryTitle,
   isNavigationNoiseTitle,
   triggerMulubenChapter,
@@ -80,6 +83,20 @@ export const vietnamThuQuanPlugin: SitePlugin = {
       base.storyTitle && !isNavigationNoiseTitle(base.storyTitle) ? base.storyTitle : undefined;
     const storyTitle = vtqStoryTitle ?? fallbackTitle ?? 'Unknown story';
 
+    const resolvedChuongid =
+      mulubenMatch?.chuongid ?? ctx.chapterHint?.chuongid ?? ctx.chapterHint?.chapterNumber;
+    const resolvedTuaid =
+      mulubenMatch?.tuaid ??
+      ctx.chapterHint?.tuaid ??
+      readTuaidFromUrl(ctx.url) ??
+      readTuaidFromCatalog(ctx.document);
+    const noidungArg =
+      mulubenMatch?.onclickArg ??
+      (typeof ctx.chapterHint?.noidungArg === 'string' ? ctx.chapterHint.noidungArg : undefined) ??
+      (resolvedTuaid && resolvedChuongid
+        ? buildNoidungArgFromIds(resolvedTuaid, resolvedChuongid)
+        : undefined);
+
     return {
       ...base,
       storyTitle,
@@ -97,9 +114,9 @@ export const vietnamThuQuanPlugin: SitePlugin = {
         chapter_number: chapterNumber ?? mulubenMatch?.displayNumber,
         chapter_index: chapterIndex,
         total_chapters: totalChapters,
-        chuongid:
-          mulubenMatch?.chuongid ?? ctx.chapterHint?.chuongid ?? ctx.chapterHint?.chapterNumber,
-        tuaid: mulubenMatch?.tuaid ?? ctx.chapterHint?.tuaid,
+        chuongid: resolvedChuongid,
+        tuaid: resolvedTuaid,
+        noidung_arg: noidungArg,
         catalog_count: acronyms.length,
         part_title: partTitle,
         part_id: partId ?? extractUrlHashId(ctx.url),
@@ -113,6 +130,18 @@ export const vietnamThuQuanPlugin: SitePlugin = {
   },
 
   async resumeChapter(document, payload) {
-    return triggerMulubenChapter(document, payload.chapterNumber, payload.chuongid);
+    const chuongid = payload.chuongid ?? payload.chapterNumber;
+    const pageUrl = document.defaultView?.location?.href;
+    const tuaid =
+      payload.tuaid ??
+      (pageUrl ? readTuaidFromUrl(pageUrl) : undefined) ??
+      readTuaidFromCatalog(document);
+    return triggerMulubenChapter(
+      document,
+      payload.chapterNumber,
+      chuongid,
+      tuaid,
+      payload.noidungArg,
+    );
   },
 };

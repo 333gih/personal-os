@@ -1,0 +1,29 @@
+# GitLab CI — mirror story-tracker subtree to GitHub (optional).
+#
+# GitLab Settings → CI/CD → Variables (masked, protected):
+#   GITHUB_MIRROR_URL     = https://github.com/YOU/story-tracker.git
+#   GITHUB_MIRROR_TOKEN   = fine-grained PAT (Contents: read/write)
+#
+# GitHub: create empty repo story-tracker (no README).
+# After mirror: push iOS secrets to GitHub repo (not GitLab):
+#   cd story-tracker && ./scripts/push_github_ios_secrets.sh owner/story-tracker
+
+stages:
+  - mirror
+
+mirror-story-tracker-github:
+  stage: mirror
+  image: alpine/git:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - story-tracker/**/*
+  before_script:
+    - apk add --no-cache bash
+    - git config user.email "ci@personal-os"
+    - git config user.name "personal-os CI"
+  script:
+    - bash story-tracker/scripts/mirror-to-github.sh
+  variables:
+    GIT_DEPTH: "0"
+    GIT_STRATEGY: clone

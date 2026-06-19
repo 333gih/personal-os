@@ -21,6 +21,8 @@ export type ResumeChapterPayload = {
   chapterNumber: string;
   chuongid?: string;
   tuaid?: string;
+  /** Exact `noidung1('…')` argument saved from muluben onclick. */
+  noidungArg?: string;
 };
 
 export interface SitePlugin {

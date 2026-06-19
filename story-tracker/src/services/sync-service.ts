@@ -6,6 +6,7 @@ import { tokenManager } from '../auth/token-manager';
 import { offlineQueue } from '../storage/offline-queue';
 import { storageService } from '../storage/storage-service';
 import { logger } from '../utils/logger';
+import { shouldPersistChapterProgress } from '../utils/chapter-progress';
 
 function formatSyncError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -13,7 +14,7 @@ function formatSyncError(error: unknown): string {
       error.status === 503 &&
       /ring-balancer|failure to get a peer/i.test(error.message)
     ) {
-      return 'Personal OS API is down (gateway has no backend). Redeploy the API or fix Kong upstream.';
+      return 'Personal OS API is down (Kong has no healthy backend). Fix gateway upstream — see deploy/fash-integration/README.md.';
     }
     if (error.status === 502 || error.status === 504) {
       return `Personal OS API unavailable (${error.status}). Try again after the server is back online.`;
@@ -34,6 +35,15 @@ export class SyncService {
     const siteEnabled = settings.enabledSites[info.metadata?.parser as string] ?? true;
     if (!siteEnabled) {
       logger.debug('Site disabled, skipping sync');
+      return false;
+    }
+
+    const history = await storageService.getReadingHistory();
+    const existing = history.find((entry) => entry.storyId === info.storyId) ?? null;
+    if (!shouldPersistChapterProgress(existing, info)) {
+      logger.debug('Skipped sync — incoming chapter below stored highest', {
+        storyId: info.storyId,
+      });
       return false;
     }
 
@@ -79,27 +89,30 @@ export class SyncService {
 
       const token = await tokenManager.ensureValidToken();
       if (!token) {
+        const authError = 'Not signed in or session expired. Sign in again via Personal OS.';
         await storageService.setSyncStatus({
-          state: 'idle',
-          lastSyncAt: null,
-          pendingCount: 0,
-          lastError: undefined,
+          state: 'error',
+          lastSyncAt: (await storageService.getSyncStatus()).lastSyncAt,
+          pendingCount: await offlineQueue.size(),
+          lastError: authError,
         });
-        return { synced: 0, failed: 0, pushedLatest: false };
+        return { synced: 0, failed: 1, pushedLatest: false, error: authError };
       }
 
       const latest = await this.getLatestLocalReading();
       if (latest) {
         const payload = this.toPayload(latest.readingInfo);
-        try {
-          await this.pushToServer(payload);
-          synced++;
-          pushedLatest = true;
-        } catch (error) {
-          failed++;
-          lastError = formatSyncError(error);
-          await this.queueOffline(payload, lastError);
-          logger.error('Failed to push latest reading session', error);
+        if (await this.shouldPushPayload(payload)) {
+          try {
+            await this.pushToServer(payload);
+            synced++;
+            pushedLatest = true;
+          } catch (error) {
+            failed++;
+            lastError = formatSyncError(error);
+            await this.queueOffline(payload, lastError);
+            logger.error('Failed to push latest reading session', error);
+          }
         }
       }
 
@@ -159,6 +172,11 @@ export class SyncService {
     const succeeded: string[] = [];
 
     for (const event of events) {
+      if (!(await this.shouldPushPayload(event.payload))) {
+        succeeded.push(event.id);
+        continue;
+      }
+
       try {
         await readingProgress.saveProgress(event.payload);
         succeeded.push(event.id);
@@ -202,6 +220,10 @@ export class SyncService {
     payload: ReadingProgressPayload,
     lastError: string,
   ): Promise<void> {
+    if (!(await this.shouldPushPayload(payload))) {
+      return;
+    }
+
     await offlineQueue.enqueue(payload);
     await storageService.setSyncStatus({
       state: navigator.onLine ? 'error' : 'offline',
@@ -224,6 +246,20 @@ export class SyncService {
     const sessions = await storageService.get('readingSessions');
     const sorted = Object.values(sessions).sort((a, b) => b.lastUpdatedAt - a.lastUpdatedAt);
     return sorted[0] ?? null;
+  }
+
+  private async shouldPushPayload(payload: ReadingProgressPayload): Promise<boolean> {
+    const history = await storageService.getReadingHistory();
+    const existing = history.find((entry) => entry.storyId === payload.storyId) ?? null;
+    return shouldPersistChapterProgress(existing, {
+      storyId: payload.storyId,
+      storyTitle: payload.storyTitle,
+      chapterId: payload.chapterId,
+      chapterTitle: payload.chapterTitle,
+      currentUrl: payload.currentUrl,
+      progress: payload.progress,
+      metadata: payload.metadata,
+    });
   }
 
   private toPayload(info: ReadingInfo): ReadingProgressPayload {

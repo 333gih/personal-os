@@ -878,9 +878,12 @@ export function getChapterBoundedProgress(
     return { percentage, scrollY: ctx.window.scrollY };
   }
 
-  const anchorId = chapterMeta.chapterId.includes(':')
-    ? chapterMeta.chapterId.split(':').pop()!
-    : chapterMeta.chapterId;
+  const chapterId = chapterMeta.chapterId;
+  if (!chapterId) return null;
+
+  const anchorId = chapterId.includes(':')
+    ? chapterId.split(':').pop()!
+    : chapterId;
 
   const index = entries.findIndex((e) => e.anchorId === anchorId);
   if (index < 0) return null;

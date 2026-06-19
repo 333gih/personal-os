@@ -8,6 +8,7 @@ import { listBuiltinHostPatterns } from './src/config/site-profile-builtin';
 
 const target = process.env.TARGET ?? 'firefox';
 const isFirefox = target === 'firefox' || target === 'firefox-dev';
+const isSafari = target === 'safari';
 const manifestFile =
   target === 'firefox-dev' ? 'firefox-dev.manifest.json' : `${target}.manifest.json`;
 
@@ -82,7 +83,7 @@ export default defineConfig(({ mode }) => {
   const manifest = {
     ...baseManifest,
     host_permissions: hostPermissions,
-    optional_host_permissions: ['*://*/*'],
+    ...(isSafari ? {} : { optional_host_permissions: ['*://*/*'] }),
     content_scripts: [
       {
         matches: storyMatches,
@@ -132,6 +133,7 @@ export default defineConfig(({ mode }) => {
         manifest: () => manifest,
         disableAutoLaunch: true,
         browser: isFirefox ? 'firefox' : 'chrome',
+        // Safari uses Chromium-style MV3 output; Apple converts at sync time.
       }),
     ],
     build: {
