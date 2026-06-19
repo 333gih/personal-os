@@ -128,8 +128,13 @@ Sửa `ios/project.yml`:
 
 ## Chi phí GitHub Actions
 
-- Repo **private**: macOS runner tính phí (~10× Linux)
-- Repo **public**: macOS miễn phí
+Repo **private** → runner `macos-14` tính phí (~10× Linux). Nếu job fail trong **vài giây** với:
+
+> *recent account payments have failed or your spending limit needs to be increased*
+
+→ Sửa tại [GitHub Billing](https://github.com/settings/billing), sau đó **Re-run** workflow. Không phải lỗi Xcode/project.
+
+Repo **public**: macOS runner miễn phí.
 
 ## Tham khảo
 

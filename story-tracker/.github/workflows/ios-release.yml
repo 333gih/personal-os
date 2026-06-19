@@ -32,8 +32,23 @@ env:
     }}
 
 jobs:
+  preflight:
+    name: Preflight (billing reminder)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Billing & macOS runner
+        run: |
+          {
+            echo "### Story Tracker iOS Release"
+            echo "- Private repo needs **paid GitHub Actions** minutes for \`macos-14\`."
+            echo "- If macOS job shows *payments have failed* or *spending limit*: [GitHub Billing](https://github.com/settings/billing) → fix payment → **Re-run workflow**."
+            echo "- Secrets checklist: \`docs/CI-IOS.md\` (10 secrets incl. 2 profile base64)."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
   release:
     name: Archive & export IPA
+    needs: preflight
     runs-on: macos-14
     timeout-minutes: 45
 

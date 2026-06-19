@@ -19,8 +19,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  preflight:
+    name: Preflight (billing reminder)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Billing note
+        run: |
+          echo "macOS build requires GitHub billing for private repos: https://github.com/settings/billing" >> "${GITHUB_STEP_SUMMARY}"
+
   build:
     name: Build StoryTracker (Simulator)
+    needs: preflight
     runs-on: macos-14
     timeout-minutes: 30
 
