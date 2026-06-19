@@ -11,6 +11,9 @@ if [[ ! -f "${RESOURCES}/manifest.json" ]]; then
   exit 1
 fi
 
+echo "==> Generate iOS app icons"
+node "${ROOT}/../scripts/generate-ios-app-icons.mjs"
+
 echo "==> Install XcodeGen"
 if ! command -v xcodegen >/dev/null 2>&1; then
   brew install xcodegen
@@ -22,9 +25,5 @@ xcodegen generate
 
 object_version="$(sed -n 's/.*objectVersion = \([0-9]*\);.*/\1/p' StoryTracker.xcodeproj/project.pbxproj | head -1)"
 echo "objectVersion=${object_version}"
-if [[ "${object_version}" -gt 60 ]]; then
-  sed -i '' -E 's/objectVersion = [0-9]+/objectVersion = 60/' StoryTracker.xcodeproj/project.pbxproj
-  echo "Downgraded objectVersion to 60 for Xcode 15/16 compatibility"
-fi
 
 echo "==> Story Tracker iOS project ready (scheme=StoryTracker)"

@@ -1,0 +1,40 @@
+/**
+ * Generates StoryTrackerApp AppIcon.appiconset PNGs from public/icons/brand-mark.svg.
+ * Run: node scripts/generate-ios-app-icons.mjs
+ */
+import { mkdirSync, writeFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import sharp from 'sharp';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = resolve(__dirname, '..');
+const sourcePath = resolve(root, 'public/icons/brand-mark.svg');
+const outDir = resolve(root, 'ios/StoryTrackerApp/Assets.xcassets/AppIcon.appiconset');
+
+const icons = [
+  { name: 'Icon-20@2x.png', size: 40 },
+  { name: 'Icon-20@3x.png', size: 60 },
+  { name: 'Icon-29@2x.png', size: 58 },
+  { name: 'Icon-29@3x.png', size: 87 },
+  { name: 'Icon-40@2x.png', size: 80 },
+  { name: 'Icon-40@3x.png', size: 120 },
+  { name: 'Icon-60@2x.png', size: 120 },
+  { name: 'Icon-60@3x.png', size: 180 },
+  { name: 'Icon-Marketing-1024.png', size: 1024 },
+];
+
+mkdirSync(outDir, { recursive: true });
+
+for (const { name, size } of icons) {
+  await sharp(sourcePath)
+    .resize(size, size, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+    .png()
+    .toFile(resolve(outDir, name));
+  console.log(`[generate-ios-app-icons] ${name}`);
+}
+
+writeFileSync(
+  resolve(outDir, '.gitignore'),
+  '# Generated in CI via scripts/generate-ios-app-icons.mjs\n*.png\n',
+);
