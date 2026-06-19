@@ -20,7 +20,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $MonorepoRoot = Resolve-Path (Join-Path $ScriptDir "..\..")
 
 if ([string]::IsNullOrWhiteSpace($MirrorUrl)) {
-    $MirrorUrl = "https://github.com/fashandcurious14052026-dotcom/story-tracker.git"
+    $MirrorUrl = "https://github.com/333gih/story-tracker.git"
     Write-Host "Using default GITHUB_MIRROR_URL: $MirrorUrl"
 }
 
@@ -64,4 +64,4 @@ if (-not [string]::IsNullOrWhiteSpace($Token)) {
 }
 
 Write-Host "Done: $PushUrl (branch $Branch)"
-Write-Host "Actions: https://github.com/fashandcurious14052026-dotcom/story-tracker/actions"
+Write-Host "Actions: https://github.com/333gih/story-tracker/actions"

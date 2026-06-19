@@ -26,7 +26,7 @@ personal-os/story-tracker/  --git subtree split-->  github.com/.../story-tracker
 | App bundle | `com.personalos.story-tracker` |
 | Extension bundle | `com.personalos.story-tracker.extension` |
 | App Group | `group.com.personalos.story-tracker` |
-| GitHub repo | `fashandcurious14052026-dotcom/story-tracker` |
+| GitHub repo | `333gih/story-tracker` |
 
 ## Apple Developer (portal has NO Safari checkbox)
 
@@ -111,13 +111,19 @@ After fix: mirror → re-run workflow (secrets already on GitHub unless profiles
 
 **Fix:** Align `IOS_PROVISIONING_PROFILE_PATH` in `ios-release.env`.
 
-### 4. Code signing / profile mismatch (after billing fixed)
+### 4. App Group mismatch on archive (exit 65)
 
-CI verifies bundle IDs in `ios/scripts/ci_verify_provisioning_profile.sh`.
+**Message:** `Provisioning profile doesn't match the entitlements file's value for com.apple.security.application-groups`
 
-**Fix:** Regenerate profiles for correct App IDs; update specifiers; re-push secrets.
+**Cause:** Extension profile missing `group.com.personalos.story-tracker` while entitlements request it (or vice versa).
 
-### 5. TestFlight 90382
+**Fix:** Regenerate **both** profiles with App Group on portal, **or** remove unused App Groups from entitlements (Story Tracker Safari handler does not use shared container).
+
+### 5. Duplicate Resources (index.js / index.html)
+
+**Cause:** Xcode flattens `Resources/` — use `type: folder` in `ios/project.yml` for extension resources.
+
+### 6. TestFlight 90382
 
 Daily upload limit — archive OK; re-run after ~24h.
 
