@@ -11,6 +11,14 @@ import { onConnectivityChange } from '../services/reading-progress-service';
 import { pullRemoteProgress } from '../services/pull-progress';
 import { registerKnownContentScripts, maybeDiscoverOrigin } from './origin-registry';
 import { logger } from '../utils/logger';
+import {
+  canSaveGuestStory,
+  getGuestStatus,
+  GUEST_LIMIT_CODE,
+  GUEST_LIMIT_MESSAGE,
+  isGuestMode,
+} from '../guest/guest-mode';
+import { GUEST_MAX_STORIES } from '../shared/constants';
 
 export class SyncManager {
   private syncInterval: ReturnType<typeof setInterval> | null = null;
@@ -25,10 +33,15 @@ export class SyncManager {
         const newSettings = changes.settings.newValue as { syncIntervalMs: number };
         this.startSyncInterval(newSettings.syncIntervalMs);
       }
+      if (area === 'local' && changes.auth?.newValue) {
+        void this.bootstrapCloudSync();
+      }
     });
 
     onConnectivityChange((online) => {
-      if (online) void syncService.syncNow();
+      void isGuestMode().then((guest) => {
+        if (!guest && online) void syncService.syncNow();
+      });
     });
 
     browser.tabs.onActivated.addListener(({ tabId }) => {
@@ -51,15 +64,30 @@ export class SyncManager {
     });
 
     void registerKnownContentScripts();
-    void pullRemoteProgress().then(() => syncService.syncNow());
+    void this.bootstrapCloudSync();
 
     logger.info('Sync manager initialized');
+  }
+
+  private async bootstrapCloudSync(): Promise<void> {
+    if (await isGuestMode()) {
+      await storageService.setSyncStatus({
+        state: 'idle',
+        lastSyncAt: null,
+        pendingCount: 0,
+        lastError: undefined,
+      });
+      return;
+    }
+    void pullRemoteProgress().then(() => syncService.syncNow());
   }
 
   private startSyncInterval(intervalMs: number): void {
     if (this.syncInterval) clearInterval(this.syncInterval);
     this.syncInterval = setInterval(() => {
-      void syncService.syncNow();
+      void isGuestMode().then((guest) => {
+        if (!guest) void syncService.syncNow();
+      });
     }, intervalMs);
   }
 
@@ -120,8 +148,11 @@ export class SyncManager {
           return { success: true, data: { ok: true } };
 
         case MESSAGE_TYPES.GET_AUTH_STATE: {
-          await authService.ensureSession();
-          return { success: true, data: await authService.getAuthState() };
+          const valid = await authService.ensureSession();
+          return {
+            success: true,
+            data: valid ? await authService.getAuthState() : null,
+          };
         }
 
         case MESSAGE_TYPES.GET_SYNC_STATUS: {
@@ -134,6 +165,18 @@ export class SyncManager {
 
         case MESSAGE_TYPES.GET_READING_HISTORY:
           return { success: true, data: await storageService.getReadingHistory() };
+
+        case MESSAGE_TYPES.GET_GUEST_STATUS:
+          return { success: true, data: await getGuestStatus() };
+
+        case MESSAGE_TYPES.REMOVE_STORY_PROGRESS: {
+          const storyId = (message.payload as { storyId?: string })?.storyId;
+          if (!storyId) {
+            return { success: false, error: 'Missing storyId' };
+          }
+          await storageService.removeStoryProgress(storyId);
+          return { success: true, data: { storyId } };
+        }
 
         case MESSAGE_TYPES.GET_CURRENT_READING: {
           const sessions = await storageService.get('readingSessions');
@@ -168,6 +211,16 @@ export class SyncManager {
     info: ReadingInfo & { isUnload?: boolean },
     forceFlush = false,
   ): Promise<MessageResponse> {
+    if (!(await canSaveGuestStory(info.storyId))) {
+      logger.warn('Guest story limit reached', { storyId: info.storyId });
+      return {
+        success: false,
+        code: GUEST_LIMIT_CODE,
+        error: GUEST_LIMIT_MESSAGE,
+        data: { storyCount: GUEST_MAX_STORIES, maxStories: GUEST_MAX_STORIES },
+      };
+    }
+
     const session: ReadingSession = {
       id: info.storyId,
       readingInfo: info,
@@ -186,18 +239,22 @@ export class SyncManager {
       progress: info.progress,
       lastReadAt: Date.now(),
       siteId: session.siteId,
+      metadata: info.metadata,
     });
 
-    const synced = await syncService.syncReadingUpdate(info);
-    if (synced) {
-      void pullRemoteProgress();
+    let synced = false;
+    if (!(await isGuestMode())) {
+      synced = await syncService.syncReadingUpdate(info);
+      if (synced) {
+        void pullRemoteProgress();
+      }
+
+      if (info.isUnload || forceFlush) {
+        await syncService.syncNow();
+      }
     }
 
-    if (info.isUnload || forceFlush) {
-      await syncService.syncNow();
-    }
-
-    return { success: true, data: { synced } };
+    return { success: true, data: { synced, localOnly: await isGuestMode() } };
   }
 }
 

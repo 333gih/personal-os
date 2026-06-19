@@ -274,6 +274,16 @@
   color: var(--st-warning);
 }
 
+.st-badge--guest {
+  background: #f3e8ff;
+  color: #7c3aed;
+}
+
+.st-badge--guest-muted {
+  background: var(--st-surface-muted);
+  color: var(--st-text-muted);
+}
+
 /* —— Progress —— */
 
 .st-progress {

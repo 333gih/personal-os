@@ -4,6 +4,7 @@ import webExtension from 'vite-plugin-web-extension';
 import { resolve } from 'path';
 import { readFileSync } from 'fs';
 import type { SiteRegistry } from './src/types/site-registry';
+import { listBuiltinHostPatterns } from './src/config/site-profile-builtin';
 
 const target = process.env.TARGET ?? 'firefox';
 const isFirefox = target === 'firefox' || target === 'firefox-dev';
@@ -26,11 +27,7 @@ function personalOsFeOrigin(env: Record<string, string>): string {
 }
 
 function loadSiteRegistryHostPatterns(): string[] {
-  const registry = loadJsonFile<SiteRegistry>(
-    resolve(__dirname, 'src/config/site-registry.json'),
-    { sites: [] },
-  );
-  return registry.sites.flatMap((site) => site.hostPatterns);
+  return listBuiltinHostPatterns();
 }
 
 function connectMatchForOrigin(origin: string): string | null {

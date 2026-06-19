@@ -55,6 +55,7 @@ export async function pullRemoteProgress(): Promise<number> {
         progress: { ...item.progress },
         lastReadAt: item.clientTimestamp,
         siteId: (item.metadata?.parser as string) ?? 'generic',
+        metadata: item.metadata,
       };
       await storageService.addHistoryEntry(entry);
       merged += 1;

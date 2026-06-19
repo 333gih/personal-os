@@ -1,6 +1,8 @@
 import type { ParserContext, StoryParser } from '../types/parser';
 import type { ReadingInfo } from '../types/reading';
+import { getActiveProfiles, matchProfile } from '../config/site-profile-store';
 import { isChapterPage } from './page-classifier';
+import { createProfileParserForProfile } from './profile-parser';
 import { createNetTruyenParser } from './nettruyen-parser';
 import { createTruyenQQParser } from './truyenqq-parser';
 import { createTruyenFullParser } from './truyenfull-parser';
@@ -10,7 +12,7 @@ import { logger } from '../utils/logger';
 
 type ParserFactory = (ctx: ParserContext) => StoryParser;
 
-const PARSER_FACTORIES: ParserFactory[] = [
+const LEGACY_FACTORIES: ParserFactory[] = [
   createNetTruyenParser,
   createTruyenQQParser,
   createTruyenFullParser,
@@ -18,23 +20,31 @@ const PARSER_FACTORIES: ParserFactory[] = [
 ];
 
 export class ParserFactoryRegistry {
-  private readonly factories: ParserFactory[];
+  private readonly legacyFactories: ParserFactory[];
 
-  constructor(factories: ParserFactory[] = PARSER_FACTORIES) {
-    this.factories = factories;
+  constructor(legacyFactories: ParserFactory[] = LEGACY_FACTORIES) {
+    this.legacyFactories = legacyFactories;
   }
 
   register(factory: ParserFactory): void {
-    this.factories.unshift(factory);
+    this.legacyFactories.unshift(factory);
   }
 
-  resolve(ctx: ParserContext): StoryParser {
-    const parsers = this.factories.map((f) => f(ctx));
-    const sorted = parsers.sort((a, b) => b.priority - a.priority);
+  async resolve(ctx: ParserContext): Promise<StoryParser> {
+    const profiles = await getActiveProfiles();
+    const profile = matchProfile(ctx.url, profiles);
+    if (profile) {
+      logger.debug(`Resolved profile parser: ${profile.id} for ${ctx.url}`);
+      return createProfileParserForProfile(ctx, profile);
+    }
 
-    for (const parser of sorted) {
+    const parsers = this.legacyFactories
+      .map((f) => f(ctx))
+      .sort((a, b) => b.priority - a.priority);
+
+    for (const parser of parsers) {
       if (parser.canHandle(ctx.url)) {
-        logger.debug(`Resolved parser: ${parser.siteId} for ${ctx.url}`);
+        logger.debug(`Resolved legacy parser: ${parser.siteId} for ${ctx.url}`);
         return parser;
       }
     }
@@ -47,10 +57,11 @@ export class ParserFactoryRegistry {
 export const parserFactory = new ParserFactoryRegistry();
 
 export async function extractReadingInfo(ctx: ParserContext): Promise<ReadingInfo | null> {
-  if (!isChapterPage(ctx.url)) {
+  const profiles = await getActiveProfiles();
+  if (!isChapterPage(ctx.url, profiles)) {
     return null;
   }
 
-  const parser = parserFactory.resolve(ctx);
+  const parser = await parserFactory.resolve(ctx);
   return parser.extract();
 }

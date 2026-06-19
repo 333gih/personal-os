@@ -47,7 +47,6 @@ export class SyncService {
 
       const token = await tokenManager.ensureValidToken();
       if (!token) {
-        await this.queueOffline(payload, 'Not signed in');
         return false;
       }
 
@@ -80,15 +79,13 @@ export class SyncService {
 
       const token = await tokenManager.ensureValidToken();
       if (!token) {
-        const message = 'Not signed in. Use Continue to Personal OS in the extension popup.';
-        const pendingCount = await offlineQueue.size();
         await storageService.setSyncStatus({
-          state: 'error',
-          lastSyncAt: (await storageService.getSyncStatus()).lastSyncAt,
-          pendingCount,
-          lastError: message,
+          state: 'idle',
+          lastSyncAt: null,
+          pendingCount: 0,
+          lastError: undefined,
         });
-        return { synced: 0, failed: 1, pushedLatest: false, error: message };
+        return { synced: 0, failed: 0, pushedLatest: false };
       }
 
       const latest = await this.getLatestLocalReading();
@@ -155,13 +152,7 @@ export class SyncService {
 
     const token = await tokenManager.ensureValidToken();
     if (!token) {
-      await storageService.setSyncStatus({
-        state: 'error',
-        lastSyncAt: (await storageService.getSyncStatus()).lastSyncAt,
-        pendingCount: events.length,
-        lastError: 'Not signed in',
-      });
-      return { synced: 0, failed: events.length, lastError: 'Not signed in' };
+      return { synced: 0, failed: 0 };
     }
 
     const readingProgress = createReadingProgressService();

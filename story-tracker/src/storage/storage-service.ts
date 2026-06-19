@@ -7,6 +7,7 @@ import {
 import type { AuthState } from '../auth/types';
 import type { ReadingHistoryEntry, ReadingSession, SyncStatus } from '../types/reading';
 import type { UnsyncedEvent } from '../types/storage';
+import { GUEST_MAX_STORIES, MAX_HISTORY_ENTRIES } from '../shared/constants';
 
 const DEFAULT_SYNC_STATUS: SyncStatus = {
   state: 'idle',
@@ -46,7 +47,12 @@ export class StorageService {
   }
 
   async getSettings(): Promise<ExtensionSettings> {
-    return this.get(STORAGE_KEYS.SETTINGS);
+    const raw = await this.get(STORAGE_KEYS.SETTINGS);
+    return {
+      ...DEFAULT_SETTINGS,
+      ...raw,
+      customProfiles: raw.customProfiles ?? [],
+    };
   }
 
   async getSyncStatus(): Promise<SyncStatus> {
@@ -103,15 +109,41 @@ export class StorageService {
   }
 
   async addHistoryEntry(entry: ReadingHistoryEntry): Promise<void> {
+    const auth = await this.getAuth();
+    const maxEntries = auth ? MAX_HISTORY_ENTRIES : GUEST_MAX_STORIES;
     await this.update(STORAGE_KEYS.READING_HISTORY, (history) => {
       const filtered = history.filter((h) => h.storyId !== entry.storyId);
-      return [entry, ...filtered].slice(0, 50);
+      return [entry, ...filtered].slice(0, maxEntries);
     });
     await this.upsertStoryCatalog(entry);
   }
 
+  async removeStoryProgress(storyId: string): Promise<void> {
+    await this.update(STORAGE_KEYS.READING_SESSIONS, (sessions) => {
+      const next = { ...sessions };
+      delete next[storyId];
+      return next;
+    });
+    await this.update(STORAGE_KEYS.READING_HISTORY, (history) =>
+      history.filter((h) => h.storyId !== storyId),
+    );
+    await this.update(STORAGE_KEYS.STORY_CATALOG, (catalog) => {
+      const next = { ...catalog };
+      delete next[storyId];
+      return next;
+    });
+  }
+
   async getReadingHistory(): Promise<ReadingHistoryEntry[]> {
     return this.get(STORAGE_KEYS.READING_HISTORY);
+  }
+
+  async clearReadingHistory(): Promise<void> {
+    await browser.storage.local.remove([
+      STORAGE_KEYS.READING_HISTORY,
+      STORAGE_KEYS.STORY_CATALOG,
+      STORAGE_KEYS.READING_SESSIONS,
+    ]);
   }
 
   async clearCache(): Promise<void> {

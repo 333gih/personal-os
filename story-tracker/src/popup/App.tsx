@@ -3,11 +3,21 @@ import browser from 'webextension-polyfill';
 import { ActionButton } from '../components/ActionButton';
 import { BrandLogo } from '../components/BrandLogo';
 import { useAuth } from '../hooks/useAuth';
+import { useGuestStatus } from '../hooks/useGuestStatus';
 import { useReadingState } from '../hooks/useReadingState';
 import { useSyncStatus } from '../hooks/useSyncStatus';
 import { useActionFeedback } from '../hooks/useActionFeedback';
+import {
+  GUEST_LIMIT_CODE,
+  GUEST_LIMIT_MESSAGE,
+  GUEST_UPSELL_BODY,
+  GUEST_UPSELL_TITLE,
+} from '../guest/guest-mode';
 import { MESSAGE_TYPES } from '../shared/messages';
+import type { MessageResponse } from '../shared/messages';
 import type { ReadingHistoryEntry } from '../types/reading';
+import { formatChapterDisplay, formatPartLabel, historyEntryToReadingInfo } from '../utils/reading-display';
+import { isVtqReading, openVtqChapter } from './vtq-open';
 
 function ReadingSkeleton() {
   return (
@@ -22,31 +32,60 @@ function ReadingSkeleton() {
 
 export function App() {
   const { auth, loading: authLoading, error, startWebAuth, logout } = useAuth();
-  const { session, loading: readingLoading } = useReadingState();
+  const isGuest = !authLoading && !auth;
+  const { guestStatus, refresh: refreshGuest } = useGuestStatus(isGuest);
+  const { session, loading: readingLoading, refresh: refreshReading } = useReadingState();
   const { status, syncNow } = useSyncStatus();
   const [history, setHistory] = useState<ReadingHistoryEntry[]>([]);
   const saveAction = useActionFeedback();
   const syncAction = useActionFeedback();
   const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadHistory = () => {
     void browser.runtime
       .sendMessage({ type: MESSAGE_TYPES.GET_READING_HISTORY })
       .then((res) => {
         if (res?.success) setHistory(res.data as ReadingHistoryEntry[]);
       });
+  };
+
+  useEffect(() => {
+    loadHistory();
   }, [session]);
 
   useEffect(() => {
     if (saveAction.isError) setToast('Could not save on this page.');
     else if (syncAction.isError) setToast(status.lastError ?? 'Sync failed. Check login or network.');
-    else if (saveAction.isSuccess) setToast('Progress saved.');
-    else if (syncAction.isSuccess) setToast('Synced to Personal OS.');
+    else if (saveAction.isSuccess) {
+      setToast(isGuest ? 'Progress saved locally.' : 'Progress saved.');
+    } else if (syncAction.isSuccess) setToast('Synced to Personal OS.');
     else setToast(null);
-  }, [saveAction.isError, saveAction.isSuccess, syncAction.isError, syncAction.isSuccess, status.lastError]);
+  }, [saveAction.isError, saveAction.isSuccess, syncAction.isError, syncAction.isSuccess, status.lastError, isGuest]);
+
+  const handleGuestLimit = (response: MessageResponse) => {
+    if (response?.code === GUEST_LIMIT_CODE) {
+      window.alert(response.error ?? GUEST_LIMIT_MESSAGE);
+      return true;
+    }
+    return false;
+  };
 
   const handleSync = () => {
+    if (isGuest) {
+      void startWebAuth();
+      setToast('Sign in to sync progress to Personal OS.');
+      return;
+    }
+
     void syncAction.run(async () => {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        const res = (await browser.tabs.sendMessage(tab.id, {
+          type: MESSAGE_TYPES.MANUAL_SAVE,
+          payload: { sync: true },
+        })) as MessageResponse | undefined;
+        if (res && handleGuestLimit(res)) return;
+      }
       await syncNow();
     });
   };
@@ -55,59 +94,56 @@ export function App() {
     void saveAction.run(async () => {
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) throw new Error('No active tab');
-      await browser.tabs.sendMessage(tab.id, { type: MESSAGE_TYPES.MANUAL_SAVE });
+      const response = (await browser.tabs.sendMessage(tab.id, {
+        type: MESSAGE_TYPES.MANUAL_SAVE,
+      })) as MessageResponse | undefined;
+      if (!response?.success) {
+        if (response && handleGuestLimit(response)) {
+          throw new Error('Guest story limit reached');
+        }
+        throw new Error(response?.error ?? 'Save failed');
+      }
+      if (isGuest) void refreshGuest();
+      loadHistory();
     });
+  };
+
+  const handleRemoveStory = (storyId: string, storyTitle: string) => {
+    if (
+      !window.confirm(
+        `Remove "${storyTitle}" from local progress? This frees a slot in guest mode.`,
+      )
+    ) {
+      return;
+    }
+    void browser.runtime
+      .sendMessage({
+        type: MESSAGE_TYPES.REMOVE_STORY_PROGRESS,
+        payload: { storyId },
+      })
+      .then(() => {
+        loadHistory();
+        void refreshGuest();
+        void refreshReading();
+        setToast('Story removed from local progress.');
+      });
   };
 
   const openOptions = () => {
     void browser.runtime.openOptionsPage();
   };
 
-  if (!auth) {
-    return (
-      <div className="popup">
-        <header className="popup__header">
-          <div className="popup__brand">
-            <BrandLogo size={40} className="popup__logo" />
-            <div>
-              <h1 className="popup__title">Story Tracker</h1>
-              <p className="popup__subtitle">Personal OS reading sync</p>
-            </div>
-          </div>
-        </header>
+  const subtitle = auth
+    ? auth.user.email
+    : `Local only · ${guestStatus.storyCount}/${guestStatus.maxStories} stories`;
 
-        <section className="st-card auth-card">
-          <p className="st-card__eyebrow">Sign in</p>
-          <h2 className="auth-card__heading">Continue with Personal OS</h2>
-          <p className="auth-card__hint">
-            Same login as the web app: Internal SSO (Admin Portal) or Commercial (Google, email,
-            password).
-          </p>
-          {error ?
-            <p className="auth-card__error" role="alert">
-              {error}
-            </p>
-          : null}
-          <ActionButton
-            variant="primary"
-            block
-            loading={authLoading}
-            loadingLabel="Opening Personal OS…"
-            onClick={() => void startWebAuth()}
-            style={{ marginTop: 14 }}
-          >
-            Continue to Personal OS
-          </ActionButton>
-          <p className="auth-card__meta">
-            Channel <code>story_tracker_extension</code>
-          </p>
-        </section>
-      </div>
-    );
-  }
+  const modeBadge = auth
+    ? auth.mode === 'internal'
+      ? 'st-badge--internal'
+      : 'st-badge--commercial'
+    : 'st-badge--guest';
 
-  const modeBadge =
-    auth.mode === 'internal' ? 'st-badge--internal' : 'st-badge--commercial';
+  const modeLabel = auth ? auth.mode : 'Local only';
 
   return (
     <div className="popup">
@@ -116,7 +152,7 @@ export function App() {
           <BrandLogo size={40} className="popup__logo" />
           <div>
             <h1 className="popup__title">Story Tracker</h1>
-            <p className="popup__subtitle">{auth.user.email}</p>
+            <p className="popup__subtitle">{subtitle}</p>
           </div>
         </div>
         <ActionButton variant="icon" onClick={openOptions} title="Settings" aria-label="Settings">
@@ -125,36 +161,98 @@ export function App() {
       </header>
 
       <div className="popup__toolbar">
-        <span className={`st-badge ${modeBadge}`}>{auth.mode}</span>
-        <span className={`st-badge ${status.online !== false ? 'st-badge--online' : 'st-badge--offline'}`}>
-          <span className={`status-dot ${status.online !== false ? 'online' : 'offline'}`} />
-          {status.online !== false ? 'Online' : 'Offline'}
-          {status.pendingCount > 0 ? ` · ${status.pendingCount} pending` : ''}
-          {status.lastError && status.state === 'error' ? ' · sync error' : ''}
-        </span>
-        <button type="button" className="link-btn" onClick={() => void logout()}>
-          Log out
-        </button>
+        <span className={`st-badge ${modeBadge}`}>{modeLabel}</span>
+        {auth ? (
+          <span className={`st-badge ${status.online !== false ? 'st-badge--online' : 'st-badge--offline'}`}>
+            <span className={`status-dot ${status.online !== false ? 'online' : 'offline'}`} />
+            {status.online !== false ? 'Online' : 'Offline'}
+            {status.pendingCount > 0 ? ` · ${status.pendingCount} pending` : ''}
+            {status.lastError && status.state === 'error' ? ' · sync error' : ''}
+          </span>
+        ) : (
+          <span className="st-badge st-badge--guest-muted">No cloud sync</span>
+        )}
+        {auth ? (
+          <button type="button" className="link-btn" onClick={() => void logout()}>
+            Log out
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="link-btn link-btn--primary"
+            onClick={() => void startWebAuth()}
+            disabled={authLoading}
+          >
+            Sign in
+          </button>
+        )}
       </div>
 
-      {toast ?
+      {isGuest ? (
+        <section className="st-card guest-upsell" aria-label="Sign in benefits">
+          <p className="st-card__eyebrow">{GUEST_UPSELL_TITLE}</p>
+          <p className="guest-upsell__body">{GUEST_UPSELL_BODY}</p>
+          {guestStatus.atLimit ? (
+            <p className="guest-upsell__limit" role="status">
+              Limit reached ({guestStatus.maxStories} stories). Remove one below (×) or sign in.
+            </p>
+          ) : null}
+          <ActionButton
+            variant="primary"
+            block
+            loading={authLoading}
+            loadingLabel="Opening Personal OS…"
+            onClick={() => void startWebAuth()}
+          >
+            Sign in to Personal OS
+          </ActionButton>
+          {error ? (
+            <p className="auth-card__error" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {toast ? (
         <div
           className={`st-toast ${saveAction.isError || syncAction.isError ? 'st-toast--error' : 'st-toast--success'}`}
           role="status"
         >
           {toast}
         </div>
-      : null}
+      ) : null}
 
-      {readingLoading ?
+      {readingLoading ? (
         <ReadingSkeleton />
-      : session ?
+      ) : session ? (
         <section className="st-card reading-card">
           <p className="st-card__eyebrow">Currently reading</p>
           <h2 className="reading-card__title">{session.readingInfo.storyTitle}</h2>
-          <p className="reading-card__chapter">
-            {session.readingInfo.chapterTitle ?? 'Current chapter'}
-          </p>
+          {formatPartLabel(session.readingInfo) ? (
+            <p className="reading-card__part">{formatPartLabel(session.readingInfo)}</p>
+          ) : null}
+          <p className="reading-card__chapter">{formatChapterDisplay(session.readingInfo)}</p>
+          {session.readingInfo.currentUrl ? (
+            isVtqReading(session.readingInfo) ? (
+              <button
+                type="button"
+                className="reading-card__open-link"
+                onClick={() => void openVtqChapter(session.readingInfo)}
+              >
+                Open at this chapter →
+              </button>
+            ) : (
+              <a
+                className="reading-card__open-link"
+                href={session.readingInfo.currentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open at this chapter →
+              </a>
+            )
+          ) : null}
           <div className="st-progress" aria-hidden>
             <div
               className="st-progress__fill"
@@ -163,12 +261,13 @@ export function App() {
           </div>
           <div className="reading-card__meta">
             <span>{session.readingInfo.progress.percentage}% read</span>
-            {session.readingInfo.progress.readingTimeSeconds > 0 ?
+            {session.readingInfo.progress.readingTimeSeconds > 0 ? (
               <span>{Math.round(session.readingInfo.progress.readingTimeSeconds / 60)} min</span>
-            : null}
+            ) : null}
           </div>
         </section>
-      : <section className="st-card empty-card">
+      ) : (
+        <section className="st-card empty-card">
           <p className="empty-card__icon" aria-hidden>
             📖
           </p>
@@ -178,7 +277,7 @@ export function App() {
             Now.
           </p>
         </section>
-      }
+      )}
 
       <div className="popup__actions">
         <ActionButton
@@ -197,31 +296,60 @@ export function App() {
           block
           loading={syncAction.isLoading}
           success={syncAction.isSuccess}
-          loadingLabel="Syncing…"
-          successLabel="Synced"
-          disabled={status.online === false && !syncAction.isLoading}
+          loadingLabel={isGuest ? 'Opening sign-in…' : 'Syncing…'}
+          successLabel={isGuest ? 'Sign in' : 'Synced'}
+          disabled={!isGuest && status.online === false && !syncAction.isLoading}
           onClick={handleSync}
         >
-          Sync
+          {isGuest ? 'Sign in to sync' : 'Sync'}
         </ActionButton>
       </div>
 
-      {history.length > 0 ?
+      {history.length > 0 ? (
         <section className="st-card history-card">
           <p className="st-card__eyebrow">Recent stories</p>
+          {isGuest ? (
+            <p className="history-card__hint">
+              Local only · max {guestStatus.maxStories}. Tap × to remove a story and free a slot.
+            </p>
+          ) : null}
           <ul className="history-list">
-            {history.slice(0, 5).map((entry) => (
+            {history.slice(0, isGuest ? guestStatus.maxStories : 5).map((entry) => (
               <li key={`${entry.storyId}:${entry.lastReadAt}`} className="history-item">
                 <div className="history-item__main">
-                  <strong>{entry.storyTitle}</strong>
-                  <span>{entry.chapterTitle ?? entry.chapterId ?? 'Latest chapter'}</span>
+                  {entry.currentUrl ? (
+                    <a
+                      className="history-item__link"
+                      href={entry.currentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <strong>{entry.storyTitle}</strong>
+                    </a>
+                  ) : (
+                    <strong>{entry.storyTitle}</strong>
+                  )}
+                  <span>{formatChapterDisplay(historyEntryToReadingInfo(entry))}</span>
                 </div>
-                <span className="history-item__pct">{entry.progress.percentage}%</span>
+                <div className="history-item__aside">
+                  <span className="history-item__pct">{entry.progress.percentage}%</span>
+                  {isGuest ? (
+                    <button
+                      type="button"
+                      className="history-item__remove"
+                      title="Remove from local progress"
+                      aria-label={`Remove ${entry.storyTitle}`}
+                      onClick={() => handleRemoveStory(entry.storyId, entry.storyTitle)}
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>
         </section>
-      : null}
+      ) : null}
     </div>
   );
 }

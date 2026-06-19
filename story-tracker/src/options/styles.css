@@ -158,3 +158,79 @@ body {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--st-border);
+  border-radius: var(--st-radius-sm);
+  background: var(--st-surface-muted);
+}
+
+.profile-form .setting-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.profile-form input,
+.profile-form textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--st-border-strong);
+  border-radius: var(--st-radius-sm);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.selectors-json {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.profile-form__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-text-danger {
+  border: none;
+  background: none;
+  color: #c92a2a;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.subsection-title {
+  font-size: 14px;
+  margin: 16px 0 8px;
+}
+
+.plugin-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.plugin-guide__item p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--st-text-muted);
+}
+
+.plugin-example {
+  margin-top: 12px;
+}
+
+.plugin-example summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+

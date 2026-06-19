@@ -1,6 +1,6 @@
 import browser from 'webextension-polyfill';
 import { isChapterPage } from '../parsers/page-classifier';
-import { listBuiltinHostPatterns } from '../config/site-registry';
+import { getBuiltinProfiles, customProfileToSiteProfile } from '../config/site-profile-store';
 import { storageService } from '../storage/storage-service';
 import { logger } from '../utils/logger';
 
@@ -10,6 +10,7 @@ export async function registerKnownContentScripts(): Promise<void> {
   const settings = await storageService.getSettings();
   const patterns = [
     ...listBuiltinHostPatterns(),
+    ...settings.customProfiles.map((p) => p.originPattern),
     ...settings.customOrigins.map((origin) => origin.pattern),
   ];
 
@@ -20,7 +21,11 @@ export async function registerKnownContentScripts(): Promise<void> {
 
 export async function maybeDiscoverOrigin(url: string): Promise<void> {
   const settings = await storageService.getSettings();
-  if (!settings.autoDiscoverSites || !isChapterPage(url)) return;
+  const profiles = [
+    ...settings.customProfiles.map(customProfileToSiteProfile),
+    ...getBuiltinProfiles(),
+  ];
+  if (!settings.autoDiscoverSites || !isChapterPage(url, profiles)) return;
 
   let origin = '';
   try {

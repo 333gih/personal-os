@@ -41,12 +41,16 @@ export interface ParserCacheEntry {
 
 import type { CustomOrigin } from './site-registry';
 
+import type { CustomSiteProfile } from './site-profile';
+
 export interface ExtensionSettings {
   syncIntervalMs: number;
   enabledSites: Record<string, boolean>;
   autoSync: boolean;
   autoDiscoverSites: boolean;
   customOrigins: CustomOrigin[];
+  /** User-defined site profiles (URL rules + optional DOM selectors). */
+  customProfiles: CustomSiteProfile[];
 }
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -55,6 +59,7 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   autoSync: true,
   autoDiscoverSites: true,
   customOrigins: [],
+  customProfiles: [],
 };
 
 export const STORAGE_KEYS = {

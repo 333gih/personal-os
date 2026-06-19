@@ -27,31 +27,31 @@ const TRUYENFULL_CHAPTER_HTML = `
 `;
 
 describe('ParserFactoryRegistry', () => {
-  it('resolves NetTruyen parser for nettruyen URLs', () => {
+  it('resolves profile parser for nettruyen URLs', async () => {
     const registry = new ParserFactoryRegistry();
     const ctx = createContext('<html><body></body></html>', 'https://nettruyen.com/truyen-tranh/one-piece/chuong-1');
-    const parser = registry.resolve(ctx);
+    const parser = await registry.resolve(ctx);
     expect(parser.siteId).toBe('nettruyen');
   });
 
-  it('resolves TruyenFull parser for truyenfull URLs', () => {
+  it('resolves profile parser for truyenfull URLs', async () => {
     const registry = new ParserFactoryRegistry();
     const ctx = createContext(
       TRUYENFULL_CHAPTER_HTML,
       'https://truyenfull.today/xuyen-thanh-the-than-tinh-nhan-cua-boss-phan-dien/chuong-26/',
     );
-    const parser = registry.resolve(ctx);
+    const parser = await registry.resolve(ctx);
     expect(parser.siteId).toBe('truyenfull');
   });
 
-  it('falls back to generic parser for unknown sites', () => {
+  it('falls back to generic parser for unknown sites with reading keywords', async () => {
     const registry = new ParserFactoryRegistry();
     const ctx = createContext(
       '<html><head><title>Chapter 5 - My Story</title></head><body><h1>Chapter 5</h1></body></html>',
-      'https://unknown-site.com/read/123',
+      'https://unknown-site.com/truyen/read/123',
     );
-    const parser = registry.resolve(ctx);
-    expect(parser.siteId).toBe('generic');
+    const parser = await registry.resolve(ctx);
+    expect(parser.siteId).toBe('generic-vi-reading');
   });
 });
 

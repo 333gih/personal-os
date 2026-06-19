@@ -1,0 +1,226 @@
+{
+  "_comment": "Declarative site profiles: URL rules + DOM selectors + chapter detection strategies.",
+  "profiles": [
+    {
+      "id": "vietnamthuquan",
+      "label": "Vietnam Thu Quan",
+      "enabled": true,
+      "builtin": true,
+      "priority": 120,
+      "urlRules": {
+        "hostPatterns": [
+          "*://*.thuquansach.com/*",
+          "*://*.vietnamthuquan.com/*",
+          "*://*.vietnamthuquan.eu/*"
+        ],
+        "pathKeywords": ["truyen", "thu-quan", "thuvien"],
+        "pathRegex": "/truyen/truyen\\.aspx",
+        "queryParams": { "story": "tid" }
+      },
+      "chapterDetection": ["dom_chuongso", "dom_select", "dom_click_hint"],
+      "extension": {
+        "handler": "vietnamthuquan",
+        "displayFormat": "chapter_of_total",
+        "cacheCatalog": true,
+        "supportContact": "support@fashandcurious.com",
+        "fields": {
+          "storyTitle": "span.chuto40, .chuto40",
+          "currentChapter": ".chuongso",
+          "catalogRoot": "#muluben_to",
+          "catalogItem": "acronym"
+        }
+      },
+      "selectors": {
+        "storyTitle": [
+          "span.chuto40",
+          ".chuto40",
+          "#TenTruyen",
+          ".ten-truyen",
+          "#title",
+          ".book-title",
+          ".story-title",
+          "h1.title",
+          "h1"
+        ],
+        "chapterTitle": [
+          ".chuongso",
+          "#TenChuong",
+          ".ten-chuong",
+          ".chapter-title",
+          ".chapter-heading"
+        ],
+        "tableOfContents": [
+          "#muluben_to",
+          "[id*='muluben']",
+          "#mucluc",
+          ".mucluc",
+          ".muc-luc",
+          "#muc-luc",
+          "[id*='mucluc']",
+          "[class*='mucluc']",
+          "[class*='MucLuc']",
+          "#danhsachchuong",
+          ".danh-sach-chuong"
+        ],
+        "chapterList": [
+          "#muluben_to",
+          "[id*='muluben']",
+          "#list-chuong",
+          ".list-chuong",
+          "#lstChuong",
+          "#ddlChuong",
+          ".menu-chuong",
+          ".chapter-list",
+          ".sidebar-chapter",
+          "[class*='chuong'] ul",
+          ".sidebar ul",
+          "nav ul"
+        ],
+        "chapterListItem": ["li a", "a", "option", "li"],
+        "chapterActive": [
+          ".active",
+          ".current",
+          ".selected",
+          ".chuong-dang-doc",
+          ".dang-doc",
+          "[aria-current='page']",
+          ".highlight",
+          "b",
+          "strong"
+        ],
+        "contentRoot": [
+          "#noidungchuang",
+          "#noidungdung",
+          "#noidung",
+          ".noidung",
+          "#content",
+          ".chapter-c",
+          ".reading-content",
+          ".truyen",
+          "article",
+          "main"
+        ]
+      }
+    },
+    {
+      "id": "nettruyen",
+      "label": "NetTruyen",
+      "enabled": true,
+      "builtin": true,
+      "priority": 110,
+      "urlRules": {
+        "hostPatterns": ["*://*.nettruyen.com/*", "*://*.nettruyenngay.com/*"],
+        "pathKeywords": ["truyen", "chuong", "chapter"]
+      },
+      "chapterDetection": ["url_path", "dom_active", "title_split"],
+      "selectors": {
+        "storyTitle": [".title-detail", "h1.title", ".detail-title h1", "h1"],
+        "chapterTitle": [".chapter-title", "h2", ".reading-detail h2"],
+        "chapterList": [".list-chapter", "#list-chapter", ".nav-chapter"],
+        "chapterListItem": ["a"],
+        "chapterActive": [".active", ".current"],
+        "contentRoot": [".reading-detail", ".chapter-c", "#chapter-content"]
+      }
+    },
+    {
+      "id": "truyenqq",
+      "label": "TruyenQQ",
+      "enabled": true,
+      "builtin": true,
+      "priority": 110,
+      "urlRules": {
+        "hostPatterns": ["*://*.truyenqq.com/*", "*://*.truyenqqno.com/*"],
+        "pathKeywords": ["truyen", "chuong", "chapter"]
+      },
+      "chapterDetection": ["url_path", "dom_active", "title_split"],
+      "selectors": {
+        "storyTitle": [".book-title", "h1", ".story-title"],
+        "chapterTitle": [".chapter-title", "h2"],
+        "chapterList": [".list-chapter", ".works-chapter-list"],
+        "chapterListItem": ["a"],
+        "chapterActive": [".active", ".current"],
+        "contentRoot": [".chapter-content", ".reading-content", "#chapter-content"]
+      }
+    },
+    {
+      "id": "truyenfull",
+      "label": "TruyenFull",
+      "enabled": true,
+      "builtin": true,
+      "priority": 110,
+      "urlRules": {
+        "hostPatterns": [
+          "*://*.truyenfull.today/*",
+          "*://*.truyenfull.vn/*",
+          "*://*.truyenfull.vision/*"
+        ],
+        "pathKeywords": ["chuong", "chapter"]
+      },
+      "chapterDetection": ["url_path", "dom_active", "title_split"],
+      "selectors": {
+        "storyTitle": ["h3.title", "h1", ".title"],
+        "chapterTitle": [".chapter-title", "h2"],
+        "chapterList": ["#list-chapter", ".list-chapter"],
+        "chapterListItem": ["a"],
+        "chapterActive": [".active"],
+        "contentRoot": ["#chapter-c", ".chapter-c", "#chapter-content"]
+      }
+    },
+    {
+      "id": "generic-vi-reading",
+      "label": "Auto-detect Vietnamese reading URLs",
+      "enabled": true,
+      "builtin": true,
+      "priority": 10,
+      "urlRules": {
+        "pathKeywords": [
+          "truyen",
+          "chuong",
+          "chapter",
+          "thu-vien",
+          "thuvien",
+          "doc-truyen",
+          "nettruyen",
+          "truyenqq",
+          "read"
+        ],
+        "hostKeywords": ["truyen", "thuquan", "thuvien", "novel", "fiction", "doc-truyen"]
+      },
+      "chapterDetection": ["url_path", "url_hash", "url_query", "dom_active", "title_split"],
+      "selectors": {
+        "storyTitle": [
+          "h1.story-title",
+          ".story-name",
+          ".book-title",
+          "h1.title",
+          "h1"
+        ],
+        "chapterTitle": [
+          ".chapter-title",
+          ".chapter-name",
+          "h2.chapter-title",
+          ".reading-detail h2",
+          "h2"
+        ],
+        "chapterList": [
+          ".list-chapter",
+          "#list-chapter",
+          ".chapter-list",
+          ".nav-chapter",
+          "[class*='chapter'] ul"
+        ],
+        "chapterListItem": ["a", "li"],
+        "chapterActive": [".active", ".current", ".selected"],
+        "contentRoot": [
+          "#chapter-content",
+          ".chapter-c",
+          ".chapter-content",
+          ".reading-content",
+          ".content-chapter",
+          "article",
+          "main"
+        ]
+      }
+    }
+  ]
+}

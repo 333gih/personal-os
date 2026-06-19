@@ -31,6 +31,7 @@ export interface ReadingHistoryEntry {
   progress: ReadingProgress;
   lastReadAt: number;
   siteId: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SyncStatus {

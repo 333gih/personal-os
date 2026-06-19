@@ -16,7 +16,11 @@
     {
       "id": "vietnamthuquan",
       "label": "Vietnam Thu Quan",
-      "hostPatterns": ["*://*.thuquansach.com/*", "*://*.vietnamthuquan.com/*"],
+      "hostPatterns": [
+        "*://*.thuquansach.com/*",
+        "*://*.vietnamthuquan.com/*",
+        "*://*.vietnamthuquan.eu/*"
+      ],
       "parser": "vietnamthuquan"
     },
     {
