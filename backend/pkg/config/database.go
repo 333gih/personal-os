@@ -1,48 +1,59 @@
 package config
 
 import (
-	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 )
 
 func loadDatabaseURL() string {
-	if v := strings.TrimSpace(os.Getenv("DATABASE_URL")); v != "" {
+	if v := trimEnvQuotes(strings.TrimSpace(os.Getenv("DATABASE_URL"))); v != "" {
 		return v
 	}
 
-	host := firstNonEmpty(
+	host := trimEnvQuotes(firstNonEmpty(
 		os.Getenv("POSTGRES_DATABASE_HOST"),
 		os.Getenv("POSTGRES_HOST"),
 		"localhost",
-	)
-	port := firstNonEmpty(
+	))
+	port := trimEnvQuotes(firstNonEmpty(
 		os.Getenv("POSTGRES_DATABASE_PORT"),
 		os.Getenv("POSTGRES_PORT"),
 		"5432",
-	)
-	name := firstNonEmpty(
+	))
+	name := trimEnvQuotes(firstNonEmpty(
 		os.Getenv("POSTGRES_DATABASE_NAME"),
 		os.Getenv("POSTGRES_DB"),
 		"personalos",
-	)
-	user := firstNonEmpty(
+	))
+	user := trimEnvQuotes(firstNonEmpty(
 		os.Getenv("POSTGRES_DATABASE_USER"),
 		os.Getenv("POSTGRES_USER"),
 		"personalos",
-	)
-	pass := firstNonEmpty(
+	))
+	pass := trimEnvQuotes(firstNonEmpty(
 		os.Getenv("POSTGRES_DATABASE_PASSWORD"),
 		os.Getenv("POSTGRES_PASSWORD"),
 		"personalos",
-	)
-	sslMode := firstNonEmpty(os.Getenv("POSTGRES_SSL_MODE"), "disable")
+	))
+	sslMode := trimEnvQuotes(firstNonEmpty(os.Getenv("POSTGRES_SSL_MODE"), "disable"))
 
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		user, pass, host, port, name, sslMode,
-	)
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(user, pass),
+		Host:   net.JoinHostPort(host, port),
+		Path:   "/" + name,
+	}
+	q := u.Query()
+	q.Set("sslmode", sslMode)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func trimEnvQuotes(s string) string {
+	return strings.Trim(s, "\"'")
 }
 
 func loadJWTSecret() string {
@@ -67,8 +78,7 @@ func loadTrustedProxies() []string {
 	if raw == "" {
 		raw = "127.0.0.1/8,::1/128,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,100.64.0.0/10"
 	}
-	// Strip surrounding quotes from Jenkins env files
-	raw = strings.Trim(raw, "\"'")
+	raw = trimEnvQuotes(raw)
 	return splitCSV(raw)
 }
 
