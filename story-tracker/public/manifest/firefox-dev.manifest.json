@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Story Tracker (Dev)",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Developer / personal build — same code as Story Tracker, separate add-on ID for AMO or local testing.",
   "icons": {
     "16": "icons/icon-16.png",

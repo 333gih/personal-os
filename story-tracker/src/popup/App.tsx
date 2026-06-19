@@ -14,6 +14,7 @@ import {
   GUEST_UPSELL_BODY,
   GUEST_UPSELL_TITLE,
 } from '../guest/guest-mode';
+import { isIosAppTarget } from '../platform/capabilities';
 import { MESSAGE_TYPES } from '../shared/messages';
 import type { MessageResponse } from '../shared/messages';
 import type { ReadingHistoryEntry } from '../types/reading';
@@ -78,6 +79,10 @@ export function App() {
   };
 
   const handleSync = () => {
+    if (isIosAppTarget) {
+      setToast('Mở Safari, bật extension Story Tracker, rồi Sync trên trang chương.');
+      return;
+    }
     if (isGuest) {
       void startWebAuth();
       setToast('Sign in to sync progress to Personal OS.');
@@ -98,6 +103,10 @@ export function App() {
   };
 
   const handleManualSave = () => {
+    if (isIosAppTarget) {
+      setToast('Mở Safari, bật extension Story Tracker, rồi Save trên trang chương.');
+      return;
+    }
     void saveAction.run(async () => {
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) throw new Error('No active tab');
@@ -280,7 +289,9 @@ export function App() {
         <section className="st-card empty-card">
           <p className="empty-card__title">Chưa nhận diện chương</p>
           <p className="empty-card__hint">
-            Mở URL chương (vd. <code>/chuong-26/</code>) rồi bấm Save.
+            {isIosAppTarget
+              ? 'Mở chương truyện trong Safari (vd. /chuong-26/) với extension đã bật.'
+              : 'Mở URL chương (vd. /chuong-26/) rồi bấm Save.'}
           </p>
         </section>
       )}
@@ -295,7 +306,7 @@ export function App() {
           successLabel="Saved"
           onClick={handleManualSave}
         >
-          Save progress
+          {isIosAppTarget ? 'Save trong Safari' : 'Save progress'}
         </ActionButton>
         <ActionButton
           variant="primary"
@@ -307,7 +318,7 @@ export function App() {
           disabled={!isGuest && status.online === false && !syncAction.isLoading}
           onClick={handleSync}
         >
-          {isGuest ? 'Sign in to sync' : 'Sync to Personal OS'}
+          {isIosAppTarget ? 'Sync trong Safari' : isGuest ? 'Sign in to sync' : 'Sync to Personal OS'}
         </ActionButton>
       </div>
 

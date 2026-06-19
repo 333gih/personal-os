@@ -6,6 +6,8 @@ release/
 .DS_Store
 ios/StoryTrackerExtension/Resources/*
 !ios/StoryTrackerExtension/Resources/.gitkeep
+ios/StoryTrackerApp/Resources/*
+!ios/StoryTrackerApp/Resources/.gitkeep
 ios/*.xcodeproj
 ios/*.xcworkspace
 ios/DerivedData/

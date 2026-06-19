@@ -70,6 +70,8 @@ jobs:
         run: |
           npm run build:safari
           npm run sync:safari-ios
+          npm run build:ios-app
+          npm run sync:ios-app
 
       - name: Select Xcode 26
         uses: maxim-lobanov/setup-xcode@v1

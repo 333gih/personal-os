@@ -10,15 +10,35 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     TARGETED_DEVICE_FAMILY: "1,2"
-    MARKETING_VERSION: "1.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "1.2.0"
+    CURRENT_PROJECT_VERSION: "2"
 
 targets:
   StoryTracker:
     type: application
     platform: iOS
     sources:
-      - StoryTrackerApp
+      - path: StoryTrackerApp
+        excludes:
+          - Resources/**
+    preBuildScripts:
+      - name: Validate iOS app web resources
+        script: |
+          set -e
+          SRC="${SRCROOT}/StoryTrackerApp/Resources"
+          if [ ! -f "${SRC}/index.html" ]; then
+            echo "error: missing ${SRC}/index.html — run npm run build:ios-app && npm run sync:ios-app"
+            exit 1
+          fi
+        basedOnDependencyAnalysis: false
+    postCompileScripts:
+      - name: Copy iOS app web resources
+        script: |
+          set -e
+          SRC="${SRCROOT}/StoryTrackerApp/Resources"
+          DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
+          ditto "${SRC}" "${DEST}"
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_NAME: Story Tracker

@@ -1,0 +1,185 @@
+@import '../shared/ui.css';
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  height: 100%;
+  background: var(--st-bg);
+  color: var(--st-text);
+  font-family: var(--st-font);
+}
+
+body {
+  width: 100%;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.ios-app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 100%;
+  background: var(--st-bg);
+}
+
+.ios-app__header {
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 10px;
+  background: var(--st-bg-elevated);
+  border-bottom: 1px solid var(--st-border);
+}
+
+.ios-app__eyebrow {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--st-text-muted);
+}
+
+.ios-app__title {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.ios-app__setup {
+  margin: 10px 14px 0;
+  padding: 12px 14px;
+  border-radius: var(--st-radius-lg);
+  background: var(--st-surface);
+  border: 1px solid var(--st-border);
+}
+
+.ios-app__setup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ios-app__setup-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ios-app__setup-dismiss {
+  border: none;
+  background: transparent;
+  color: var(--st-text-muted);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.ios-app__setup-lead {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--st-text-muted);
+}
+
+.ios-app__setup-lead strong {
+  color: var(--st-text);
+}
+
+.ios-app__setup-steps {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--st-text-muted);
+}
+
+.ios-app__setup-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--st-brand);
+  text-decoration: none;
+}
+
+.ios-app__setup-collapsed {
+  margin: 8px 14px 0;
+  align-self: flex-start;
+  border: 1px solid var(--st-border);
+  background: var(--st-surface);
+  color: var(--st-brand);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.ios-app__main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ios-app__panel {
+  height: 100%;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ios-app__panel--settings .options-container {
+  max-width: none;
+  margin: 0;
+  padding: 12px 14px 24px;
+}
+
+.ios-app__panel--settings .options-header {
+  margin-bottom: 14px;
+}
+
+/* Reuse popup/options inside full-screen shell */
+.ios-app__panel .popup {
+  width: 100%;
+  min-height: auto;
+}
+
+.ios-app__panel .popup__topbar {
+  display: none;
+}
+
+.ios-app__panel body,
+.ios-app__panel .popup {
+  background: transparent;
+}
+
+.ios-app__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--st-bg-elevated);
+  border-top: 1px solid var(--st-border);
+}
+
+.ios-app__tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border: none;
+  border-radius: var(--st-radius-md);
+  background: transparent;
+  color: var(--st-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ios-app__tab--active {
+  background: var(--st-brand-soft);
+  color: var(--st-brand);
+}
+
+.ios-app__tab-icon {
+  font-size: 18px;
+  line-height: 1;
+}
