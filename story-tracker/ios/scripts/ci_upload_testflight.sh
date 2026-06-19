@@ -27,6 +27,15 @@ xcrun altool --output-format xml --upload-app --file "${IPA}" --type ios \
 code="${PIPESTATUS[0]}"
 set -e
 
+if grep -qE 'UPLOAD FAILED|product-errors|Validation failed' "${LOG}"; then
+  echo "::error::TestFlight upload rejected by Apple validation (see ${LOG})"
+  grep -oE 'Missing required icon|Invalid large app icon|Invalid bundle|No suitable application' "${LOG}" | sort -u | while read -r msg; do
+    echo "::error::${msg}"
+  done
+  echo "upload_outcome=failure" >> "${GITHUB_OUTPUT}"
+  exit 1
+fi
+
 if [[ "${code}" -eq 0 ]]; then
   echo "upload_outcome=success" >> "${GITHUB_OUTPUT}"
   exit 0
