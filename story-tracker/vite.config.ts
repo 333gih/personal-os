@@ -10,6 +10,7 @@ const target = process.env.TARGET ?? 'firefox';
 const isFirefox = target === 'firefox' || target === 'firefox-dev';
 const isSafari = target === 'safari';
 const isIosApp = target === 'ios-app';
+const isIosBridge = target === 'ios-bridge';
 const manifestFile =
   target === 'firefox-dev' ? 'firefox-dev.manifest.json' : `${target}.manifest.json`;
 
@@ -69,6 +70,35 @@ function loadHostPermissions(env: Record<string, string>): string[] {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const outDir = `dist/${target}`;
+
+  if (isIosBridge) {
+    return {
+      define: {
+        __BROWSER_TARGET__: JSON.stringify('ios-bridge'),
+      },
+      resolve: {
+        alias: {
+          '@': resolve(__dirname, 'src'),
+          'webextension-polyfill': resolve(__dirname, 'src/platform/ios-app-browser.ts'),
+        },
+      },
+      build: {
+        outDir: resolve(__dirname, 'dist/ios-bridge'),
+        emptyOutDir: true,
+        lib: {
+          entry: resolve(__dirname, 'src/content/extension-connect-bridge.ts'),
+          formats: ['iife'],
+          name: 'PersonalOSConnectBridge',
+          fileName: () => 'connect-bridge.js',
+        },
+        rollupOptions: {
+          output: {
+            inlineDynamicImports: true,
+          },
+        },
+      },
+    };
+  }
 
   if (isIosApp) {
     const appRoot = resolve(__dirname, 'src/app-ios');

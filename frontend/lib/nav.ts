@@ -5,6 +5,7 @@ import {
   Gamepad2,
   Home,
   Inbox,
+  LayoutGrid,
   Rocket,
   Search,
   Settings,
@@ -15,6 +16,8 @@ export type NavItem = {
   label: string;
   icon: LucideIcon;
   mobileTab?: boolean;
+  /** iOS shell: opens drawer instead of navigating */
+  iosMenuTrigger?: boolean;
 };
 
 export const NAV_ITEMS: NavItem[] = [
@@ -28,7 +31,22 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+/** Mobile web: compact tab bar */
 export const MOBILE_TAB_ITEMS = NAV_ITEMS.filter((item) => item.mobileTab);
+
+/** Personal OS iOS app: work / learning / research-first tabs */
+export const IOS_TAB_ITEMS: NavItem[] = [
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/work", label: "Work", icon: Briefcase },
+  { href: "/learning", label: "Learning", icon: BookOpen },
+  { href: "/search", label: "Search", icon: Search },
+  { href: "#menu", label: "More", icon: LayoutGrid, iosMenuTrigger: true },
+];
+
+/** Drawer sections when More is tapped on iOS */
+export const IOS_DRAWER_ITEMS = NAV_ITEMS.filter(
+  (item) => !IOS_TAB_ITEMS.some((tab) => tab.href === item.href && !tab.iosMenuTrigger),
+);
 
 export function navLabelForPath(pathname: string): string {
   const match = NAV_ITEMS.find((item) => pathname.startsWith(item.href));

@@ -80,4 +80,18 @@
   .pb-mobile-nav {
     padding-bottom: calc(var(--mobile-nav-height) + var(--safe-bottom));
   }
+
+  .personal-os-ios {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .personal-os-ios .ios-app-main {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .personal-os-ios input,
+  .personal-os-ios textarea,
+  .personal-os-ios select {
+    font-size: 16px;
+  }
 }

@@ -1,85 +1,59 @@
-# Mirror story-tracker → GitHub (standalone repo)
+# Mirror personal-os → GitHub (story-tracker repo + ios/)
 
-Monorepo `personal-os` nằm trên **GitLab**. Chỉ thư mục `story-tracker/` được đẩy lên **một repo GitHub riêng** để chạy GitHub Actions (iOS build, TestFlight).
+Monorepo **GitLab** `personal-os` → repo GitHub **`story-tracker`** (root = extension + `ios/`).
 
-GitLab **không** mirror được subdirectory — dùng `git subtree split`.
-
-## Luồng
+## Luồng TestFlight (giữ như cũ)
 
 ```text
 personal-os (GitLab)
-  story-tracker/  ──subtree split──►  github.com/YOU/story-tracker (main)
-                                              │
-                                              ▼
-                                        GitHub Actions (ios-build, ios-release)
+  story-tracker/  ──┐
+  ios/              ──┼── mirror-to-github ──► github.com/.../story-tracker
+  .github (monorepo)  │                              │
+                      │                              ▼
+                      │                    GitHub Actions ios-release
+                      │                              │
+                      └──────────────────────► TestFlight
 ```
 
-## Bước 1 — Tạo repo GitHub
+Script `story-tracker/scripts/mirror-to-github.*` **ghép**:
 
-1. GitHub → **New repository** → `story-tracker`
-2. **Không** tích README / .gitignore (repo trống)
-3. Copy URL: `https://github.com/YOU/story-tracker.git`
+- Nội dung `story-tracker/` → root repo GitHub
+- `ios/` → `ios/` trên GitHub
+- `ios/github-workflows/*.yml` → `.github/workflows/`
 
-## Bước 2 — Token
-
-Fine-grained PAT: quyền **Contents** read/write trên repo `story-tracker`.
-
-## Bước 3 — Mirror thủ công (lần đầu)
-
-Từ **root** monorepo `personal-os/`:
+## Mirror thủ công
 
 ```powershell
-$env:GITHUB_MIRROR_URL = "https://github.com/YOU/story-tracker.git"
-$env:GITHUB_MIRROR_TOKEN = "github_pat_..."
+cd D:\Project\personal-os
+gh auth login
 .\story-tracker\scripts\mirror-to-github.ps1
 ```
 
 ```bash
-export GITHUB_MIRROR_URL=https://github.com/YOU/story-tracker.git
-export GITHUB_MIRROR_TOKEN=github_pat_...
+export GITHUB_MIRROR_URL=https://github.com/fashandcurious14052026-dotcom/story-tracker.git
 bash story-tracker/scripts/mirror-to-github.sh
 ```
 
-Repo GitHub sẽ có **root = nội dung `story-tracker/`** (package.json, ios/, `.github/workflows/`, …).
-
-## Bước 4 — Mirror tự động (GitLab CI)
-
-File `.gitlab-ci.yml` ở root monorepo đã có job `mirror-story-tracker-github`.
-
-GitLab → **Settings → CI/CD → Variables**:
-
-| Variable | Giá trị |
-|----------|---------|
-| `GITHUB_MIRROR_URL` | `https://github.com/YOU/story-tracker.git` |
-| `GITHUB_MIRROR_TOKEN` | PAT (masked) |
-
-Mỗi push `main` có thay đổi trong `story-tracker/**` → job push lên GitHub.
-
-## Bước 5 — Secrets trên GitHub
-
-Secrets iOS đẩy vào **repo GitHub `story-tracker`**, không phải GitLab:
+## Secrets (repo GitHub, không GitLab)
 
 ```powershell
+# Dùng secrets local trong story-tracker/secrets/ (không commit)
 cd story-tracker
-.\scripts\push_github_ios_secrets.ps1 -Repo YOU/story-tracker
+.\scripts\push_github_ios_secrets.ps1 -Repo fashandcurious14052026-dotcom/story-tracker
 ```
 
-## Workflows
+Hoặc từ repo root (nếu đã copy env):
 
-Trong repo GitHub (sau mirror):
+```powershell
+.\scripts\push_github_ios_secrets.ps1 -Repo owner/story-tracker
+```
 
-| File | Mục đích |
-|------|----------|
-| `.github/workflows/ios-build.yml` | Compile Simulator |
-| `.github/workflows/ios-release.yml` | IPA + TestFlight |
+## Trigger TestFlight
 
-Tag release trên GitHub repo: `ios/v1.1.0` (không prefix `story-tracker/`).
+```powershell
+gh workflow run "iOS Release" -R fashandcurious14052026-dotcom/story-tracker -f upload_testflight=true
+```
 
-## Lưu ý
+Tag: `ios/v1.4.0` trên repo GitHub.
 
-- `git subtree split` cần **full git history** — CI dùng `GIT_DEPTH: 0`.
-- Push mirror dùng `--force` trên nhánh `main` GitHub (repo mirror chỉ nhận subtree, không commit trực tiếp trên GitHub).
-- Sửa code trong monorepo `personal-os/story-tracker/`, mirror lại — không sửa trên GitHub.
-- Workflow ở `personal-os/.github/workflows/story-tracker-*` **không** đi theo mirror; canonical là `story-tracker/.github/workflows/`.
-
-Chi tiết iOS / App Store: [CI-IOS.md](./CI-IOS.md).
+Chi tiết: [CI-IOS.md](../CI-IOS.md)

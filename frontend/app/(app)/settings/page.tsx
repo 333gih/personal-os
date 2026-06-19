@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { IosSafariExtensionCard } from "@/components/ios-safari-extension-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SettingsPage() {
@@ -52,6 +53,8 @@ export default function SettingsPage() {
       </div>
 
       {message && <p className="text-sm text-primary">{message}</p>}
+
+      <IosSafariExtensionCard />
 
       <Card>
         <CardHeader>

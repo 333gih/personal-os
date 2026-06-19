@@ -2,7 +2,7 @@
 # Upload IPA to TestFlight via altool. Treats Apple daily upload limit (90382) as non-fatal.
 set -euo pipefail
 
-IPA="${1:-build/StoryTracker.ipa}"
+IPA="${1:-build/PersonalOS.ipa}"
 LOG="${UPLOAD_LOG:-upload-testflight.log}"
 
 : "${ISSUER_ID:?ISSUER_ID required}"

@@ -4,21 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS } from "@/lib/nav";
+import { NAV_ITEMS, type NavItem } from "@/lib/nav";
 import { Button } from "./ui/button";
 
 type SidebarNavProps = {
   onNavigate?: () => void;
   className?: string;
   mobile?: boolean;
+  items?: NavItem[];
 };
 
-export function SidebarNav({ onNavigate, className, mobile }: SidebarNavProps) {
+export function SidebarNav({ onNavigate, className, mobile, items = NAV_ITEMS }: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
     <nav className={cn("flex-1 space-y-1 overflow-y-auto p-3 sm:p-4", className)}>
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+      {items.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
           href={href}

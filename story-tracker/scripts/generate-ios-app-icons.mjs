@@ -1,16 +1,17 @@
 /**
- * Generates StoryTrackerApp AppIcon.appiconset PNGs from public/icons/brand-mark.svg.
+ * Generates PersonalOSApp AppIcon.appiconset PNGs from public/icons/brand-mark.svg.
  * Run: node scripts/generate-ios-app-icons.mjs
  */
 import { mkdirSync, writeFileSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import sharp from 'sharp';
+import { resolveIosRoot } from './ios-paths.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const sourcePath = resolve(root, 'public/icons/brand-mark.svg');
-const outDir = resolve(root, 'ios/StoryTrackerApp/Assets.xcassets/AppIcon.appiconset');
+const outDir = resolve(resolveIosRoot(), 'PersonalOSApp/Assets.xcassets/AppIcon.appiconset');
 const bg = { r: 255, g: 255, b: 255 };
 
 const icons = [

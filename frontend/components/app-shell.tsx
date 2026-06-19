@@ -4,7 +4,8 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { clearAccessTokenCache } from "@/lib/auth/access-token";
-import { navLabelForPath } from "@/lib/nav";
+import { IOS_DRAWER_ITEMS, navLabelForPath } from "@/lib/nav";
+import { isPersonalOSIosApp } from "@/lib/ios-app";
 import { BottomNav } from "@/components/bottom-nav";
 import { SidebarFooter, SidebarNav } from "@/components/sidebar-nav";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const iosApp = isPersonalOSIosApp();
   const pageTitle = navLabelForPath(pathname);
 
   const logout = async () => {
@@ -61,7 +63,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <X className="h-5 w-5" />
           </Button>
         </div>
-        <SidebarNav mobile onNavigate={() => setMenuOpen(false)} />
+        <SidebarNav
+          mobile
+          items={iosApp ? IOS_DRAWER_ITEMS : undefined}
+          onNavigate={() => setMenuOpen(false)}
+        />
         <SidebarFooter onLogout={logout} />
       </aside>
 
@@ -73,15 +79,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Button>
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-semibold">{pageTitle}</p>
+            {iosApp ? (
+              <p className="truncate text-[11px] text-muted-foreground">Personal OS · iOS</p>
+            ) : null}
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-mobile-nav sm:p-5 lg:p-8 lg:pb-8">
+        <main
+          className={cn(
+            "flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-mobile-nav sm:p-5 lg:p-8 lg:pb-8",
+            iosApp && "ios-app-main",
+          )}
+        >
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
 
-      <BottomNav />
+      <BottomNav onOpenMenu={() => setMenuOpen(true)} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Copy Safari Web Extension build into the standalone iOS wrapper (story-tracker/ios).
+ * Copy Safari Web Extension build into Personal OS iOS wrapper (repo root ios/).
  *
  * Usage:
  *   node scripts/sync-safari-ios.mjs
@@ -8,11 +8,12 @@
 import { cp, mkdir, rm, stat } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { resolveIosRoot } from './ios-paths.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const sourceDir = join(root, 'dist', 'safari');
-const defaultDest = join(root, 'ios', 'StoryTrackerExtension', 'Resources');
+const defaultDest = join(resolveIosRoot(), 'StoryTrackerExtension', 'Resources');
 const destDir = process.env.STORY_TRACKER_IOS_RESOURCES ?? defaultDest;
 
 async function main() {
@@ -29,7 +30,7 @@ async function main() {
   await cp(sourceDir, destDir, { recursive: true });
 
   console.log(`Synced ${sourceDir} -> ${destDir}`);
-  console.log('Open ios/ in Xcode (xcodegen generate) and run StoryTracker on a device.');
+  console.log('Open ios/ at repo root (xcodegen generate) and run PersonalOS on a device.');
 }
 
 main().catch((error) => {

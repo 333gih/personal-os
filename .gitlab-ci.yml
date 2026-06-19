@@ -18,6 +18,10 @@ mirror-story-tracker-github:
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
         - story-tracker/**/*
+        - ios/**/*
+        - docs/CI-IOS.md
+        - scripts/push_github_ios_secrets.*
+        - .github/workflows/ios-*.yml
   before_script:
     - apk add --no-cache bash
     - git config user.email "ci@personal-os"

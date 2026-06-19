@@ -34,14 +34,16 @@ export default function SearchPage() {
         <p className="text-muted-foreground">Full-text and semantic search across your knowledge</p>
       </div>
 
-      <form onSubmit={handleSearch} className="flex flex-col gap-2 sm:flex-row">
+      <form onSubmit={handleSearch} className="sticky top-[calc(3.25rem+var(--safe-top))] z-20 -mx-4 flex flex-col gap-2 bg-background/95 px-4 py-2 backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <Input
           placeholder="Search courses, projects, ideas..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="min-w-0 flex-1"
+          className="min-h-11 min-w-0 flex-1 text-base"
+          autoComplete="off"
+          enterKeyHint="search"
         />
-        <Button type="submit" className="w-full sm:w-auto shrink-0">
+        <Button type="submit" className="min-h-11 w-full shrink-0 sm:w-auto">
           <SearchIcon className="mr-2 h-4 w-4" />
           Search
         </Button>

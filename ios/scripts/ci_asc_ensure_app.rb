@@ -51,9 +51,9 @@ body = {
   data: {
     type: 'apps',
     attributes: {
-      name: 'Story Tracker',
+      name: 'Personal OS',
       bundleId: bundle_id,
-      sku: 'story-tracker-ios-001',
+      sku: 'personal-os-ios-001',
       primaryLocale: 'en-US'
     },
     relationships: {

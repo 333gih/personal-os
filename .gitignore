@@ -22,6 +22,21 @@ story-tracker/.env
 !story-tracker/.env.prod
 !story-tracker/.env.local.prod
 
+# Personal OS iOS (repo root)
+ios/StoryTrackerExtension/Resources/*
+!ios/StoryTrackerExtension/Resources/.gitkeep
+ios/PersonalOSApp/Resources/*
+!ios/PersonalOSApp/Resources/.gitkeep
+ios/PersonalOSApp/Assets.xcassets/AppIcon.appiconset/*.png
+ios/*.xcodeproj
+ios/*.xcworkspace
+ios/DerivedData/
+ios/build/
+secrets/ios-release.env
+secrets/*.p12
+secrets/*.mobileprovision
+secrets/*.p8
+
 
 # Go
 backend/server

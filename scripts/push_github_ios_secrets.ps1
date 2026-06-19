@@ -1,0 +1,116 @@
+# Push iOS release secrets from secrets/ios-release.env to GitHub Actions.
+# Usage: .\scripts\push_github_ios_secrets.ps1 [-EnvFile secrets\ios-release.env] [-Repo owner/repo]
+param(
+    [string]$EnvFile = "secrets/ios-release.env",
+    [string]$Repo = ""
+)
+
+$ErrorActionPreference = "Stop"
+$Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+Set-Location $Root
+
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    Write-Error "GitHub CLI (gh) not found. Install: https://cli.github.com/ then run: gh auth login"
+}
+
+if (-not (Test-Path $EnvFile)) {
+    Write-Error "Missing $EnvFile - copy secrets/ios-release.env.example to secrets/ios-release.env and fill in."
+}
+
+function Read-DotEnv([string]$Path) {
+    $map = @{}
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -eq "" -or $line.StartsWith("#")) { return }
+        $eq = $line.IndexOf("=")
+        if ($eq -lt 1) { return }
+        $key = $line.Substring(0, $eq).Trim()
+        $val = $line.Substring($eq + 1).Trim()
+        $dq = [char]34
+        if ($val.StartsWith($dq) -and $val.EndsWith($dq)) {
+            $val = $val.Substring(1, $val.Length - 2).Replace('\n', "`n")
+        }
+        $map[$key] = $val
+    }
+    return $map
+}
+
+function To-Base64File([string]$RelativePath, [switch]$Optional) {
+    $full = Join-Path $Root ($RelativePath -replace "/", "\")
+    if (-not (Test-Path $full)) {
+        if ($Optional) {
+            Write-Host "skip file (missing): $full"
+            return ""
+        }
+        Write-Error "File not found: $full"
+    }
+    return [Convert]::ToBase64String([IO.File]::ReadAllBytes($full))
+}
+
+$envMap = Read-DotEnv $EnvFile
+$repoArg = @()
+if ($Repo -ne "") { $repoArg = @("-R", $Repo) }
+
+function Set-GhSecret([string]$Name, [string]$Value) {
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        Write-Host "skip $Name (empty)"
+        return
+    }
+    Write-Host "set  $Name"
+    $Value | gh secret set $Name @repoArg
+}
+
+Set-GhSecret "APPLE_TEAM_ID" $envMap["APPLE_TEAM_ID"]
+Set-GhSecret "IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" $envMap["IOS_DISTRIBUTION_CERTIFICATE_PASSWORD"]
+Set-GhSecret "IOS_PROVISIONING_PROFILE_SPECIFIER" $envMap["IOS_PROVISIONING_PROFILE_SPECIFIER"]
+Set-GhSecret "IOS_EXTENSION_PROVISIONING_PROFILE_SPECIFIER" $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_SPECIFIER"]
+Set-GhSecret "APP_STORE_CONNECT_ISSUER_ID" $envMap["APP_STORE_CONNECT_ISSUER_ID"]
+Set-GhSecret "APP_STORE_CONNECT_API_KEY_ID" $envMap["APP_STORE_CONNECT_API_KEY_ID"]
+
+$certB64 = $envMap["IOS_DISTRIBUTION_CERTIFICATE_BASE64"]
+if ([string]::IsNullOrWhiteSpace($certB64) -and $envMap["IOS_DISTRIBUTION_CERTIFICATE_PATH"]) {
+    $certB64 = To-Base64File $envMap["IOS_DISTRIBUTION_CERTIFICATE_PATH"]
+}
+Set-GhSecret "IOS_DISTRIBUTION_CERTIFICATE_BASE64" $certB64
+
+$profileB64 = $envMap["IOS_PROVISIONING_PROFILE_BASE64"]
+if ([string]::IsNullOrWhiteSpace($profileB64) -and $envMap["IOS_PROVISIONING_PROFILE_PATH"]) {
+    $profileB64 = To-Base64File $envMap["IOS_PROVISIONING_PROFILE_PATH"] -Optional
+}
+Set-GhSecret "IOS_PROVISIONING_PROFILE_BASE64" $profileB64
+
+$extProfileB64 = $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_BASE64"]
+if ([string]::IsNullOrWhiteSpace($extProfileB64) -and $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_PATH"]) {
+    $extProfileB64 = To-Base64File $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_PATH"] -Optional
+}
+Set-GhSecret "IOS_EXTENSION_PROVISIONING_PROFILE_BASE64" $extProfileB64
+
+$p8 = $envMap["APP_STORE_CONNECT_API_PRIVATE_KEY"]
+if ([string]::IsNullOrWhiteSpace($p8) -and $envMap["APP_STORE_CONNECT_API_PRIVATE_KEY_PATH"]) {
+    $p8Path = Join-Path $Root ($envMap["APP_STORE_CONNECT_API_PRIVATE_KEY_PATH"] -replace "/", "\")
+    if (-not (Test-Path $p8Path)) {
+        Write-Host "skip file (missing): $p8Path"
+    } else {
+        $p8 = Get-Content $p8Path -Raw
+    }
+}
+Set-GhSecret "APP_STORE_CONNECT_API_PRIVATE_KEY" $p8
+
+$skipped = @()
+foreach ($pair in @(
+    @{ Name = "IOS_PROVISIONING_PROFILE_BASE64"; Path = $envMap["IOS_PROVISIONING_PROFILE_PATH"] },
+    @{ Name = "IOS_EXTENSION_PROVISIONING_PROFILE_BASE64"; Path = $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_PATH"] }
+)) {
+    if ([string]::IsNullOrWhiteSpace($pair.Path)) { continue }
+    $full = Join-Path $Root ($pair.Path -replace "/", "\")
+    if (-not (Test-Path $full)) { $skipped += $pair.Name }
+}
+if ($skipped.Count -gt 0) {
+    Write-Host ""
+    Write-Warning "Missing .mobileprovision files. Create App Store profiles on developer.apple.com, save under secrets/, then re-run."
+    Write-Warning "Skipped: $($skipped -join ', ')"
+}
+
+Write-Host ""
+Write-Host "Done. Verify: gh secret list $($repoArg -join ' ')"
+Write-Host "Then: Actions -> iOS Release -> Run workflow"

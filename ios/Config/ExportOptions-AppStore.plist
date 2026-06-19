@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  App Store export for Story Tracker (container app + Safari Web Extension).
+  App Store export for Personal OS (container app + embedded Story Tracker Safari extension).
   CI replaces placeholders in ios-release workflow. See docs/CI-IOS.md
 -->
 <plist version="1.0">

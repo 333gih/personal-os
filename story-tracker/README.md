@@ -133,15 +133,15 @@ npm run build:safari   # dist/safari/ (Safari / iOS Web Extension)
 
 ### Safari (iOS)
 
-Standalone wrapper lives in `ios/` — **not** bundled with other app repos.
+Extension builds here; native **Personal OS** app is at **repo root `../ios/`** (embedded extension).
 
 ```bash
-npm run build:safari
-npm run sync:safari-ios   # copies dist/safari → ios/StoryTrackerExtension/Resources
-cd ios && xcodegen generate && open StoryTracker.xcodeproj
+npm run build:safari && npm run sync:safari-ios   # → ../ios/StoryTrackerExtension/Resources
+npm run build:ios-bridge && npm run sync:ios-bridge
+cd ../ios && xcodegen generate && open PersonalOS.xcodeproj
 ```
 
-See [docs/SAFARI-IOS.md](docs/SAFARI-IOS.md).
+See [docs/SAFARI-IOS.md](docs/SAFARI-IOS.md) and [../docs/CI-IOS.md](../docs/CI-IOS.md).
 
 ### Android
 

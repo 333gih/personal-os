@@ -1,4 +1,4 @@
-# Archive + export IPA for App Store / TestFlight (standalone story-tracker repo).
+# Standalone GitHub repo (mirrored): extension at root + ios/ → TestFlight
 # Secrets: docs/CI-IOS.md
 name: iOS Release
 
@@ -28,27 +28,13 @@ env:
       (github.event_name == 'push' && (
         startsWith(github.ref, 'refs/heads/releases/') ||
         startsWith(github.ref, 'refs/heads/release/')
-      ))
+      )) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/ios/v'))
     }}
 
 jobs:
-  preflight:
-    name: Preflight (billing reminder)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Billing & macOS runner
-        run: |
-          {
-            echo "### Story Tracker iOS Release"
-            echo "- Private repo needs **paid GitHub Actions** minutes for \`macos-14\`."
-            echo "- If macOS job shows *payments have failed* or *spending limit*: [GitHub Billing](https://github.com/settings/billing) → fix payment → **Re-run workflow**."
-            echo "- Secrets checklist: \`docs/CI-IOS.md\` (10 secrets incl. 2 profile base64)."
-          } >> "${GITHUB_STEP_SUMMARY}"
-
   release:
     name: Archive & export IPA
-    needs: preflight
     runs-on: macos-26
     timeout-minutes: 45
 
@@ -63,15 +49,15 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Install npm dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Build Safari extension + sync iOS Resources
+      - name: Build Safari extension + auth bridge → ios/
         run: |
           npm run build:safari
           npm run sync:safari-ios
-          npm run build:ios-app
-          npm run sync:ios-app
+          npm run build:ios-bridge
+          npm run sync:ios-bridge
 
       - name: Select Xcode 26
         uses: maxim-lobanov/setup-xcode@v1
@@ -130,7 +116,7 @@ jobs:
         working-directory: ios
         env:
           PROFILE_B64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-        run: bash scripts/ci_install_provisioning_profile.sh "${PROFILE_B64}" story-tracker-app
+        run: bash scripts/ci_install_provisioning_profile.sh "${PROFILE_B64}" personal-os-app
 
       - name: Install extension provisioning profile
         working-directory: ios
@@ -146,7 +132,7 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/ci_verify_provisioning_profile.sh \
-            "${RUNNER_TEMP}/story-tracker-app.mobileprovision" \
+            "${RUNNER_TEMP}/personal-os-app.mobileprovision" \
             "com.personalos.story-tracker" \
             "${APP_PROFILE_NAME}"
           bash scripts/ci_verify_provisioning_profile.sh \
@@ -158,13 +144,13 @@ jobs:
         id: archive
         working-directory: ios
         env:
-          ARCHIVE_PATH: build/StoryTracker.xcarchive
+          ARCHIVE_PATH: build/PersonalOS.xcarchive
         run: |
           set -o pipefail
           mkdir -p build
           xcodebuild archive \
-            -project StoryTracker.xcodeproj \
-            -scheme StoryTracker \
+            -project PersonalOS.xcodeproj \
+            -scheme PersonalOS \
             -configuration Release \
             -archivePath "${ARCHIVE_PATH}" \
             -destination 'generic/platform=iOS' \
@@ -186,7 +172,7 @@ jobs:
       - name: Export App Store IPA
         working-directory: ios
         env:
-          ARCHIVE_PATH: build/StoryTracker.xcarchive
+          ARCHIVE_PATH: build/PersonalOS.xcarchive
           EXPORT_DIR: build/export
         run: |
           set -o pipefail
@@ -204,32 +190,15 @@ jobs:
           set -euo pipefail
           FOUND="$(find build/export -maxdepth 1 -name '*.ipa' | head -1)"
           test -n "${FOUND}"
-          cp "${FOUND}" build/StoryTracker.ipa
+          cp "${FOUND}" build/PersonalOS.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: story-tracker-ios-ipa-${{ github.run_number }}
-          path: ios/build/StoryTracker.ipa
+          name: personal-os-ios-ipa-${{ github.run_number }}
+          path: ios/build/PersonalOS.ipa
           retention-days: 30
           if-no-files-found: error
-
-      - name: Verify App Store Connect secrets
-        if: env.UPLOAD_TESTFLIGHT == 'true'
-        env:
-          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          missing=0
-          for name in ISSUER_ID API_KEY_ID API_PRIVATE_KEY; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::Missing GitHub secret for ${name}"
-              missing=1
-            fi
-          done
-          exit "${missing}"
 
       - name: Ensure App Store Connect app record
         if: env.UPLOAD_TESTFLIGHT == 'true'
@@ -257,7 +226,7 @@ jobs:
           ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
-        run: bash scripts/ci_upload_testflight.sh build/StoryTracker.ipa
+        run: bash scripts/ci_upload_testflight.sh build/PersonalOS.ipa
 
       - name: Print xcodebuild errors
         if: failure()
@@ -275,7 +244,6 @@ jobs:
       - name: Release summary
         if: always() && steps.app_version.outcome == 'success'
         run: |
-          echo "### Story Tracker iOS release" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Personal OS iOS release" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Version: **${{ steps.app_version.outputs.marketing }} (${{ steps.app_version.outputs.build }})**" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Archive: **${{ steps.archive.outcome }}**" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- Bundle: \`com.personalos.story-tracker\` + extension \`.extension\`" >> "${GITHUB_STEP_SUMMARY}"

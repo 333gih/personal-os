@@ -1,6 +1,25 @@
-# Story Tracker — Safari (iOS)
+# Safari Web Extension — iOS
 
-Story Tracker ships a **standalone iOS wrapper** under `story-tracker/ios/`. It is not coupled to any other app repo (e.g. Fash commerce).
+Story Tracker extension ships inside the **Personal OS** iOS app at **repo root `ios/`**.
+
+| Component | Path |
+|-----------|------|
+| Extension JS build | `story-tracker/` (`npm run build:safari`) |
+| Native Xcode project | `../ios/` (PersonalOS + StoryTrackerExtension) |
+| Hosted app UI | `../frontend/` (loaded in WKWebView) |
+
+## Build flow
+
+```bash
+# From story-tracker/
+npm run build:safari && npm run sync:safari-ios
+npm run build:ios-bridge && npm run sync:ios-bridge
+
+# From repo root
+cd ios && xcodegen generate && open PersonalOS.xcodeproj
+```
+
+CI / TestFlight: [../docs/CI-IOS.md](../docs/CI-IOS.md)
 
 ## Prerequisites
 
@@ -18,7 +37,7 @@ npm run build:safari
 npm run sync:safari-ios
 ```
 
-`sync:safari-ios` copies `dist/safari/` into `ios/StoryTrackerExtension/Resources/`.
+`sync:safari-ios` copies `dist/safari/` into `../ios/StoryTrackerExtension/Resources/`.
 
 Override destination (optional):
 
@@ -31,11 +50,11 @@ STORY_TRACKER_IOS_RESOURCES=/path/to/Resources npm run sync:safari-ios
 ```bash
 cd ios
 xcodegen generate
-open StoryTracker.xcodeproj
+open PersonalOS.xcodeproj
 ```
 
-1. Select your Team under Signing for **StoryTracker** and **StoryTrackerExtension**.
-2. Run **StoryTracker** on a physical iPhone (Safari extensions do not work in Simulator).
+1. Select your Team under Signing for **PersonalOS** and **StoryTrackerExtension**.
+2. Run **PersonalOS** on a physical iPhone (Safari extensions do not work in Simulator).
 3. On device: **Settings → Safari → Extensions** → enable **Story Tracker**.
 
 ## Safari limitations

@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct StoryTrackerApp: App {
+struct PersonalOSApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()

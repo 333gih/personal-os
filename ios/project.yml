@@ -1,4 +1,4 @@
-name: StoryTracker
+name: PersonalOS
 options:
   bundleIdPrefix: com.personalos
   deploymentTarget:
@@ -10,40 +10,42 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     TARGETED_DEVICE_FAMILY: "1,2"
-    MARKETING_VERSION: "1.3.0"
-    CURRENT_PROJECT_VERSION: "5"
+    MARKETING_VERSION: "1.4.0"
+    CURRENT_PROJECT_VERSION: "6"
 
 targets:
-  StoryTracker:
+  PersonalOS:
     type: application
     platform: iOS
     sources:
-      - path: StoryTrackerApp
+      - path: PersonalOSApp
         excludes:
           - Resources/**
     preBuildScripts:
-      - name: Validate iOS app web resources
+      - name: Validate extension auth bridge
         script: |
           set -e
-          SRC="${SRCROOT}/StoryTrackerApp/Resources"
-          if [ ! -f "${SRC}/index.html" ]; then
-            echo "error: missing ${SRC}/index.html — run npm run build:ios-app && npm run sync:ios-app"
+          SRC="${SRCROOT}/PersonalOSApp/Resources/connect-bridge.js"
+          if [ ! -f "${SRC}" ]; then
+            echo "error: missing ${SRC} — run from story-tracker/: npm run build:ios-bridge && npm run sync:ios-bridge"
             exit 1
           fi
         basedOnDependencyAnalysis: false
     postCompileScripts:
-      - name: Copy iOS app web resources
+      - name: Copy extension auth bridge
         script: |
           set -e
-          SRC="${SRCROOT}/StoryTrackerApp/Resources"
+          SRC="${SRCROOT}/PersonalOSApp/Resources/connect-bridge.js"
           DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
-          ditto "${SRC}" "${DEST}"
+          mkdir -p "${DEST}"
+          cp "${SRC}" "${DEST}/connect-bridge.js"
         basedOnDependencyAnalysis: false
     settings:
       base:
-        PRODUCT_NAME: Story Tracker
+        PRODUCT_NAME: Personal OS
         PRODUCT_BUNDLE_IDENTIFIER: com.personalos.story-tracker
-        INFOPLIST_FILE: StoryTrackerApp/Info.plist
+        INFOPLIST_FILE: PersonalOSApp/Info.plist
+        CODE_SIGN_ENTITLEMENTS: PersonalOSApp/PersonalOSApp.entitlements
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
@@ -69,7 +71,7 @@ targets:
           set -e
           SRC="${SRCROOT}/StoryTrackerExtension/Resources"
           if [ ! -f "${SRC}/manifest.json" ]; then
-            echo "error: missing ${SRC}/manifest.json — run npm run build:safari && npm run sync:safari-ios"
+            echo "error: missing ${SRC}/manifest.json — run from story-tracker/: npm run build:safari && npm run sync:safari-ios"
             exit 1
           fi
         basedOnDependencyAnalysis: false
@@ -86,6 +88,7 @@ targets:
         PRODUCT_NAME: StoryTrackerExtension
         PRODUCT_BUNDLE_IDENTIFIER: com.personalos.story-tracker.extension
         INFOPLIST_FILE: StoryTrackerExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: StoryTrackerExtension/StoryTrackerExtension.entitlements
         SKIP_INSTALL: YES
       configs:
         Release:
@@ -96,10 +99,10 @@ targets:
     dependencies: []
 
 schemes:
-  StoryTracker:
+  PersonalOS:
     build:
       targets:
-        StoryTracker: all
+        PersonalOS: all
     run:
       config: Debug
     archive:
