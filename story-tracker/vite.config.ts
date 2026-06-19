@@ -74,6 +74,7 @@ export default defineConfig(({ mode }) => {
     const appRoot = resolve(__dirname, 'src/app-ios');
     return {
       root: appRoot,
+      base: './',
       define: {
         __API_BASE_URL__: JSON.stringify(
           env.API_BASE_URL ?? 'https://api-personal-os.fashandcurious.com/api/v1',

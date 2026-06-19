@@ -103,6 +103,12 @@ body {
   text-decoration: none;
 }
 
+.ios-app__setup-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--st-text-subtle);
+}
+
 .ios-app__setup-collapsed {
   margin: 8px 14px 0;
   align-self: flex-start;

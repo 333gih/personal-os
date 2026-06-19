@@ -10,19 +10,22 @@ struct WebAppView: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         config.defaultWebpagePreferences.allowsContentJavaScript = true
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        config.preferences.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
 
         let webView = WKWebView(frame: .zero, configuration: config)
-        webView.isOpaque = false
-        webView.backgroundColor = .clear
-        webView.scrollView.backgroundColor = .clear
+        webView.isOpaque = true
+        webView.backgroundColor = UIColor(red: 18 / 255, green: 16 / 255, blue: 14 / 255, alpha: 1)
+        webView.scrollView.backgroundColor = webView.backgroundColor
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
 
-        if let indexURL = Bundle.main.url(forResource: "index", withExtension: "html") {
-            let folder = indexURL.deletingLastPathComponent()
-            webView.loadFileURL(indexURL, allowingReadAccessTo: folder)
+        guard let indexURL = Bundle.main.url(forResource: "index", withExtension: "html") else {
+            context.coordinator.loadError = "Missing index.html in app bundle."
+            return webView
         }
 
+        let resourcesRoot = indexURL.deletingLastPathComponent()
+        webView.loadFileURL(indexURL, allowingReadAccessTo: resourcesRoot)
         return webView
     }
 
@@ -30,6 +33,7 @@ struct WebAppView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         weak var webView: WKWebView?
+        var loadError: String?
         private var injectedConnectHosts = Set<String>()
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -45,12 +49,12 @@ struct WebAppView: UIViewRepresentable {
             webView.evaluateJavaScript(source)
         }
 
-        func webView(
-            _ webView: WKWebView,
-            decidePolicyFor navigationAction: WKNavigationAction,
-            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-        ) {
-            decisionHandler(.allow)
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            loadError = error.localizedDescription
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            loadError = error.localizedDescription
         }
     }
 }
