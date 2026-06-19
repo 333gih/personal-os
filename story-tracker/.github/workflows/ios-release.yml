@@ -229,6 +229,24 @@ jobs:
           done
           exit "${missing}"
 
+      - name: Ensure App Store Connect app record
+        if: env.UPLOAD_TESTFLIGHT == 'true'
+        working-directory: ios
+        env:
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          KEY_DIR="${HOME}/.private_keys"
+          mkdir -p "${KEY_DIR}"
+          KEY_FILE="${KEY_DIR}/AuthKey_${API_KEY_ID}.p8"
+          printf '%s\n' "${API_PRIVATE_KEY}" > "${KEY_FILE}"
+          chmod 600 "${KEY_FILE}"
+          sudo gem install jwt -N --silent
+          export API_KEY_PATH="${KEY_FILE}"
+          ruby scripts/ci_asc_ensure_app.rb
+
       - name: Upload to TestFlight
         id: upload-testflight
         if: env.UPLOAD_TESTFLIGHT == 'true'

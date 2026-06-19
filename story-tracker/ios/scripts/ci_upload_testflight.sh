@@ -32,6 +32,10 @@ if [[ "${code}" -eq 0 ]]; then
   exit 0
 fi
 
+if grep -qE 'No suitable application records|ITunesSoftwareServiceApplicationMustEndWithProperExtension' "${LOG}"; then
+  echo "::error::App Store Connect app missing for com.personalos.story-tracker. Create at https://appstoreconnect.apple.com/apps or re-run workflow (ci_asc_ensure_app.rb)."
+fi
+
 if grep -qE '90382|Upload limit reached' "${LOG}"; then
   echo "::warning::TestFlight daily upload limit (90382). Archive and IPA artifact succeeded — retry in ~24h."
   echo "upload_outcome=rate_limited" >> "${GITHUB_OUTPUT}"
