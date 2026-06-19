@@ -109,6 +109,8 @@ export default defineConfig(({ mode }) => {
         outDir: resolve(__dirname, 'dist/ios-app'),
         emptyOutDir: true,
         sourcemap: mode === 'development',
+        modulePreload: false,
+        cssCodeSplit: false,
         rollupOptions: {
           input: {
             main: resolve(appRoot, 'index.html'),
@@ -119,6 +121,7 @@ export default defineConfig(({ mode }) => {
               chunk.name === 'connect-bridge' ? 'connect-bridge.js' : 'assets/[name]-[hash].js',
             chunkFileNames: 'assets/[name]-[hash].js',
             assetFileNames: 'assets/[name]-[hash][extname]',
+            manualChunks: undefined,
           },
         },
       },
