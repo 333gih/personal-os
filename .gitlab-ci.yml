@@ -1,8 +1,8 @@
-# GitLab CI — mirror story-tracker subtree to GitHub (optional).
+# GitLab CI — mirror story-tracker subtree → GitHub (build iOS on Actions, no local Xcode).
 #
-# GitLab Settings → CI/CD → Variables (masked, protected):
-#   GITHUB_MIRROR_URL     = https://github.com/YOU/story-tracker.git
-#   GITHUB_MIRROR_TOKEN   = fine-grained PAT (Contents: read/write)
+# GitLab Settings → CI/CD → Variables (masked):
+#   GITHUB_MIRROR_URL   = https://github.com/fashandcurious14052026-dotcom/story-tracker.git
+#   GITHUB_MIRROR_TOKEN = fine-grained PAT (Contents read/write on that repo)
 #
 # GitHub: create empty repo story-tracker (no README).
 # After mirror: push iOS secrets to GitHub repo (not GitLab):

@@ -42,8 +42,16 @@ set_secret() {
 
 file_to_b64() {
   local rel="$1"
+  local optional="${2:-}"
   local full="${ROOT}/${rel}"
-  [[ -f "${full}" ]] || { echo "error: file not found: ${full}" >&2; exit 1; }
+  if [[ ! -f "${full}" ]]; then
+    if [[ -n "${optional}" ]]; then
+      echo "skip file (missing): ${full}" >&2
+      return 0
+    fi
+    echo "error: file not found: ${full}" >&2
+    exit 1
+  fi
   base64 < "${full}" | tr -d '\n'
 }
 
@@ -54,17 +62,21 @@ fi
 
 PROFILE_B64="${IOS_PROVISIONING_PROFILE_BASE64:-}"
 if [[ -z "${PROFILE_B64}" && -n "${IOS_PROVISIONING_PROFILE_PATH:-}" ]]; then
-  PROFILE_B64="$(file_to_b64 "${IOS_PROVISIONING_PROFILE_PATH}")"
+  PROFILE_B64="$(file_to_b64 "${IOS_PROVISIONING_PROFILE_PATH}" optional || true)"
 fi
 
 EXT_PROFILE_B64="${IOS_EXTENSION_PROVISIONING_PROFILE_BASE64:-}"
 if [[ -z "${EXT_PROFILE_B64}" && -n "${IOS_EXTENSION_PROVISIONING_PROFILE_PATH:-}" ]]; then
-  EXT_PROFILE_B64="$(file_to_b64 "${IOS_EXTENSION_PROVISIONING_PROFILE_PATH}")"
+  EXT_PROFILE_B64="$(file_to_b64 "${IOS_EXTENSION_PROVISIONING_PROFILE_PATH}" optional || true)"
 fi
 
 P8="${APP_STORE_CONNECT_API_PRIVATE_KEY:-}"
 if [[ -z "${P8}" && -n "${APP_STORE_CONNECT_API_PRIVATE_KEY_PATH:-}" ]]; then
-  P8="$(cat "${ROOT}/${APP_STORE_CONNECT_API_PRIVATE_KEY_PATH}")"
+  if [[ -f "${ROOT}/${APP_STORE_CONNECT_API_PRIVATE_KEY_PATH}" ]]; then
+    P8="$(cat "${ROOT}/${APP_STORE_CONNECT_API_PRIVATE_KEY_PATH}")"
+  else
+    echo "skip file (missing): ${ROOT}/${APP_STORE_CONNECT_API_PRIVATE_KEY_PATH}" >&2
+  fi
 fi
 
 set_secret "APPLE_TEAM_ID" "${APPLE_TEAM_ID:-}"
@@ -79,5 +91,8 @@ set_secret "APP_STORE_CONNECT_API_KEY_ID" "${APP_STORE_CONNECT_API_KEY_ID:-}"
 set_secret "APP_STORE_CONNECT_API_PRIVATE_KEY" "${P8}"
 
 echo ""
+if [[ -z "${PROFILE_B64}" || -z "${EXT_PROFILE_B64}" ]]; then
+  echo "warning: missing .mobileprovision file(s) — create App Store profiles on developer.apple.com, save under secrets/, re-run." >&2
+fi
 echo "Done. Verify: gh secret list ${REPO_ARGS[*]}"
 echo "Then: Actions → Story Tracker iOS Release → Run workflow"

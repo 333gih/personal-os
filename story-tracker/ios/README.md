@@ -1,7 +1,29 @@
 # Story Tracker — iOS Safari wrapper
 
-Standalone Xcode project for the Safari Web Extension on iPhone/iPad. Lives inside `personal-os/story-tracker` and is **not** tied to other mobile apps.
+Standalone Xcode project for the Safari Web Extension on iPhone/iPad.
 
+**Build & release:** GitHub Actions only — no local Xcode required. See [../docs/CI-IOS.md](../docs/CI-IOS.md).
+
+## CI pipeline (GitHub Actions)
+
+| Workflow | Trigger | Signing |
+|----------|---------|---------|
+| `iOS Build` | push `main` | None (Simulator compile) |
+| `iOS Release` | **Run workflow** / tag `ios/v*` / `release/**` | Apple Distribution + 2 profiles |
+
+Flow on each release job:
+
+1. `npm run build:safari` + `sync:safari-ios`
+2. `xcodegen generate` (from `project.yml`)
+3. `xcodebuild archive` + export IPA + TestFlight
+
+Bundle IDs (must match Apple Developer):
+
+| Target | Bundle ID |
+|--------|-----------|
+| App | `com.personalos.story-tracker` |
+| Extension | `com.personalos.story-tracker.extension` |
+| App Group | `group.com.personalos.story-tracker` |
 ## Quick start
 
 ```bash

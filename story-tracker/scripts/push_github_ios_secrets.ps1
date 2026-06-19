@@ -35,9 +35,13 @@ function Read-DotEnv([string]$Path) {
     return $map
 }
 
-function To-Base64File([string]$RelativePath) {
+function To-Base64File([string]$RelativePath, [switch]$Optional) {
     $full = Join-Path $Root ($RelativePath -replace "/", "\")
     if (-not (Test-Path $full)) {
+        if ($Optional) {
+            Write-Host "skip file (missing): $full"
+            return ""
+        }
         Write-Error "File not found: $full"
     }
     return [Convert]::ToBase64String([IO.File]::ReadAllBytes($full))
@@ -71,23 +75,41 @@ Set-GhSecret "IOS_DISTRIBUTION_CERTIFICATE_BASE64" $certB64
 
 $profileB64 = $envMap["IOS_PROVISIONING_PROFILE_BASE64"]
 if ([string]::IsNullOrWhiteSpace($profileB64) -and $envMap["IOS_PROVISIONING_PROFILE_PATH"]) {
-    $profileB64 = To-Base64File $envMap["IOS_PROVISIONING_PROFILE_PATH"]
+    $profileB64 = To-Base64File $envMap["IOS_PROVISIONING_PROFILE_PATH"] -Optional
 }
 Set-GhSecret "IOS_PROVISIONING_PROFILE_BASE64" $profileB64
 
 $extProfileB64 = $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_BASE64"]
 if ([string]::IsNullOrWhiteSpace($extProfileB64) -and $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_PATH"]) {
-    $extProfileB64 = To-Base64File $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_PATH"]
+    $extProfileB64 = To-Base64File $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_PATH"] -Optional
 }
 Set-GhSecret "IOS_EXTENSION_PROVISIONING_PROFILE_BASE64" $extProfileB64
 
 $p8 = $envMap["APP_STORE_CONNECT_API_PRIVATE_KEY"]
 if ([string]::IsNullOrWhiteSpace($p8) -and $envMap["APP_STORE_CONNECT_API_PRIVATE_KEY_PATH"]) {
     $p8Path = Join-Path $Root ($envMap["APP_STORE_CONNECT_API_PRIVATE_KEY_PATH"] -replace "/", "\")
-    if (-not (Test-Path $p8Path)) { Write-Error "File not found: $p8Path" }
-    $p8 = Get-Content $p8Path -Raw
+    if (-not (Test-Path $p8Path)) {
+        Write-Host "skip file (missing): $p8Path"
+    } else {
+        $p8 = Get-Content $p8Path -Raw
+    }
 }
 Set-GhSecret "APP_STORE_CONNECT_API_PRIVATE_KEY" $p8
+
+$skipped = @()
+foreach ($pair in @(
+    @{ Name = "IOS_PROVISIONING_PROFILE_BASE64"; Path = $envMap["IOS_PROVISIONING_PROFILE_PATH"] },
+    @{ Name = "IOS_EXTENSION_PROVISIONING_PROFILE_BASE64"; Path = $envMap["IOS_EXTENSION_PROVISIONING_PROFILE_PATH"] }
+)) {
+    if ([string]::IsNullOrWhiteSpace($pair.Path)) { continue }
+    $full = Join-Path $Root ($pair.Path -replace "/", "\")
+    if (-not (Test-Path $full)) { $skipped += $pair.Name }
+}
+if ($skipped.Count -gt 0) {
+    Write-Host ""
+    Write-Warning "Missing .mobileprovision files. Create App Store profiles on developer.apple.com, save under secrets/, then re-run."
+    Write-Warning "Skipped: $($skipped -join ', ')"
+}
 
 Write-Host ""
 Write-Host "Done. Verify: gh secret list $($repoArg -join ' ')"
