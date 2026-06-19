@@ -131,7 +131,12 @@ export function ReadingProgressList() {
         </div>
         <p className="font-semibold">No reading progress yet</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Install the Story Tracker extension and sign in to sync what you are reading.
+          Story Tracker data appears here after sync from the extension. Sign in with the same
+          account on both extension and this site, then use &quot;Đồng bộ tất cả lên DB&quot; in the
+          extension popup.
+        </p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Notes &amp; bookmarks below are separate — they are not synced from Story Tracker.
         </p>
       </div>
     );

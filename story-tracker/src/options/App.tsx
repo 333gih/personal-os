@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { ActionButton } from '../components/ActionButton';
 import { BrandLogo } from '../components/BrandLogo';
 import { useActionFeedback } from '../hooks/useActionFeedback';
-import { SUPPORTED_SITES } from '../shared/constants';
+import { useAuth } from '../hooks/useAuth';
+import { useSyncStatus } from '../hooks/useSyncStatus';
 import { storageService } from '../storage/storage-service';
 import type { ExtensionSettings } from '../types/storage';
 import { DEFAULT_SETTINGS } from '../types/storage';
 import type { CustomSiteProfile, SiteProfileExtension } from '../types/site-profile';
 import { listBuiltinPlugins, SITE_PLUGIN_GUIDE } from '../plugins';
+import { formatSyncResultMessage } from '../utils/sync-messages';
 
 const DEFAULT_CUSTOM_PROFILE: Omit<CustomSiteProfile, 'id' | 'addedAt'> = {
   label: '',
@@ -48,6 +50,10 @@ export function App() {
   const clearAction = useActionFeedback();
   const clearHistoryAction = useActionFeedback();
   const profileAction = useActionFeedback();
+  const syncAction = useActionFeedback();
+  const { auth } = useAuth();
+  const { status, syncNow } = useSyncStatus();
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void storageService.getSettings().then(setSettings);
@@ -86,6 +92,13 @@ export function App() {
     void clearAction.run(async () => {
       await storageService.clearCache();
       setExportData('');
+    });
+  };
+
+  const handleSyncAll = () => {
+    void syncAction.run(async () => {
+      const result = await syncNow();
+      setSyncMessage(formatSyncResultMessage(result));
     });
   };
 
@@ -425,6 +438,31 @@ export function App() {
           guest-mode slots (max 5 without sign-in). Signed-in users may see items return after sync
           if still on Personal OS.
         </p>
+        {auth ? (
+          <div className="profile-form__actions" style={{ marginBottom: 12 }}>
+            <ActionButton
+              variant="primary"
+              loading={syncAction.isLoading}
+              success={syncAction.isSuccess}
+              loadingLabel="Đang đồng bộ…"
+              successLabel="Đã đồng bộ"
+              disabled={status.online === false && !syncAction.isLoading}
+              onClick={handleSyncAll}
+            >
+              Đồng bộ tất cả lên DB
+            </ActionButton>
+            {syncMessage ? (
+              <p className="setting-hint" role="status" style={{ marginTop: 8 }}>
+                {syncMessage}
+              </p>
+            ) : null}
+            {status.pendingCount > 0 ? (
+              <p className="setting-hint" role="status">
+                {status.pendingCount} mục đang chờ đồng bộ
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <div className="profile-form__actions" style={{ marginBottom: 12 }}>
           <ActionButton
             variant="secondary"

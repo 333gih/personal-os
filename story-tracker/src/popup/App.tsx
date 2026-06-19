@@ -19,6 +19,7 @@ import { MESSAGE_TYPES } from '../shared/messages';
 import type { MessageResponse } from '../shared/messages';
 import type { ReadingHistoryEntry } from '../types/reading';
 import { formatChapterDisplay, formatPartLabel } from '../utils/reading-display';
+import { formatSyncResultMessage } from '../utils/sync-messages';
 import { isVtqReading, openVtqChapter } from './vtq-open';
 
 function ReadingSkeleton() {
@@ -42,6 +43,7 @@ export function App() {
   const saveAction = useActionFeedback();
   const syncAction = useActionFeedback();
   const [toast, setToast] = useState<string | null>(null);
+  const [lastSyncMessage, setLastSyncMessage] = useState<string | null>(null);
 
   const loadHistory = () => {
     void browser.runtime
@@ -66,9 +68,9 @@ export function App() {
     }
     else if (saveAction.isSuccess) {
       setToast(isGuest ? 'Progress saved locally.' : 'Progress saved.');
-    } else if (syncAction.isSuccess) setToast('Synced to Personal OS.');
+    } else if (syncAction.isSuccess) setToast(lastSyncMessage ?? 'Đã đồng bộ lên Personal OS.');
     else setToast(null);
-  }, [saveAction.isError, saveAction.isSuccess, syncAction.isError, syncAction.isSuccess, syncAction.lastError, status.lastError, isGuest]);
+  }, [saveAction.isError, saveAction.isSuccess, syncAction.isError, syncAction.isSuccess, syncAction.lastError, status.lastError, isGuest, lastSyncMessage]);
 
   const handleGuestLimit = (response: MessageResponse) => {
     if (response?.code === GUEST_LIMIT_CODE) {
@@ -78,27 +80,17 @@ export function App() {
     return false;
   };
 
-  const handleSync = () => {
-    if (isIosAppTarget) {
-      setToast('Mở Safari, bật extension Story Tracker, rồi Sync trên trang chương.');
-      return;
-    }
+  const handleSyncAll = () => {
     if (isGuest) {
       void startWebAuth();
-      setToast('Sign in to sync progress to Personal OS.');
+      setToast('Đăng nhập để đồng bộ tiến độ lên Personal OS.');
       return;
     }
 
     void syncAction.run(async () => {
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) {
-        const res = (await browser.tabs.sendMessage(tab.id, {
-          type: MESSAGE_TYPES.MANUAL_SAVE,
-          payload: { sync: true },
-        })) as MessageResponse | undefined;
-        if (res && handleGuestLimit(res)) return;
-      }
-      await syncNow();
+      const result = await syncNow();
+      setLastSyncMessage(formatSyncResultMessage(result));
+      loadHistory();
     });
   };
 
@@ -313,12 +305,12 @@ export function App() {
           block
           loading={syncAction.isLoading}
           success={syncAction.isSuccess}
-          loadingLabel={isGuest ? 'Opening…' : 'Syncing…'}
-          successLabel={isGuest ? 'Done' : 'Synced'}
+          loadingLabel={isGuest ? 'Đang mở…' : 'Đang đồng bộ…'}
+          successLabel={isGuest ? 'Xong' : 'Đã đồng bộ'}
           disabled={!isGuest && status.online === false && !syncAction.isLoading}
-          onClick={handleSync}
+          onClick={handleSyncAll}
         >
-          {isIosAppTarget ? 'Sync trong Safari' : isGuest ? 'Sign in to sync' : 'Sync to Personal OS'}
+          {isGuest ? 'Đăng nhập để đồng bộ' : 'Đồng bộ tất cả lên DB'}
         </ActionButton>
       </div>
 
@@ -326,7 +318,19 @@ export function App() {
         <section className="st-card history-card">
           <div className="st-card__header">
             <p className="st-card__eyebrow">History</p>
-            <span className="st-card__count">{visibleHistory.length}</span>
+            <div className="st-card__header-actions">
+              {auth ? (
+                <button
+                  type="button"
+                  className="link-btn link-btn--primary"
+                  disabled={syncAction.isLoading || status.online === false}
+                  onClick={handleSyncAll}
+                >
+                  {syncAction.isLoading ? 'Đang đồng bộ…' : 'Đồng bộ tất cả'}
+                </button>
+              ) : null}
+              <span className="st-card__count">{visibleHistory.length}</span>
+            </div>
           </div>
           {isGuest ? (
             <p className="history-card__hint">

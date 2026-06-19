@@ -7,9 +7,11 @@ import { useAuth } from '../hooks/useAuth';
 import { useGuestStatus } from '../hooks/useGuestStatus';
 import { useReadingState } from '../hooks/useReadingState';
 import { useSyncStatus } from '../hooks/useSyncStatus';
+import { useActionFeedback } from '../hooks/useActionFeedback';
 import { MESSAGE_TYPES } from '../shared/messages';
 import type { ReadingHistoryEntry } from '../types/reading';
 import { formatChapterDisplay, formatPartLabel } from '../utils/reading-display';
+import { formatSyncResultMessage } from '../utils/sync-messages';
 import { isVtqReading, openVtqChapter } from '../popup/vtq-open';
 import { SafariSetupBanner } from './SafariSetupBanner';
 
@@ -23,7 +25,9 @@ export function CompanionHome({ onOpenHistory }: CompanionHomeProps) {
   const { guestStatus } = useGuestStatus(isGuest);
   const { session, loading: readingLoading } = useReadingState();
   const { status, syncNow } = useSyncStatus();
+  const syncAction = useActionFeedback();
   const [history, setHistory] = useState<ReadingHistoryEntry[]>([]);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void browser.runtime
@@ -80,12 +84,31 @@ export function CompanionHome({ onOpenHistory }: CompanionHomeProps) {
               Đăng nhập Personal OS
             </ActionButton>
           )}
-          {auth && status.online !== false ? (
-            <ActionButton variant="secondary" block onClick={() => void syncNow()}>
-              Đồng bộ ngay
+          {auth ? (
+            <ActionButton
+              variant="secondary"
+              block
+              loading={syncAction.isLoading}
+              success={syncAction.isSuccess}
+              loadingLabel="Đang đồng bộ…"
+              successLabel="Đã đồng bộ"
+              disabled={status.online === false && !syncAction.isLoading}
+              onClick={() => {
+                void syncAction.run(async () => {
+                  const result = await syncNow();
+                  setSyncMessage(formatSyncResultMessage(result));
+                });
+              }}
+            >
+              Đồng bộ tất cả lên DB
             </ActionButton>
           ) : null}
         </div>
+        {syncMessage ? (
+          <p className="companion-tip__body" role="status">
+            {syncMessage}
+          </p>
+        ) : null}
         {error ? (
           <p className="companion-error" role="alert">
             {error}

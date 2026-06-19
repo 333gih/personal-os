@@ -47,5 +47,7 @@ export interface SyncNowResult {
   synced: number;
   failed: number;
   pushedLatest: boolean;
+  localCount: number;
+  serverCount: number;
   error?: string;
 }

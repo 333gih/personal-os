@@ -1,5 +1,5 @@
 import type { ReadingProgressPayload } from '../types/api';
-import type { ReadingInfo, ReadingSession, SyncNowResult } from '../types/reading';
+import type { ReadingInfo, SyncNowResult } from '../types/reading';
 import { ApiError } from './api-client';
 import { createReadingProgressService } from './reading-progress-service';
 import { tokenManager } from '../auth/token-manager';
@@ -7,6 +7,7 @@ import { offlineQueue } from '../storage/offline-queue';
 import { storageService } from '../storage/storage-service';
 import { logger } from '../utils/logger';
 import { shouldPersistChapterProgress } from '../utils/chapter-progress';
+import { historyEntryToReadingInfo } from '../utils/reading-display';
 
 function formatSyncError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -72,7 +73,14 @@ export class SyncService {
   /** Push latest local reading + flush offline queue (manual sync and periodic sync). */
   async syncNow(): Promise<SyncNowResult> {
     if (this.syncing) {
-      return { synced: 0, failed: 0, pushedLatest: false, error: 'Sync already in progress' };
+      return {
+        synced: 0,
+        failed: 0,
+        pushedLatest: false,
+        localCount: 0,
+        serverCount: 0,
+        error: 'Sync already in progress',
+      };
     }
     this.syncing = true;
 
@@ -80,6 +88,8 @@ export class SyncService {
     let failed = 0;
     let pushedLatest = false;
     let lastError: string | undefined;
+    const localPayloads = await this.collectLocalPayloads();
+    const localCount = localPayloads.length;
 
     try {
       await storageService.setSyncStatus({
@@ -96,30 +106,28 @@ export class SyncService {
           pendingCount: await offlineQueue.size(),
           lastError: authError,
         });
-        return { synced: 0, failed: 1, pushedLatest: false, error: authError };
+        return {
+          synced: 0,
+          failed: 1,
+          pushedLatest: false,
+          localCount,
+          serverCount: 0,
+          error: authError,
+        };
       }
 
-      const latest = await this.getLatestLocalReading();
-      if (latest) {
-        const payload = this.toPayload(latest.readingInfo);
-        if (await this.shouldPushPayload(payload)) {
-          try {
-            await this.pushToServer(payload);
-            synced++;
-            pushedLatest = true;
-          } catch (error) {
-            failed++;
-            lastError = formatSyncError(error);
-            await this.queueOffline(payload, lastError);
-            logger.error('Failed to push latest reading session', error);
-          }
-        }
-      }
+      const localPush = await this.pushAllLocalProgress(localPayloads);
+      synced += localPush.synced;
+      failed += localPush.failed;
+      if (localPush.lastError) lastError = localPush.lastError;
+      pushedLatest = localPush.synced > 0;
 
       const flush = await this.flushQueueInternal();
       synced += flush.synced;
       failed += flush.failed;
       if (flush.lastError) lastError = flush.lastError;
+
+      const serverCount = await this.fetchServerStoryCount();
 
       if (failed > 0 && synced === 0) {
         await storageService.setSyncStatus({
@@ -130,7 +138,14 @@ export class SyncService {
         });
       }
 
-      return { synced, failed, pushedLatest, error: failed > 0 ? lastError : undefined };
+      return {
+        synced,
+        failed,
+        pushedLatest,
+        localCount,
+        serverCount,
+        error: failed > 0 ? lastError : undefined,
+      };
     } finally {
       this.syncing = false;
     }
@@ -242,10 +257,63 @@ export class SyncService {
     });
   }
 
-  private async getLatestLocalReading(): Promise<ReadingSession | null> {
+  /** Push every story in local history (and any session-only stories) to the server. */
+  private async pushAllLocalProgress(payloads: ReadingProgressPayload[]): Promise<{
+    synced: number;
+    failed: number;
+    lastError?: string;
+  }> {
+    let synced = 0;
+    let failed = 0;
+    let lastError: string | undefined;
+
+    for (const payload of payloads) {
+      if (!(await this.shouldPushPayload(payload))) continue;
+
+      try {
+        await this.pushToServer(payload);
+        synced++;
+      } catch (error) {
+        failed++;
+        lastError = formatSyncError(error);
+        await this.queueOffline(payload, lastError);
+        logger.error('Failed to push local reading progress', { storyId: payload.storyId }, error);
+      }
+    }
+
+    return { synced, failed, lastError };
+  }
+
+  private async collectLocalPayloads(): Promise<ReadingProgressPayload[]> {
+    const history = await storageService.getReadingHistory();
+    const payloads: ReadingProgressPayload[] = [];
+    const seen = new Set<string>();
+
+    for (const entry of history) {
+      payloads.push(this.toPayload(historyEntryToReadingInfo(entry)));
+      seen.add(entry.storyId);
+    }
+
     const sessions = await storageService.get('readingSessions');
-    const sorted = Object.values(sessions).sort((a, b) => b.lastUpdatedAt - a.lastUpdatedAt);
-    return sorted[0] ?? null;
+    for (const session of Object.values(sessions)) {
+      const { storyId } = session.readingInfo;
+      if (seen.has(storyId)) continue;
+      payloads.push(this.toPayload(session.readingInfo));
+      seen.add(storyId);
+    }
+
+    return payloads;
+  }
+
+  private async fetchServerStoryCount(): Promise<number> {
+    try {
+      const service = createReadingProgressService();
+      const response = await service.getCurrentProgress();
+      return response.items.length;
+    } catch (error) {
+      logger.warn('Failed to verify reading progress on server', error);
+      return -1;
+    }
   }
 
   private async shouldPushPayload(payload: ReadingProgressPayload): Promise<boolean> {

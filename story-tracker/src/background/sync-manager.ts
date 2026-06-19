@@ -113,13 +113,13 @@ export class SyncManager {
         case MESSAGE_TYPES.SYNC_NOW:
           return { success: true, data: await syncService.syncNow() };
 
-        case MESSAGE_TYPES.LOGIN:
-          return {
-            success: true,
-            data: await authService.login(
-              message.payload as { email: string; password: string; mode: AuthMode },
-            ),
-          };
+        case MESSAGE_TYPES.LOGIN: {
+          const authState = await authService.login(
+            message.payload as { email: string; password: string; mode: AuthMode },
+          );
+          void this.bootstrapCloudSync();
+          return { success: true, data: authState };
+        }
 
         case MESSAGE_TYPES.START_WEB_AUTH:
           return { success: true, data: await startPersonalOsWebAuth() };
@@ -133,13 +133,13 @@ export class SyncManager {
           return { success: true, data: result };
         }
 
-        case MESSAGE_TYPES.VERIFY_OTP:
-          return {
-            success: true,
-            data: await authService.verifyOtp(
-              message.payload as { email: string; otp: string; mode: 'commercial' },
-            ),
-          };
+        case MESSAGE_TYPES.VERIFY_OTP: {
+          const authState = await authService.verifyOtp(
+            message.payload as { email: string; otp: string; mode: 'commercial' },
+          );
+          void this.bootstrapCloudSync();
+          return { success: true, data: authState };
+        }
 
         case MESSAGE_TYPES.LOGOUT:
           await authService.logout();

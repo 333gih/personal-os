@@ -25,7 +25,7 @@ export function useSyncStatus() {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  const syncNow = async () => {
+  const syncNow = async (): Promise<SyncNowResult> => {
     setStatus((s) => ({ ...s, state: 'syncing' }));
     const response = await browser.runtime.sendMessage({ type: MESSAGE_TYPES.SYNC_NOW });
     await refresh();

@@ -6,8 +6,6 @@ import { storageService } from '../storage/storage-service';
 import { logger } from '../utils/logger';
 import { shouldPersistChapterProgress } from '../utils/chapter-progress';
 import { historyEntryToReadingInfo } from '../utils/reading-display';
-import { shouldPersistChapterProgress } from '../utils/chapter-progress';
-import { historyEntryToReadingInfo } from '../utils/reading-display';
 
 type ServerReadingProgress = {
   story_id: string;
