@@ -57,11 +57,14 @@ if (Test-Path $secretsExample) {
 }
 
 Push-Location $Staging
+$prevEap = $ErrorActionPreference
+$ErrorActionPreference = "SilentlyContinue"
 git init -q
 git config user.email "mirror@personal-os"
 git config user.name "personal-os mirror"
-git add -A
+git add -A 2>$null
 git commit -q -m "mirror personal-os@$SourceSha (story-tracker + ios)"
+$ErrorActionPreference = $prevEap
 Pop-Location
 
 $PushUrl = $MirrorUrl.TrimEnd('/')
