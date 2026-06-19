@@ -35,11 +35,25 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-personalos}:${POSTGRES_PASSWORD:-personalos}@postgres:5432/${POSTGRES_DB:-personalos}?sslmode=disable
       POSTGRES_DATABASE_HOST: postgres
+      QDRANT_URL: http://qdrant:6333
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "${API_PORT:-8080}:8080"
+    networks:
+      - personal-os-net
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    container_name: personal-os-qdrant
+    restart: unless-stopped
+    profiles:
+      - qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
     networks:
       - personal-os-net
 
@@ -61,6 +75,7 @@ services:
 
 volumes:
   postgres_data:
+  qdrant_data:
 
 networks:
   personal-os-net:

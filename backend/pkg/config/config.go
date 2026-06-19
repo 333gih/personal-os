@@ -28,6 +28,7 @@ type Config struct {
 	DefaultUserEmail string
 	DefaultUserPass  string
 	FashAuth         FashAuthConfig
+	AI               AIConfig
 }
 
 func Load() *Config {
@@ -55,6 +56,7 @@ func Load() *Config {
 		DefaultUserEmail: getEnv("DEFAULT_USER_EMAIL", "admin@personal-os.local"),
 		DefaultUserPass:  getEnv("DEFAULT_USER_PASSWORD", "changeme123"),
 		FashAuth:         loadFashAuthConfig(),
+		AI:               loadAIConfig(),
 	}
 }
 

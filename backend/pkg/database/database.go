@@ -32,6 +32,9 @@ func Connect(dsn string, appEnv string) (*gorm.DB, error) {
 			&models.Reminder{},
 			&models.File{},
 			&models.ReadingProgress{},
+			&models.EmbeddingJob{},
+			&models.AIInteraction{},
+			&models.ModelUsage{},
 		); err != nil {
 			return nil, fmt.Errorf("auto migrate: %w", err)
 		}

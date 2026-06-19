@@ -6,13 +6,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/personal-os/backend/internal/ai"
+	"github.com/personal-os/backend/internal/embedding"
 	"github.com/personal-os/backend/internal/models"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	db *gorm.DB
-	ai *ai.Service
+	db     *gorm.DB
+	ai     *ai.Service
+	embed  *embedding.Service
 }
 
 type CreateInput struct {
@@ -64,8 +66,8 @@ type TimelineEvent struct {
 	Meta      any       `json:"meta,omitempty"`
 }
 
-func NewService(db *gorm.DB, aiSvc *ai.Service) *Service {
-	return &Service{db: db, ai: aiSvc}
+func NewService(db *gorm.DB, aiSvc *ai.Service, embedSvc *embedding.Service) *Service {
+	return &Service{db: db, ai: aiSvc, embed: embedSvc}
 }
 
 func (s *Service) Create(userID uuid.UUID, input CreateInput) (*models.Entity, error) {
@@ -94,7 +96,9 @@ func (s *Service) Create(userID uuid.UUID, input CreateInput) (*models.Entity, e
 		return nil, err
 	}
 
-	go s.indexEmbedding(userID, &entity)
+	if s.embed != nil {
+		s.embed.EnqueueEntity(userID, &entity)
+	}
 	return &entity, nil
 }
 
@@ -168,7 +172,9 @@ func (s *Service) Update(userID, id uuid.UUID, input UpdateInput) (*models.Entit
 		return nil, err
 	}
 
-	go s.indexEmbedding(userID, entity)
+	if s.embed != nil {
+		s.embed.EnqueueEntity(userID, entity)
+	}
 	return entity, nil
 }
 
@@ -181,6 +187,9 @@ func (s *Service) Delete(userID, id uuid.UUID) error {
 		return gorm.ErrRecordNotFound
 	}
 	s.db.Where("user_id = ? AND (source_entity_id = ? OR target_entity_id = ?)", userID, id, id).Delete(&models.Relationship{})
+	if s.embed != nil {
+		s.embed.RemoveIndex(models.SourceTableEntities, id)
+	}
 	return nil
 }
 
@@ -259,18 +268,6 @@ func (s *Service) GetDetail(userID, id uuid.UUID, includeInsights bool) (*Detail
 	}
 
 	return resp, nil
-}
-
-func (s *Service) indexEmbedding(userID uuid.UUID, entity *models.Entity) {
-	if s.ai == nil {
-		return
-	}
-	text := entity.Title + "\n" + entity.Content
-	vec, err := s.ai.Embed(text)
-	if err != nil {
-		return
-	}
-	s.db.Model(entity).Update("embedding", vec)
 }
 
 func (s *Service) CountByDomain(userID uuid.UUID) (map[string]int64, error) {

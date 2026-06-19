@@ -365,7 +365,7 @@ pipeline {
                             echo "[INFO] PostgreSQL TCP auth OK for API user ✅"
 
                             # Idempotent SQL migrations (safe on every deploy).
-                            for mig in 003_storage_key_prefix.sql 004_fix_users_email_constraint.sql 005_reading_progress.sql 006_reading_progress_latest_per_story.sql; do
+                            for mig in 003_storage_key_prefix.sql 004_fix_users_email_constraint.sql 005_reading_progress.sql 006_reading_progress_latest_per_story.sql 007_ai_schema.sql; do
                                 if [ -f "backend/migrations/\${mig}" ]; then
                                     echo "[INFO] Applying migration \${mig}..."
                                     cat "backend/migrations/\${mig}" | docker exec -i ${pgContainer} \\

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -9,7 +10,9 @@ import (
 	"github.com/personal-os/backend/internal/ai"
 	"github.com/personal-os/backend/internal/auth"
 	"github.com/personal-os/backend/internal/dashboard"
+	"github.com/personal-os/backend/internal/embedding"
 	"github.com/personal-os/backend/internal/entity"
+	"github.com/personal-os/backend/internal/infrastructure/qdrant"
 	"github.com/personal-os/backend/internal/relation"
 	"github.com/personal-os/backend/internal/readingprogress"
 	"github.com/personal-os/backend/internal/reminder"
@@ -46,10 +49,27 @@ func main() {
 	}
 
 	aiSvc := ai.NewService(db, cfg.OpenAIBaseURL, cfg.OpenAIAPIKey, cfg.OpenAIModel)
-	entitySvc := entity.NewService(db, aiSvc)
+
+	qdrantClient := qdrant.NewClient(
+		cfg.AI.QdrantURL,
+		cfg.AI.QdrantAPIKey,
+		cfg.AI.QdrantCollection,
+		cfg.EmbeddingDim,
+		cfg.AI.QdrantEnabled,
+	)
+	embedSvc := embedding.NewService(db, aiSvc, qdrantClient, embedding.WorkerConfig{
+		Enabled:     cfg.AI.EmbeddingWorkerEnabled,
+		Interval:    cfg.AI.EmbeddingWorkerInterval,
+		MaxAttempts: cfg.AI.EmbeddingMaxAttempts,
+		VectorSize:  cfg.EmbeddingDim,
+	})
+
+	entitySvc := entity.NewService(db, aiSvc, embedSvc)
 	relationSvc := relation.NewService(db)
-	searchSvc := search.NewService(db, aiSvc)
+	searchSvc := search.NewService(db, aiSvc, qdrantClient)
 	reminderSvc := reminder.NewService(db)
+
+	go embedSvc.StartWorker(context.Background())
 
 	storageSvc, err := storage.NewService(db, cfg.Storage)
 	if err != nil {
@@ -97,7 +117,7 @@ func main() {
 	aiHandler := ai.NewHandler(aiSvc)
 	aiHandler.RegisterRoutes(protected.Group("/ai"))
 
-	readingProgressSvc := readingprogress.NewService(db)
+	readingProgressSvc := readingprogress.NewService(db, embedSvc)
 	readingProgressHandler := readingprogress.NewHandler(readingProgressSvc)
 	readingProgressHandler.RegisterRoutes(protected.Group("/reading-progress"))
 

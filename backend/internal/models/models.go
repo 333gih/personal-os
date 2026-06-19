@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -90,10 +91,12 @@ func (ReadingProgress) TableName() string {
 
 // Entity type constants
 const (
-	DomainInbox    = "inbox"
-	DomainLearning = "learning"
-	DomainWork     = "work"
-	DomainStartup      = "startup"
+	DomainInbox         = "inbox"
+	DomainLearning      = "learning"
+	DomainWork          = "work"
+	DomainStartup       = "startup"
+	DomainGoal          = "goal"
+	DomainJournal       = "journal"
 	DomainEntertainment = "entertainment"
 
 	TypeInboxText       = "inbox_text"
@@ -118,6 +121,12 @@ const (
 	TypeStartupFeature  = "startup_feature"
 	TypeKPI             = "startup_kpi"
 	TypeCompetitor      = "startup_competitor"
+	TypeGoalTarget      = "goal_target"
+	TypeGoalHabit       = "goal_habit"
+	TypeGoalMilestone   = "goal_milestone"
+	TypeJournalEntry    = "journal_entry"
+	TypeJournalReflection = "journal_reflection"
+	TypeJournalDailyLog = "journal_daily_log"
 )
 
 func DomainForType(entityType string) string {
@@ -128,7 +137,17 @@ func DomainForType(entityType string) string {
 		return DomainLearning
 	case TypeWorkProject, TypeWorkFeature, TypeTechnology, TypeProblem, TypeDecision, TypeLesson:
 		return DomainWork
+	case TypeGoalTarget, TypeGoalHabit, TypeGoalMilestone:
+		return DomainGoal
+	case TypeJournalEntry, TypeJournalReflection, TypeJournalDailyLog:
+		return DomainJournal
 	default:
+		if strings.HasPrefix(entityType, "goal_") {
+			return DomainGoal
+		}
+		if strings.HasPrefix(entityType, "journal_") {
+			return DomainJournal
+		}
 		return DomainStartup
 	}
 }

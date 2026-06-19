@@ -49,6 +49,22 @@ const DOMAIN_TYPES: Record<string, { label: string; types?: { value: string; lab
       { value: "entertainment_note", label: "Note" },
     ],
   },
+  goal: {
+    label: "Goals",
+    types: [
+      { value: "goal_target", label: "Target" },
+      { value: "goal_habit", label: "Habit" },
+      { value: "goal_milestone", label: "Milestone" },
+    ],
+  },
+  journal: {
+    label: "Journal",
+    types: [
+      { value: "journal_entry", label: "Entry" },
+      { value: "journal_reflection", label: "Reflection" },
+      { value: "journal_daily_log", label: "Daily Log" },
+    ],
+  },
 };
 
 export function DomainPage({

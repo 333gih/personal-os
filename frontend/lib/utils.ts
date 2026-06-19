@@ -41,6 +41,9 @@ export function domainLabel(domain: string) {
     learning: "Learning",
     work: "Work",
     startup: "Startup",
+    goal: "Goals",
+    journal: "Journal",
+    entertainment: "Entertainment",
   };
   return labels[domain] || domain;
 }

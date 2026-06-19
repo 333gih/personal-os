@@ -4,17 +4,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/personal-os/backend/internal/embedding"
 	"github.com/personal-os/backend/internal/models"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	db *gorm.DB
+	db    *gorm.DB
+	embed *embedding.Service
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+func NewService(db *gorm.DB, embedSvc *embedding.Service) *Service {
+	return &Service{db: db, embed: embedSvc}
 }
 
 type SaveInput struct {
@@ -87,6 +89,10 @@ func (s *Service) Save(userID uuid.UUID, input SaveInput) (*models.ReadingProgre
 
 	_ = s.db.Where("user_id = ? AND story_id = ? AND id <> ?", userID, input.StoryID, row.ID).
 		Delete(&models.ReadingProgress{}).Error
+
+	if s.embed != nil {
+		s.embed.EnqueueReadingProgress(userID, row.ID)
+	}
 
 	return &row, nil
 }
