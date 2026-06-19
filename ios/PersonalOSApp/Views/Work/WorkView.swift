@@ -160,7 +160,7 @@ struct WorkView: View {
                         ForEach(history.prefix(4)) { item in
                             Button { onOpen(.entity(item.id, title: item.title)) } label: {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(item.title).font(.medium)
+                                    Text(item.title).fontWeight(.medium)
                                     Text(item.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(2)
                                 }
                             }

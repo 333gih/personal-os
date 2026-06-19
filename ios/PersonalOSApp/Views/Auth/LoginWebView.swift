@@ -7,11 +7,11 @@ struct LoginWebView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let loadError {
+            if let errorMessage = loadError {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Sign in to Personal OS")
                         .font(.posDisplay(22))
-                    Text(loadError)
+                    Text(errorMessage)
                         .foregroundStyle(POSTheme.muted)
                     Button("Retry") { loadError = nil }
                         .buttonStyle(.borderedProminent)
