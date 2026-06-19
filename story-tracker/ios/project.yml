@@ -40,7 +40,9 @@ targets:
     type: app-extension
     platform: iOS
     sources:
-      - StoryTrackerExtension
+      - path: StoryTrackerExtension
+        excludes:
+          - Resources/**
     preBuildScripts:
       - name: Copy Safari Web Extension Resources
         script: |
