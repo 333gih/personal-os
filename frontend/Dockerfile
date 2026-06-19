@@ -10,7 +10,7 @@ COPY . .
 
 # Local dev: build-args from docker-compose .env
 # Jenkins/prod: NEXT_PUBLIC_* from secret file only (fash-portal-fe pattern)
-ARG NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+ARG NEXT_PUBLIC_API_URL=https://api-personal-os.fashandcurious.com/api/v1
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 RUN --mount=type=secret,id=env_build,required=false \

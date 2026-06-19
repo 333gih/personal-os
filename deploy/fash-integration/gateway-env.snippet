@@ -1,7 +1,15 @@
 # Add to fash-api-gateway Jenkins secret (env-fash-api-gateway-*):
 
 PERSONAL_OS_API_HOST=personal-os-api:8080
-# API_SUBDOMAIN_PERSONAL_OS_HOST defaults from PUBLIC_API_DOMAIN in entrypoint.sh
+# API_SUBDOMAIN_PERSONAL_OS_HOST defaults: api-personal-os.${PUBLIC_API_DOMAIN}
 
-# CORS (global Kong plugin) — allow personal-os FE origin:
+# REQUIRED: personal-os-api container must join the SAME Docker network as fash-api-gateway.
+# Set in env-personal-os-api-* (Jenkins API secret), NOT only in gateway secret:
+#
+#   IOT_PUBLIC_NET=iot-public-net-dev
+#
+# When Jenkins ENVIRONMENT=prod but Kong runs as fash-api-gateway-dev, use iot-public-net-dev.
+# Default if unset: iot-public-net-<ENVIRONMENT>
+#
+# PERSONAL_OS_API_HOST=personal-os-api:8080  (in env-fash-api-gateway-*)
 # CORS_ALLOWED_ORIGINS=...,https://personal-os-fe.fashandcurious.com

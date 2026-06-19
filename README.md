@@ -26,8 +26,8 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-- Frontend: http://localhost:3000
-- API: http://localhost:8080
+- Frontend: http://localhost:3000 (gọi API production `https://api-personal-os.fashandcurious.com/api/v1`)
+- API local (docker compose): http://localhost:8080 — chỉ khi test backend trực tiếp
 - Login: `admin@personal-os.local` / `changeme123`
 
 Với SeaweedFS fash đang chạy:
@@ -87,6 +87,6 @@ Production base URL: `https://api-personal-os.fashandcurious.com/api/v1`
 |-----|----------|-----|
 | prod | `personal-os-fe.fashandcurious.com` | `api-personal-os.fashandcurious.com` |
 
-FE gọi API qua same-origin BFF: `NEXT_PUBLIC_API_URL=/api/v1` (template: `frontend/.env.prod`)
+FE và Story Tracker gọi thẳng Kong: `NEXT_PUBLIC_API_URL=https://api-personal-os.fashandcurious.com/api/v1` (template: `frontend/.env.prod`)
 
 Chi tiết VPS: [`deploy/ubuntu-vps.md`](deploy/ubuntu-vps.md)

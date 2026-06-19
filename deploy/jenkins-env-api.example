@@ -10,4 +10,8 @@
 # Used by Jenkinsfile for:
 #   • personal-os-api-app-{env}  (--env-file)
 #   • personal-os-pg-{env}       (POSTGRES_DATABASE_* at deploy)
+#
+# Docker network shared with fash-api-gateway (Kong upstream).
+# ENVIRONMENT=prod but gateway still on dev → set dev network explicitly:
+# IOT_PUBLIC_NET=iot-public-net-dev
 # =============================================================================

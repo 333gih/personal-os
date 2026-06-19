@@ -29,9 +29,9 @@ withCredentials([
 
 ```bash
 NEXT_PUBLIC_SITE_URL=https://personal-os-fe.fashandcurious.com
-NEXT_PUBLIC_API_URL=/api/v1
+NEXT_PUBLIC_API_URL=https://api-personal-os.fashandcurious.com/api/v1
 API_URL=https://api-auth.fashandcurious.com
-PERSONAL_OS_API_URL=http://personal-os-api:8080
+PERSONAL_OS_API_URL=https://api-personal-os.fashandcurious.com
 CORS_ORIGINS=https://personal-os-fe.fashandcurious.com
 POSTGRES_DATABASE_HOST=personal-os-pg
 STORAGE_PROVIDER=seaweedfs
@@ -56,8 +56,8 @@ FE `.env.local` (from `frontend/.env.example` or `npm run dev:local`):
 
 ```bash
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
-PERSONAL_OS_API_URL=http://localhost:8080
+NEXT_PUBLIC_API_URL=https://api-personal-os.fashandcurious.com/api/v1
+PERSONAL_OS_API_URL=https://api-personal-os.fashandcurious.com
 ```
 
 Production template: `frontend/.env.prod` (Jenkins secret `env-personal-os-fe-prod`).

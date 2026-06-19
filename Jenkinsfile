@@ -225,14 +225,13 @@ pipeline {
                     def apiContainer = "personal-os-api-app-${params.ENVIRONMENT}"
                     def feContainer  = "personal-os-fe-app-${params.ENVIRONMENT}"
                     def appNetwork   = "personal-os-net-${params.ENVIRONMENT}"
-                    def extNetwork   = "iot-public-net-${params.ENVIRONMENT}"
                     def pgVolume     = "personal-os-pgdata-${params.ENVIRONMENT}"
 
                     env.API_CONTAINER = apiContainer
                     env.FE_CONTAINER  = feContainer
 
                     sh """
-                        for net in ${appNetwork} ${extNetwork} ${env.TRAEFIK_NET}; do
+                        for net in ${appNetwork} ${env.TRAEFIK_NET}; do
                             docker network inspect "\$net" >/dev/null 2>&1 || docker network create "\$net"
                         done
                         docker volume create ${pgVolume} 2>/dev/null || true
@@ -265,6 +264,14 @@ pipeline {
                                 val=\$(grep -E "^\${key}=" "\$file" 2>/dev/null | head -1 | cut -d= -f2- || true)
                                 printf '%s' "\$val"
                             }
+
+                            # Kong upstream network — often iot-public-net-dev while ENVIRONMENT=prod
+                            IOT_PUBLIC_NET="\$(env_get IOT_PUBLIC_NET "\${API_ENV_LF}")"
+                            if [ -z "\${IOT_PUBLIC_NET}" ]; then
+                                IOT_PUBLIC_NET="iot-public-net-${params.ENVIRONMENT}"
+                            fi
+                            echo "[INFO] Kong upstream network (IOT_PUBLIC_NET)=\${IOT_PUBLIC_NET}"
+                            docker network inspect "\${IOT_PUBLIC_NET}" >/dev/null 2>&1 || docker network create "\${IOT_PUBLIC_NET}"
                             env_get_first() {
                                 local file="\$1"; shift
                                 local key val
@@ -359,9 +366,11 @@ pipeline {
                                 --label environment=${params.ENVIRONMENT} \\
                                 ${env.API_FULL_IMAGE}
 
-                            # Kong resolves PERSONAL_OS_API_HOST=personal-os-api:8080 on iot-public-net.
-                            # Network aliases from personal-os-net do not carry over — set alias here.
-                            docker network connect --alias personal-os-api ${extNetwork} ${apiContainer} || true
+                            # Kong resolves PERSONAL_OS_API_HOST=personal-os-api:8080 on IOT_PUBLIC_NET.
+                            # Must match fash-api-gateway's network (e.g. dev gateway → iot-public-net-dev).
+                            if ! docker network connect --alias personal-os-api "\${IOT_PUBLIC_NET}" ${apiContainer} 2>/dev/null; then
+                                echo "[INFO] API already on \${IOT_PUBLIC_NET} (checking alias personal-os-api)..."
+                            fi
                             if docker network inspect ${env.SEAWEEDFS_NET} >/dev/null 2>&1; then
                                 docker network connect ${env.SEAWEEDFS_NET} ${apiContainer} || true
                             else
@@ -396,19 +405,20 @@ pipeline {
                                 exit 1
                             fi
 
-                            echo "[INFO] Verifying Kong upstream DNS on ${extNetwork} (personal-os-api:8080)..."
+                            echo "[INFO] Verifying Kong upstream DNS on \${IOT_PUBLIC_NET} (personal-os-api:8080)..."
                             UPSTREAM_OK=0
                             for i in \$(seq 1 12); do
-                                if docker run --rm --network ${extNetwork} curlimages/curl:8.5.0 -sf http://personal-os-api:8080/health >/dev/null 2>&1; then
-                                    echo "[INFO] Kong upstream reachable on ${extNetwork} ✅"
+                                if docker run --rm --network "\${IOT_PUBLIC_NET}" curlimages/curl:8.5.0 -sf http://personal-os-api:8080/health >/dev/null 2>&1; then
+                                    echo "[INFO] Kong upstream reachable on \${IOT_PUBLIC_NET} ✅"
                                     UPSTREAM_OK=1
                                     break
                                 fi
                                 sleep 2
                             done
                             if [ "\$UPSTREAM_OK" -ne 1 ]; then
-                                echo "[ERROR] personal-os-api not reachable on ${extNetwork} — Kong will return 503 ring-balancer"
-                                echo "[HINT] docker network connect --alias personal-os-api ${extNetwork} ${apiContainer}"
+                                echo "[ERROR] personal-os-api not reachable on \${IOT_PUBLIC_NET} — Kong will return 503 ring-balancer"
+                                echo "[HINT] Set IOT_PUBLIC_NET in env-personal-os-api-${params.ENVIRONMENT} to the network fash-api-gateway uses"
+                                echo "[HINT] docker network connect --alias personal-os-api \${IOT_PUBLIC_NET} ${apiContainer}"
                                 docker logs ${apiContainer} --tail 40
                                 exit 1
                             fi

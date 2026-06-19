@@ -216,6 +216,7 @@ export class SyncService {
   }
 
   private async pushToServer(payload: ReadingProgressPayload): Promise<boolean> {
+    await tokenManager.requireAccessToken();
     const readingProgress = createReadingProgressService();
     await readingProgress.saveProgress(payload);
     await offlineQueue.removeByStoryId(payload.storyId);

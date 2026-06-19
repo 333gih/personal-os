@@ -111,26 +111,26 @@ export class ApiClient {
     _unauthorizedRetried?: boolean,
   ): Promise<T> {
     const url = this.resolveUrl(path);
-    let requestInit: RequestInit = {
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        ...(init.headers ?? {}),
-      },
-    };
+    const headers = new Headers(init.headers ?? undefined);
+    if (!headers.has('Accept')) {
+      headers.set('Accept', 'application/json');
+    }
 
     if (!skipAuth && this.getAccessToken) {
-      const token = await this.getAccessToken();
-      if (!token && this.requireAuth) {
-        throw new ApiError('Not authenticated. Please sign in.', 401);
-      }
-      if (token) {
-        requestInit.headers = {
-          ...requestInit.headers,
-          Authorization: `Bearer ${token}`,
-        };
+      const token = (await this.getAccessToken())?.trim();
+      if (!token) {
+        if (this.requireAuth) {
+          throw new ApiError('Not authenticated. Please sign in.', 401);
+        }
+      } else {
+        headers.set('Authorization', `Bearer ${token}`);
       }
     }
+
+    let requestInit: RequestInit = {
+      ...init,
+      headers,
+    };
 
     for (const interceptor of this.interceptors) {
       requestInit = await interceptor(requestInit);
@@ -142,6 +142,7 @@ export class ApiClient {
     try {
       const response = await fetch(url, {
         ...requestInit,
+        headers: new Headers(requestInit.headers),
         signal: controller.signal,
       });
 

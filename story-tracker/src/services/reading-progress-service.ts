@@ -58,7 +58,7 @@ export class ReadingProgressService {
 export function createGatewayClient(): ApiClient {
   return new ApiClient({
     config: createGatewayApiConfig(),
-    getAccessToken: () => tokenManager.getAccessToken(),
+    getAccessToken: () => tokenManager.requireAccessToken(),
     onUnauthorized: async () => {
       const refreshed = await authService.refreshTokens();
       return refreshed !== null;
@@ -67,8 +67,17 @@ export function createGatewayClient(): ApiClient {
   });
 }
 
+let sharedGatewayClient: ApiClient | null = null;
+
+export function getGatewayClient(): ApiClient {
+  if (!sharedGatewayClient) {
+    sharedGatewayClient = createGatewayClient();
+  }
+  return sharedGatewayClient;
+}
+
 export function createReadingProgressService(): ReadingProgressService {
-  return new ReadingProgressService(createGatewayClient());
+  return new ReadingProgressService(getGatewayClient());
 }
 
 export async function isOnline(): Promise<boolean> {

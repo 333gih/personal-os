@@ -51,7 +51,9 @@ export function getServerAuthEnv(): ServerAuthEnv {
     throw new Error("Missing NEXT_PUBLIC_APP_ID (must be allowed by fash-auth-service)");
   }
   if (!PERSONAL_OS_API_URL) {
-    throw new Error("Missing PERSONAL_OS_API_URL (personal-os API upstream for BFF proxy)");
+    throw new Error(
+      "Missing PERSONAL_OS_API_URL (e.g. https://api-personal-os.fashandcurious.com)",
+    );
   }
 
   cached = {
