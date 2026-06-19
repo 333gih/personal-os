@@ -1,0 +1,62 @@
+import Foundation
+
+enum POSFormatting {
+    static func relativeDate(_ iso: String) -> String {
+        let parsers: [String] = [
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ssXXXXX",
+        ]
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+
+        var date: Date?
+        for pattern in parsers {
+            formatter.dateFormat = pattern
+            if let parsed = formatter.date(from: iso) {
+                date = parsed
+                break
+            }
+        }
+        guard let date else { return iso }
+
+        let rel = RelativeDateTimeFormatter()
+        rel.unitsStyle = .abbreviated
+        return rel.localizedString(for: date, relativeTo: Date())
+    }
+
+    static func friendlyDue(_ iso: String) -> String {
+        let parsers: [String] = [
+            "yyyy-MM-dd'T'HH:mm:ssZ",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            "yyyy-MM-dd'T'HH:mm:ssXXXXX",
+        ]
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+
+        for pattern in parsers {
+            formatter.dateFormat = pattern
+            if let date = formatter.date(from: iso) {
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .short
+                return formatter.string(from: date)
+            }
+        }
+        return iso
+    }
+
+    static func humanType(_ raw: String) -> String {
+        raw.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+
+    static func domainLabel(_ domain: String) -> String {
+        switch domain {
+        case "work": return "Work"
+        case "learning": return "Learning"
+        case "startup": return "Startup"
+        case "inbox": return "Inbox"
+        case "entertainment": return "Reading"
+        default: return domain.capitalized
+        }
+    }
+}

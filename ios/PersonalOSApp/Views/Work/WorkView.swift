@@ -2,18 +2,17 @@ import SwiftUI
 
 struct WorkView: View {
     @EnvironmentObject private var session: SessionManager
-    let onOpen: WebOpenHandler
+    let nav: POSNavigationActions
 
     @State private var items: [POSEntity] = []
     @State private var isLoading = true
-    @State private var errorMessage: String?
 
     private var projects: [POSEntity] {
         items.filter { $0.type.contains("project") || $0.type.contains("feature") }
     }
 
     private var skills: [POSEntity] {
-        items.filter { $0.type.contains("technology") }
+        items.filter { $0.type.contains("technology") || $0.type.contains("skill") }
     }
 
     private var history: [POSEntity] {
@@ -21,15 +20,35 @@ struct WorkView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                timelineSection
-                aiSyncCard
-                experiencesSection
-                cvRepositorySection
+        POSScreen {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Career path")
+                            .font(.posDisplay(28))
+                        Text("A running record of roles, craft, and decisions.")
+                            .font(.subheadline)
+                            .foregroundStyle(POSTheme.muted)
+                    }
+
+                    timelineSection
+                    recentUpdateCard
+                    experiencesSection
+                    cvRepositorySection
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 88)
+            }
+        }
+        .overlay(alignment: .bottom) {
+            HStack(spacing: 10) {
+                POSActionButton(title: "Open full work log", icon: "doc.text", style: .secondary) {
+                    nav.onOpen(.path("/work", title: "Work"))
+                }
+                POSFloatingCaptureButton(action: nav.captureNote)
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 88)
+            .padding(.bottom, 10)
         }
         .task(id: session.accessToken) { await load() }
         .refreshable { await load() }
@@ -37,110 +56,116 @@ struct WorkView: View {
 
     private var timelineSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "Timeline", actionTitle: "2018 — Present") {}
+            POSSectionHeader(title: "Timeline", actionTitle: "Full history") {
+                nav.onOpen(.path("/work", title: "Work"))
+            }
             if isLoading {
                 POSLoadingView()
             } else if items.isEmpty {
-                Text("Add work items to build your timeline.")
-                    .font(.subheadline)
-                    .foregroundStyle(POSTheme.muted)
+                POSEmptyState(
+                    systemImage: "briefcase",
+                    title: "No work notes yet",
+                    message: "Log a project or lesson and your path will start to take shape.",
+                    actionTitle: "Add work note",
+                    action: nav.captureNote
+                )
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 24) {
-                        ForEach(Array(items.prefix(6).enumerated()), id: \.element.id) { index, item in
-                            VStack(spacing: 8) {
-                                Text(item.title)
-                                    .font(.caption2)
-                                    .foregroundStyle(POSTheme.muted)
-                                    .lineLimit(1)
-                                    .frame(width: 72)
-                                Circle()
-                                    .fill(index == 0 ? POSTheme.primaryDark : POSTheme.border)
-                                    .frame(width: 10, height: 10)
+                    HStack(spacing: 20) {
+                        ForEach(Array(items.prefix(8).enumerated()), id: \.element.id) { index, item in
+                            Button { nav.onOpen(.entity(item.id, title: item.title)) } label: {
+                                VStack(spacing: 8) {
+                                    Text(item.title)
+                                        .font(.caption2)
+                                        .foregroundStyle(POSTheme.muted)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.center)
+                                        .frame(width: 78)
+                                    Circle()
+                                        .fill(index == 0 ? POSTheme.primaryDark : POSTheme.border)
+                                        .frame(width: 10, height: 10)
+                                }
                             }
+                            .buttonStyle(POSPressButtonStyle())
                         }
                     }
                 }
-                Divider()
+                Divider().overlay(POSTheme.border)
             }
         }
     }
 
     @ViewBuilder
-    private var aiSyncCard: some View {
+    private var recentUpdateCard: some View {
         if let latest = items.first {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Label("AI SYNC ACTIVE", systemImage: "sparkles")
-                        .font(.posLabel(10))
-                    Spacer()
-                    Image(systemName: "icloud.fill")
+            POSCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Last updated", systemImage: "clock.arrow.circlepath")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(POSTheme.primaryDark)
+                    Text(latest.title)
+                        .font(.posDisplay(20))
+                    Text("Updated \(POSFormatting.relativeDate(latest.updatedAt)). You now track \(items.count) work entries.")
+                        .font(.subheadline)
+                        .foregroundStyle(POSTheme.muted)
+                    POSActionButton(title: "Review entry", icon: "arrow.up.right", style: .secondary) {
+                        nav.onOpen(.entity(latest.id, title: latest.title))
+                    }
                 }
-                .foregroundStyle(.white.opacity(0.9))
-                Text("Your CV was updated recently")
-                    .font(.posDisplay(20))
-                    .foregroundStyle(.white)
-                Text("Based on “\(latest.title)” and \(items.count) work items.")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.85))
-                Button("REVIEW CHANGES") { onOpen(.entity(latest.id, title: latest.title)) }
-                    .font(.posLabel(10))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.white)
-                    .foregroundStyle(POSTheme.primaryDark)
-                    .clipShape(Capsule())
             }
-            .padding(20)
-            .background(POSTheme.primaryDark)
-            .clipShape(RoundedRectangle(cornerRadius: POSTheme.cardRadius, style: .continuous))
-        } else if !isLoading {
-            POSEmptyState(systemImage: "briefcase.fill", title: "Start your career path", message: "Add projects and skills to build your CV.")
         }
     }
 
     private var experiencesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "Active Experiences", actionTitle: "View all") {
-                onOpen(.path("/work", title: "Work"))
+            POSSectionHeader(title: "Active threads", actionTitle: "See all") {
+                nav.onOpen(.path("/work", title: "Work"))
             }
             if projects.isEmpty && !isLoading {
-                POSEmptyState(systemImage: "cube.fill", title: "No active projects", message: "Create a work project to track roles.")
+                POSEmptyState(
+                    systemImage: "folder",
+                    title: "No projects in motion",
+                    message: "Mark a role or project as active to keep it close at hand.",
+                    actionTitle: "Capture project",
+                    action: nav.captureNote
+                )
             } else {
                 ForEach(Array(projects.prefix(4).enumerated()), id: \.element.id) { index, item in
-                    Button { onOpen(.entity(item.id, title: item.title)) } label: {
+                    Button { nav.onOpen(.entity(item.id, title: item.title)) } label: {
                         POSCard {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
-                                    VStack(alignment: .leading) {
+                                    VStack(alignment: .leading, spacing: 2) {
                                         Text(item.title).font(.headline)
-                                        Text(item.type.replacingOccurrences(of: "_", with: " ").capitalized)
+                                        Text(POSFormatting.humanType(item.type))
                                             .font(.caption)
                                             .foregroundStyle(POSTheme.muted)
                                     }
                                     Spacer()
-                                    Text(index == 0 ? "PRIMARY" : "SIDE")
-                                        .font(.posLabel(9))
+                                    Text(index == 0 ? "Primary" : "Side")
+                                        .font(.caption2.weight(.semibold))
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
-                                        .background(index == 0 ? POSTheme.successBg : POSTheme.border.opacity(0.5))
+                                        .background(index == 0 ? POSTheme.successBg : POSTheme.border.opacity(0.45))
                                         .foregroundStyle(index == 0 ? POSTheme.success : POSTheme.muted)
                                         .clipShape(Capsule())
                                 }
-                                HStack {
-                                    ForEach(item.tagList.prefix(3), id: \.self) { tag in
-                                        Text(tag)
-                                            .font(.caption2)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(POSTheme.border.opacity(0.4))
-                                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                                if !item.tagList.isEmpty {
+                                    HStack {
+                                        ForEach(item.tagList.prefix(3), id: \.self) { tag in
+                                            Text(tag)
+                                                .font(.caption2)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(POSTheme.border.opacity(0.35))
+                                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(POSPressButtonStyle())
                 }
             }
         }
@@ -148,67 +173,92 @@ struct WorkView: View {
 
     private var cvRepositorySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "CV Repository", eyebrow: "Auto-prioritized")
-            POSCard {
-                Label("WORK HISTORY", systemImage: "briefcase.fill")
-                    .font(.posLabel(10))
-                    .foregroundStyle(POSTheme.primaryDark)
-                if history.isEmpty {
-                    Text("No history entries yet.").font(.subheadline).foregroundStyle(POSTheme.muted).padding(.top, 8)
-                } else {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(history.prefix(4)) { item in
-                            Button { onOpen(.entity(item.id, title: item.title)) } label: {
+            POSSectionHeader(title: "CV shelf", eyebrow: "Pulled from your notes")
+            Button { nav.onOpen(.path("/work", title: "Work")) } label: {
+                POSCard {
+                    Label("Work history", systemImage: "briefcase")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(POSTheme.primaryDark)
+                    if history.isEmpty {
+                        Text("No history entries yet.")
+                            .font(.subheadline)
+                            .foregroundStyle(POSTheme.muted)
+                            .padding(.top, 8)
+                    } else {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(history.prefix(4)) { item in
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.title).fontWeight(.medium)
-                                    Text(item.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(2)
+                                    Text(item.content)
+                                        .font(.caption)
+                                        .foregroundStyle(POSTheme.muted)
+                                        .lineLimit(2)
                                 }
                             }
-                            .buttonStyle(.plain)
                         }
+                        .padding(.leading, 12)
+                        .overlay(alignment: .leading) {
+                            Rectangle().fill(POSTheme.primaryDark.opacity(0.8)).frame(width: 2)
+                        }
+                        .padding(.top, 8)
                     }
-                    .padding(.leading, 12)
-                    .overlay(alignment: .leading) {
-                        Rectangle().fill(POSTheme.primaryDark).frame(width: 2)
-                    }
-                    .padding(.top, 8)
                 }
             }
+            .buttonStyle(POSPressButtonStyle())
+
             HStack(spacing: 12) {
-                POSCard {
-                    Label("SKILLS", systemImage: "target")
-                        .font(.posLabel(9))
-                    if skills.isEmpty {
-                        Text("Add technology entities.").font(.caption).foregroundStyle(POSTheme.muted)
+                Button {
+                    if let skill = skills.first {
+                        nav.onOpen(.entity(skill.id, title: skill.title))
                     } else {
-                        ForEach(skills.prefix(3)) { s in
-                            Text(s.title).font(.subheadline)
+                        nav.captureNote()
+                    }
+                } label: {
+                    POSCard {
+                        Label("Skills", systemImage: "target")
+                            .font(.caption.weight(.semibold))
+                        if skills.isEmpty {
+                            Text("Tap to add").font(.caption).foregroundStyle(POSTheme.muted)
+                        } else {
+                            ForEach(skills.prefix(3)) { s in
+                                Text(s.title).font(.subheadline)
+                            }
                         }
                     }
                 }
-                POSCard {
-                    Label("PROJECTS", systemImage: "doc.fill")
-                        .font(.posLabel(9))
+                .buttonStyle(POSPressButtonStyle())
+
+                Button {
                     if let p = projects.first {
-                        RoundedRectangle(cornerRadius: 12).fill(POSTheme.border).frame(height: 56)
-                        Text(p.title).font(.subheadline.weight(.medium))
+                        nav.onOpen(.entity(p.id, title: p.title))
                     } else {
-                        Text("No projects yet.").font(.caption).foregroundStyle(POSTheme.muted)
+                        nav.captureNote()
+                    }
+                } label: {
+                    POSCard {
+                        Label("Projects", systemImage: "doc")
+                            .font(.caption.weight(.semibold))
+                        if let p = projects.first {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(POSTheme.border.opacity(0.55))
+                                .frame(height: 52)
+                            Text(p.title).font(.subheadline.weight(.medium)).lineLimit(2)
+                        } else {
+                            Text("Tap to add").font(.caption).foregroundStyle(POSTheme.muted)
+                        }
                     }
                 }
+                .buttonStyle(POSPressButtonStyle())
             }
         }
     }
 
     private func load() async {
         isLoading = true
-        errorMessage = nil
         defer { isLoading = false }
         do {
-            let response = try await session.api.listEntities(domain: "work")
-            items = response.items
+            items = try await session.api.listEntities(domain: "work").items
         } catch {
-            errorMessage = error.localizedDescription
             items = []
         }
     }

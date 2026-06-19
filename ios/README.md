@@ -62,7 +62,7 @@ ios/
 
 ## Architecture
 
-- **App**: native SwiftUI shell (Home, Work, Learning, Search, More) with design system; data from API; WKWebView for sign-in, entity detail, Safari extension connect
+- **App**: native SwiftUI journal shell (Home, Work, Learning, Search) + hosted web for **Settings/More** and **Reading Log**; every control routes to a real screen
 - **Extension**: reading progress on story sites in Safari (unchanged)
 - **Auth**: web login sheet → token bridged to native API client; extension connect via Safari (`/extension/connect`)
 

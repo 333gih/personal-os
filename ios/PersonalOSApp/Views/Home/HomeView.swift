@@ -2,170 +2,187 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var session: SessionManager
-    let onOpen: WebOpenHandler
+    let nav: POSNavigationActions
 
     @State private var dashboard: POSDashboard?
     @State private var isLoading = true
     @State private var errorMessage: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(session.firstName())
-                        .font(.posDisplay(32))
-                    Text("Your personal knowledge at a glance")
-                        .font(.subheadline)
-                        .foregroundStyle(POSTheme.muted)
-                }
+        POSScreen {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    POSJournalDateStamp(name: session.firstName())
 
-                if isLoading {
-                    POSLoadingView(label: "Loading dashboard…")
-                } else if let errorMessage {
-                    POSEmptyState(systemImage: "wifi.exclamationmark", title: "Could not load", message: errorMessage)
-                } else if let dashboard {
-                    deepFocusCard(dashboard)
-                    metricsRow(dashboard)
-                    quickActions
-                    curationSection(dashboard)
-                    upNextSection(dashboard)
+                    if isLoading {
+                        POSLoadingView(label: "Opening your journal…")
+                    } else if let errorMessage {
+                        POSEmptyState(
+                            systemImage: "wifi.exclamationmark",
+                            title: "Could not refresh",
+                            message: errorMessage,
+                            actionTitle: "Try again",
+                            action: { Task { await load() } }
+                        )
+                    } else if let dashboard {
+                        focusCard(dashboard)
+                        metricsRow(dashboard)
+                        quickActions
+                        POSNoteDivider()
+                        readingSection(dashboard)
+                        POSNoteDivider()
+                        upNextSection(dashboard)
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            POSFloatingCaptureButton(action: nav.captureNote)
+                .padding(.trailing, 18)
+                .padding(.bottom, 12)
         }
         .task(id: session.accessToken) { await load() }
         .refreshable { await load() }
     }
 
-    private func deepFocusCard(_ data: POSDashboard) -> some View {
-        let learning = data.domainCounts["learning"] ?? 0
+    private func focusCard(_ data: POSDashboard) -> some View {
         let total = data.domainCounts.values.reduce(0, +)
-        let pct = total > 0 ? min(100, Int(Double(learning) / Double(max(total, 1)) * 100) + 35) : 0
+        let learning = data.domainCounts["learning"] ?? 0
+        let work = data.domainCounts["work"] ?? 0
+        let pct = total > 0 ? min(100, 28 + learning * 8 + work * 4) : 0
 
-        return POSCard {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("DEEP FOCUS", systemImage: "bolt.fill")
-                    .font(.posLabel(10))
-                    .tracking(1.2)
-                    .foregroundStyle(POSTheme.success)
-                Text(total > 0 ? "\(learning) tracked" : "—")
-                    .font(.posDisplay(36))
-                Text(total > 0 ? "\(pct)% of daily goal achieved" : "Log study to track focus")
-                    .font(.subheadline)
-                    .foregroundStyle(POSTheme.muted)
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(POSTheme.border)
-                        Capsule()
-                            .fill(POSTheme.success)
-                            .frame(width: geo.size.width * CGFloat(max(pct, total > 0 ? 8 : 0)) / 100)
+        return Button {
+            nav.onSwitchTab(.learning)
+        } label: {
+            POSCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Today's focus", systemImage: "leaf.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(POSTheme.focus)
+                    Text(total > 0 ? "\(learning + work) entries" : "Start a note")
+                        .font(.posDisplay(34))
+                        .foregroundStyle(POSTheme.ink)
+                    Text(total > 0 ? "You have been building across learning and work." : "Capture one thought in Inbox to begin tracking.")
+                        .font(.subheadline)
+                        .foregroundStyle(POSTheme.muted)
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(POSTheme.border.opacity(0.7))
+                            Capsule()
+                                .fill(POSTheme.focus)
+                                .frame(width: geo.size.width * CGFloat(max(pct, total > 0 ? 10 : 0)) / 100)
+                        }
                     }
+                    .frame(height: 6)
                 }
-                .frame(height: 8)
             }
         }
+        .buttonStyle(POSPressButtonStyle())
     }
 
     private func metricsRow(_ data: POSDashboard) -> some View {
         HStack(spacing: 12) {
             POSMetricCard(
-                label: "Tasks",
+                label: "Inbox",
                 value: "\(data.inboxCount)",
-                hint: data.inboxCount > 0 ? "In inbox" : "Inbox clear",
-                systemImage: "checklist",
-                accent: POSTheme.primaryDark
+                hint: data.inboxCount > 0 ? "Waiting to sort" : "All caught up",
+                systemImage: "tray.fill",
+                accent: POSTheme.primaryDark,
+                action: { nav.onOpen(.path("/inbox", title: "Inbox")) }
             )
             POSMetricCard(
-                label: "Knowledge",
-                value: data.domainCounts.values.reduce(0, +) > 0 ? "Active" : "Empty",
-                hint: "\(data.domainCounts.values.reduce(0, +)) items",
-                systemImage: "chart.line.uptrend.xyaxis",
-                accent: POSTheme.success
+                label: "Library",
+                value: "\(data.domainCounts.values.reduce(0, +))",
+                hint: "Notes & projects",
+                systemImage: "books.vertical.fill",
+                accent: POSTheme.focus,
+                action: { nav.onSwitchTab(.search) }
             )
         }
     }
 
     private var quickActions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "Quick Actions", actionTitle: "Manage") {
-                onOpen(.path("/inbox", title: "Inbox"))
+            POSSectionHeader(title: "Quick capture", actionTitle: "Inbox") {
+                nav.onOpen(.path("/inbox", title: "Inbox"))
             }
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    quickAction(title: "ADD TASK", icon: "plus.circle.fill", filled: true) {
-                        onOpen(.path("/inbox", title: "Inbox"))
+                HStack(spacing: 10) {
+                    actionTile("New note", icon: "square.and.pencil", filled: true, action: nav.captureNote)
+                    actionTile("Study log", icon: "book.closed.fill", filled: false) {
+                        nav.onSwitchTab(.learning)
                     }
-                    quickAction(title: "LOG STUDY", icon: "book.fill", filled: false) {
-                        onOpen(.path("/learning", title: "Learning"))
-                    }
-                    quickAction(title: "SEARCH", icon: "lightbulb.fill", filled: false) {
-                        onOpen(.path("/search", title: "Search"))
+                    actionTile("Reading", icon: "text.book.closed.fill", filled: false, action: nav.openStorySync)
+                    actionTile("Search", icon: "magnifyingglass", filled: false) {
+                        nav.onSwitchTab(.search)
                     }
                 }
             }
         }
     }
 
-    private func quickAction(title: String, icon: String, filled: Bool, action: @escaping () -> Void) -> some View {
+    private func actionTile(_ title: String, icon: String, filled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: icon).font(.title2)
-                Text(title).font(.posLabel(10))
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon).font(.title3)
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
             }
-            .foregroundStyle(filled ? .white : POSTheme.foreground)
-            .frame(width: 112, height: 112)
-            .background(filled ? POSTheme.primaryDark : POSTheme.card)
+            .foregroundStyle(filled ? POSTheme.background : POSTheme.ink)
+            .frame(width: 118, height: 96, alignment: .leading)
+            .padding(14)
+            .background(filled ? POSTheme.ink : POSTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: POSTheme.cardRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: POSTheme.cardRadius, style: .continuous)
-                    .stroke(POSTheme.border.opacity(filled ? 0 : 0.6), lineWidth: 1)
+                    .stroke(POSTheme.border.opacity(filled ? 0 : 0.8), lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(POSPressButtonStyle())
     }
 
-    private func curationSection(_ data: POSDashboard) -> some View {
-        Group {
+    private func readingSection(_ data: POSDashboard) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            POSSectionHeader(title: "From your shelf", eyebrow: "Recently touched", actionTitle: "Reading log") {
+                nav.openStorySync()
+            }
             if let recent = data.recent.first {
-                VStack(alignment: .leading, spacing: 12) {
-                    POSSectionHeader(title: "Weekly Curation", eyebrow: "Featured")
-                    Button { onOpen(.entity(recent.id, title: recent.title)) } label: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("FROM YOUR LIBRARY")
-                                .font(.posLabel(10))
-                                .foregroundStyle(.white.opacity(0.7))
-                            Text(recent.title)
-                                .font(.posDisplay(22))
-                                .foregroundStyle(.white)
-                                .multilineTextAlignment(.leading)
-                            Text(recent.content)
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.8))
-                                .lineLimit(2)
-                            Text("OPEN ITEM")
-                                .font(.posLabel(10))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(.white)
-                                .foregroundStyle(POSTheme.foreground)
-                                .clipShape(Capsule())
-                                .padding(.top, 4)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(20)
-                        .background(
-                            LinearGradient(colors: [Color(white: 0.25), Color(white: 0.08)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: POSTheme.cardRadius, style: .continuous))
+                Button { nav.onOpen(.entity(recent.id, title: recent.title)) } label: {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(POSFormatting.domainLabel(recent.domain))
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(POSTheme.muted)
+                        Text(recent.title)
+                            .font(.posDisplay(22))
+                            .foregroundStyle(POSTheme.ink)
+                            .multilineTextAlignment(.leading)
+                        Text(recent.content)
+                            .font(.subheadline)
+                            .foregroundStyle(POSTheme.muted)
+                            .lineLimit(3)
+                        Text("Open entry")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(POSTheme.primaryDark)
                     }
-                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(18)
+                    .background(POSTheme.card)
+                    .clipShape(RoundedRectangle(cornerRadius: POSTheme.cardRadius, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: POSTheme.cardRadius, style: .continuous)
+                            .stroke(POSTheme.border, lineWidth: 1)
+                    )
                 }
+                .buttonStyle(POSPressButtonStyle())
             } else {
                 POSEmptyState(
-                    systemImage: "sparkles",
-                    title: "No featured content",
-                    message: "Capture notes in Inbox or Learning."
+                    systemImage: "books.vertical",
+                    title: "Nothing on the shelf yet",
+                    message: "Your latest note or reading entry will land here.",
+                    actionTitle: "Capture a note",
+                    action: nav.captureNote
                 )
             }
         }
@@ -173,25 +190,33 @@ struct HomeView: View {
 
     private func upNextSection(_ data: POSDashboard) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "Up Next")
+            POSSectionHeader(title: "Up next")
             if data.upcomingReminders.isEmpty {
-                POSEmptyState(systemImage: "brain.head.profile", title: "Nothing scheduled", message: "Add reminders to see them here.")
+                POSEmptyState(
+                    systemImage: "clock",
+                    title: "A clear afternoon",
+                    message: "Add a reminder to any entry and it will appear here.",
+                    actionTitle: "Open inbox",
+                    action: { nav.onOpen(.path("/inbox", title: "Inbox")) }
+                )
             } else {
                 ForEach(data.upcomingReminders.prefix(5)) { reminder in
                     Button {
                         if let eid = reminder.entityId {
-                            onOpen(.entity(eid, title: reminder.title))
+                            nav.onOpen(.entity(eid, title: reminder.title))
+                        } else {
+                            nav.onOpen(.path("/inbox", title: "Reminders"))
                         }
                     } label: {
                         POSListRow(
                             title: reminder.title,
-                            subtitle: reminder.dueAt,
+                            subtitle: POSFormatting.friendlyDue(reminder.dueAt),
                             badge: reminder.status,
-                            systemImage: "brain.head.profile",
-                            iconTint: POSTheme.success
+                            systemImage: "clock.badge",
+                            iconTint: POSTheme.focus
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(POSPressButtonStyle())
                 }
             }
         }

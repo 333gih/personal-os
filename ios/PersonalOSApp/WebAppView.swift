@@ -151,6 +151,6 @@ private struct WebAppFallbackView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(20)
-        .background(Color(red: 242 / 255, green: 238 / 255, blue: 232 / 255))
+        .background(POSTheme.background)
     }
 }

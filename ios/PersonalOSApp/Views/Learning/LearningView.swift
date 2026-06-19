@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LearningView: View {
     @EnvironmentObject private var session: SessionManager
-    let onOpen: WebOpenHandler
+    let nav: POSNavigationActions
 
     @State private var items: [POSEntity] = []
     @State private var isLoading = true
@@ -15,16 +15,31 @@ struct LearningView: View {
     private var topics: [POSEntity] { items.filter { $0.type.contains("topic") } }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                optimizerHeader
-                scheduleCard
-                currentLearningSection
-                masteryCurve
-                milestonesSection
+        POSScreen {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Study desk")
+                            .font(.posDisplay(28))
+                        Text("Courses, streaks, and the next milestone on your desk.")
+                            .font(.subheadline)
+                            .foregroundStyle(POSTheme.muted)
+                    }
+
+                    optimizerHeader
+                    scheduleCard
+                    currentLearningSection
+                    rhythmCard
+                    milestonesSection
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            POSFloatingCaptureButton(action: nav.captureNote)
+                .padding(.trailing, 18)
+                .padding(.bottom, 12)
         }
         .task(id: session.accessToken) { await load() }
         .refreshable { await load() }
@@ -32,50 +47,68 @@ struct LearningView: View {
 
     private var optimizerHeader: some View {
         HStack {
-            VStack(alignment: .leading) {
-                Text("Optimizer").font(.posDisplay(20))
-                Text("Work & Study Sync").font(.subheadline).foregroundStyle(POSTheme.muted)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("This week")
+                    .font(.posDisplay(18))
+                Text("Keep study blocks close to work notes.")
+                    .font(.caption)
+                    .foregroundStyle(POSTheme.muted)
             }
             Spacer()
-            Button("OPTIMIZE") { onOpen(.path("/learning", title: "Learning")) }
-                .font(.posLabel(10))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(POSTheme.primaryDark)
-                .foregroundStyle(.white)
-                .clipShape(Capsule())
+            Button {
+                nav.onOpen(.path("/learning", title: "Learning"))
+            } label: {
+                Text("Open planner")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(POSTheme.ink)
+                    .foregroundStyle(POSTheme.background)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(POSPressButtonStyle())
         }
     }
 
     private var scheduleCard: some View {
         POSCard {
             if items.isEmpty && !isLoading {
-                POSEmptyState(systemImage: "calendar", title: "No schedule yet", message: "Add courses to build your timeline.")
+                POSEmptyState(
+                    systemImage: "calendar",
+                    title: "No study blocks yet",
+                    message: "Add a course or topic and your week will take shape here.",
+                    actionTitle: "Log study",
+                    action: nav.captureNote
+                )
             } else if isLoading {
                 POSLoadingView()
             } else {
                 VStack(alignment: .leading, spacing: 16) {
                     ForEach(Array(items.prefix(3).enumerated()), id: \.element.id) { index, item in
-                        HStack(alignment: .top, spacing: 12) {
-                            Circle().stroke(POSTheme.primaryDark, lineWidth: 2).frame(width: 14, height: 14).padding(.top, 4)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Block \(index + 1)").font(.caption).foregroundStyle(POSTheme.muted)
-                                Button(item.title) { onOpen(.entity(item.id, title: item.title)) }
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(POSTheme.foreground)
-                                Text(item.type.replacingOccurrences(of: "_", with: " ").uppercased())
-                                    .font(.posLabel(9))
-                                    .foregroundStyle(POSTheme.muted)
-                                if index == 1 {
-                                    Text("Auto-optimized reminder available")
+                        Button { nav.onOpen(.entity(item.id, title: item.title)) } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                Circle()
+                                    .stroke(POSTheme.primaryDark, lineWidth: 2)
+                                    .frame(width: 12, height: 12)
+                                    .padding(.top, 5)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Session \(index + 1)")
                                         .font(.caption)
-                                        .padding(8)
-                                        .background(POSTheme.successBg)
-                                        .foregroundStyle(POSTheme.success)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        .foregroundStyle(POSTheme.muted)
+                                    Text(item.title)
+                                        .font(.body.weight(.medium))
+                                        .foregroundStyle(POSTheme.ink)
+                                    Text(POSFormatting.humanType(item.type))
+                                        .font(.caption)
+                                        .foregroundStyle(POSTheme.muted)
                                 }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(POSTheme.muted)
                             }
                         }
+                        .buttonStyle(POSPressButtonStyle())
                     }
                 }
             }
@@ -84,84 +117,117 @@ struct LearningView: View {
 
     private var currentLearningSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "Current Learning")
+            POSSectionHeader(title: "On the desk now")
             HStack(spacing: 12) {
-                POSMetricCard(label: "Courses", value: "\(courses.count)", hint: courses.isEmpty ? "Add a course" : "Active", systemImage: "graduationcap.fill", accent: POSTheme.primaryDark)
-                POSMetricCard(label: "Streak", value: items.isEmpty ? "—" : "\(min(items.count, 30)) days", hint: skills.first?.title ?? "Track daily study", systemImage: "bolt.fill", accent: POSTheme.success)
+                POSMetricCard(
+                    label: "Courses",
+                    value: "\(courses.count)",
+                    hint: courses.isEmpty ? "Add one" : "In progress",
+                    systemImage: "graduationcap",
+                    accent: POSTheme.primaryDark,
+                    action: { nav.onOpen(.path("/learning", title: "Learning")) }
+                )
+                POSMetricCard(
+                    label: "Streak",
+                    value: items.isEmpty ? "—" : "\(min(items.count, 30))d",
+                    hint: skills.first?.title ?? "Keep showing up",
+                    systemImage: "flame.fill",
+                    accent: POSTheme.focus,
+                    action: { nav.onSwitchTab(.home) }
+                )
             }
             if let course = courses.first {
-                Button { onOpen(.entity(course.id, title: course.title)) } label: {
+                Button { nav.onOpen(.entity(course.id, title: course.title)) } label: {
                     HStack(spacing: 12) {
                         Text("C1")
                             .font(.headline)
-                            .foregroundStyle(POSTheme.success)
-                            .frame(width: 48, height: 48)
+                            .foregroundStyle(POSTheme.focus)
+                            .frame(width: 46, height: 46)
                             .background(POSTheme.successBg)
                             .clipShape(Circle())
                         VStack(alignment: .leading) {
                             Text(course.title).font(.headline)
-                            Text(course.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(1)
+                            Text(course.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(2)
                         }
                         Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(POSTheme.muted)
                     }
                     .padding(14)
                     .background(POSTheme.card)
                     .clipShape(RoundedRectangle(cornerRadius: POSTheme.cardRadius))
+                    .overlay(RoundedRectangle(cornerRadius: POSTheme.cardRadius).stroke(POSTheme.border, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(POSPressButtonStyle())
             }
         }
     }
 
-    private var masteryCurve: some View {
-        let level = items.count >= 10 ? "EXPERT" : items.count >= 3 ? "GROWING" : "STARTER"
+    private var rhythmCard: some View {
+        let level = items.count >= 10 ? "Steady" : items.count >= 3 ? "Building" : "Starting"
         let today = Calendar.current.component(.weekday, from: Date())
         let chartIndex = today == 1 ? 6 : today - 2
 
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text("Mastery Curve").font(.posDisplay(18)).foregroundStyle(.white)
-                    Text("Learning activity index").font(.caption).foregroundStyle(.white.opacity(0.7))
-                }
-                Spacer()
-                Text(level).font(.posLabel(9)).padding(.horizontal, 8).padding(.vertical, 4).background(POSTheme.primary).clipShape(Capsule())
-            }
-            HStack(alignment: .bottom, spacing: 6) {
-                ForEach(weekdays.indices, id: \.self) { i in
-                    VStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(i == chartIndex ? POSTheme.primary : Color.white.opacity(0.2))
-                            .frame(height: CGFloat(24 + ((i + items.count) % 5) * 10))
-                        Text(weekdays[i]).font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
+        return POSCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Weekly rhythm")
+                            .font(.posDisplay(18))
+                        Text("A quiet view of study momentum")
+                            .font(.caption)
+                            .foregroundStyle(POSTheme.muted)
                     }
-                    .frame(maxWidth: .infinity)
+                    Spacer()
+                    Text(level)
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(POSTheme.border.opacity(0.5))
+                        .clipShape(Capsule())
                 }
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(weekdays.indices, id: \.self) { i in
+                        VStack(spacing: 6) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(i == chartIndex ? POSTheme.primaryDark : POSTheme.border.opacity(0.8))
+                                .frame(height: CGFloat(18 + ((i + items.count) % 5) * 8))
+                            Text(weekdays[i])
+                                .font(.system(size: 9))
+                                .foregroundStyle(POSTheme.muted)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 88)
             }
-            .frame(height: 100)
         }
-        .padding(20)
-        .background(Color(white: 0.12))
-        .clipShape(RoundedRectangle(cornerRadius: POSTheme.cardRadius))
     }
 
     private var milestonesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "Future Milestones")
+            POSSectionHeader(title: "Milestones ahead", actionTitle: "Add") {
+                nav.captureNote()
+            }
             let milestones = certs + topics
             if milestones.isEmpty && !isLoading {
-                POSEmptyState(systemImage: "rosette", title: "No milestones yet", message: "Add certificates and topics.")
+                POSEmptyState(
+                    systemImage: "flag",
+                    title: "No milestones pinned",
+                    message: "Certificates and topics with dates will show up here.",
+                    actionTitle: "Add milestone",
+                    action: nav.captureNote
+                )
             } else {
                 ForEach(milestones.prefix(5)) { item in
-                    Button { onOpen(.entity(item.id, title: item.title)) } label: {
+                    Button { nav.onOpen(.entity(item.id, title: item.title)) } label: {
                         POSListRow(
                             title: item.title,
-                            subtitle: item.type.replacingOccurrences(of: "_", with: " ").capitalized,
-                            systemImage: item.type.contains("certificate") ? "rosette" : "book.fill",
+                            subtitle: POSFormatting.humanType(item.type),
+                            systemImage: item.type.contains("certificate") ? "rosette" : "book",
                             iconTint: POSTheme.primaryDark
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(POSPressButtonStyle())
                 }
             }
         }

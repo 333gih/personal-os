@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SearchView: View {
     @EnvironmentObject private var session: SessionManager
-    let onOpen: WebOpenHandler
+    let nav: POSNavigationActions
 
     @State private var query = ""
     @State private var mode = "hybrid"
@@ -16,74 +16,103 @@ struct SearchView: View {
     private let recentKey = "com.personalos.recent_searches"
 
     var body: some View {
-        VStack(spacing: 0) {
-            searchHeader
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if !hasSearched {
-                        recentSection
-                        if recent.isEmpty {
-                            POSEmptyState(systemImage: "magnifyingglass", title: "Search your knowledge", message: "Find courses, projects, and documents.")
+        POSScreen {
+            VStack(spacing: 0) {
+                searchHeader
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if !hasSearched {
+                            recentSection
+                            if recent.isEmpty {
+                                POSEmptyState(
+                                    systemImage: "magnifyingglass",
+                                    title: "Search your notebook",
+                                    message: "Find people, projects, study notes, and documents across your library.",
+                                    actionTitle: "Browse inbox",
+                                    action: { nav.onOpen(.path("/inbox", title: "Inbox")) }
+                                )
+                            }
+                        } else {
+                            resultsSection
                         }
-                    } else {
-                        resultsSection
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
             }
         }
         .onAppear { loadRecent() }
+        .onChange(of: mode) { _, _ in
+            if hasSearched, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                runSearch()
+            }
+        }
     }
 
     private var searchHeader: some View {
         VStack(spacing: 12) {
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(POSTheme.muted)
-                TextField("Search people, projects, documents…", text: $query)
+                TextField("Search notes, projects, people…", text: $query)
                     .textInputAutocapitalization(.never)
                     .submitLabel(.search)
                     .onSubmit { runSearch() }
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                        hasSearched = false
+                        results = []
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(POSTheme.muted)
+                    }
+                    .buttonStyle(POSPressButtonStyle())
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(POSTheme.card)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(POSTheme.border, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(POSTheme.border, lineWidth: 1))
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     POSChip(title: "Hybrid", isSelected: mode == "hybrid") { mode = "hybrid" }
-                    POSChip(title: "Fulltext", isSelected: mode == "fulltext") { mode = "fulltext" }
+                    POSChip(title: "Full text", isSelected: mode == "fulltext") { mode = "fulltext" }
                     POSChip(title: "Semantic", isSelected: mode == "semantic") { mode = "semantic" }
                 }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(POSTheme.background)
     }
 
     private var recentSection: some View {
         Group {
             if !recent.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    POSSectionHeader(title: "Recent Searches", actionTitle: "Clear all", action: clearRecent)
+                    POSSectionHeader(title: "Recent", actionTitle: "Clear") {
+                        clearRecent()
+                    }
                     ForEach(recent, id: \.self) { item in
                         Button {
                             query = item
                             runSearch()
                         } label: {
                             HStack {
-                                Image(systemName: "clock.arrow.circlepath")
+                                Image(systemName: "clock")
                                 Text(item)
                                 Spacer()
+                                Image(systemName: "arrow.up.left")
+                                    .font(.caption)
+                                    .foregroundStyle(POSTheme.muted)
                             }
                             .padding(14)
                             .background(POSTheme.card)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(POSTheme.border, lineWidth: 1))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(POSPressButtonStyle())
                     }
                 }
             }
@@ -92,43 +121,69 @@ struct SearchView: View {
 
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "Top Results", eyebrow: isSearching ? "Searching…" : "\(resultCount) results")
+            POSSectionHeader(
+                title: "Results",
+                eyebrow: isSearching ? "Searching…" : "\(resultCount) found"
+            )
             if isSearching {
-                POSLoadingView(label: "Searching…")
+                POSLoadingView(label: "Looking through your library…")
             } else if let errorMessage {
-                POSEmptyState(systemImage: "exclamationmark.triangle", title: "Search failed", message: errorMessage)
+                POSEmptyState(
+                    systemImage: "exclamationmark.triangle",
+                    title: "Search interrupted",
+                    message: errorMessage,
+                    actionTitle: "Try again",
+                    action: runSearch
+                )
             } else if results.isEmpty {
-                POSEmptyState(systemImage: "magnifyingglass", title: "No matches", message: "Try another keyword or mode.")
+                POSEmptyState(
+                    systemImage: "doc.text.magnifyingglass",
+                    title: "Nothing matched",
+                    message: "Try another phrase or switch the search mode.",
+                    actionTitle: "Clear search",
+                    action: {
+                        query = ""
+                        hasSearched = false
+                    }
+                )
             } else {
                 ForEach(results) { hit in
-                    Button { onOpen(.entity(hit.entity.id, title: hit.entity.title)) } label: {
+                    Button { nav.onOpen(.entity(hit.entity.id, title: hit.entity.title)) } label: {
                         if hit.entity.type.contains("project") || hit.entity.domain == "startup" {
                             projectCard(hit)
                         } else {
                             POSListRow(
                                 title: hit.entity.title,
-                                subtitle: hit.matchType,
-                                badge: hit.entity.domain.uppercased(),
-                                systemImage: "person.fill"
+                                subtitle: "\(POSFormatting.domainLabel(hit.entity.domain)) · \(hit.matchType)",
+                                badge: POSFormatting.humanType(hit.entity.type),
+                                systemImage: icon(for: hit.entity)
                             )
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(POSPressButtonStyle())
                 }
             }
         }
     }
 
+    private func icon(for entity: POSEntity) -> String {
+        if entity.domain == "learning" { return "book" }
+        if entity.domain == "work" { return "briefcase" }
+        if entity.domain == "entertainment" { return "book.closed" }
+        return "doc.text"
+    }
+
     private func projectCard(_ hit: POSSearchHit) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topLeading) {
-                LinearGradient(colors: [POSTheme.border, POSTheme.muted.opacity(0.4)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .frame(height: 120)
-                Text(hit.entity.domain.uppercased())
-                    .font(.posLabel(9))
+                RoundedRectangle(cornerRadius: 0)
+                    .fill(POSTheme.border.opacity(0.55))
+                    .frame(height: 108)
+                Text(POSFormatting.domainLabel(hit.entity.domain))
+                    .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(.white.opacity(0.9))
+                    .background(POSTheme.card)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .padding(12)
             }
@@ -140,11 +195,13 @@ struct SearchView: View {
         }
         .background(POSTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: POSTheme.cardRadius))
+        .overlay(RoundedRectangle(cornerRadius: POSTheme.cardRadius).stroke(POSTheme.border, lineWidth: 1))
     }
 
     private func runSearch() {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        POSHaptics.light()
         saveRecent(trimmed)
         hasSearched = true
         isSearching = true
@@ -176,6 +233,7 @@ struct SearchView: View {
     }
 
     private func clearRecent() {
+        POSHaptics.selection()
         recent = []
         UserDefaults.standard.removeObject(forKey: recentKey)
     }
