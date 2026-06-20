@@ -10,7 +10,9 @@ import type {
 } from "./types";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://api-personal-os.fashandcurious.com/api/v1";
+  typeof window !== "undefined"
+    ? "/api/v1"
+    : process.env.NEXT_PUBLIC_API_URL || "https://api-personal-os.fashandcurious.com/api/v1";
 const DEBUG_API = process.env.NODE_ENV === "development";
 
 function apiLog(label: string, data?: Record<string, unknown>) {

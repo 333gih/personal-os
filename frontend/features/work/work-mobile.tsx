@@ -104,7 +104,7 @@ function ProjectCard({ item, primary }: { item: Entity; primary?: boolean }) {
 }
 
 export function WorkMobile() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["entities", "work"],
     queryFn: () => api.listEntities({ domain: "work", limit: "80" }),
   });
@@ -123,6 +123,26 @@ export function WorkMobile() {
   const workHours = profile ? (workMeta(profile).work_hours?.replace("-", " — ") ?? WORK_HOURS_DEFAULT) : WORK_HOURS_DEFAULT;
 
   if (isLoading) return <LoadingState label="Loading career path…" />;
+
+  if (isError) {
+    const message = error instanceof Error ? error.message : "Could not load career data";
+    return (
+      <EmptyState
+        icon={Briefcase}
+        title="Could not load career data"
+        description={
+          message.includes("503") || message.includes("ring-balancer")
+            ? "API gateway cannot reach backend. Redeploy frontend with PERSONAL_OS_API_INTERNAL_URL or fix Kong on VPS."
+            : message
+        }
+        action={
+          <Button variant="outline" onClick={() => refetch()}>
+            Retry
+          </Button>
+        }
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 pb-24">

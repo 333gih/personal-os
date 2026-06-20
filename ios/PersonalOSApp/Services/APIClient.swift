@@ -47,6 +47,9 @@ final class APIClient: ObservableObject {
 
         guard (200 ... 299).contains(http.statusCode) else {
             let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            if http.statusCode == 503, message.localizedCaseInsensitiveContains("ring-balancer") {
+                throw APIError.http(http.statusCode, "API gateway unavailable. Update app or redeploy frontend.")
+            }
             throw APIError.http(http.statusCode, message)
         }
 

@@ -26,6 +26,8 @@ export type ServerAuthEnv = {
   COMMERCIAL_APPLICATION_ID?: string;
   AUTH_LOCALE: string;
   PERSONAL_OS_API_URL: string;
+  /** Docker-internal API (http://personal-os-api:8080) for server BFF — bypasses Kong. */
+  PERSONAL_OS_API_INTERNAL_URL?: string;
   ADMIN_PORTAL_URL: string;
   INTERNAL_DEFAULT_USER_EMAIL?: string;
   INTERNAL_DEFAULT_USER_PASSWORD?: string;
@@ -63,6 +65,7 @@ export function getServerAuthEnv(): ServerAuthEnv {
     COMMERCIAL_APPLICATION_ID: readEnv("COMMERCIAL_APPLICATION_ID")?.trim(),
     AUTH_LOCALE: (readEnv("AUTH_LOCALE") || "vi").trim(),
     PERSONAL_OS_API_URL: PERSONAL_OS_API_URL.replace(/\/+$/, ""),
+    PERSONAL_OS_API_INTERNAL_URL: readEnv("PERSONAL_OS_API_INTERNAL_URL")?.replace(/\/+$/, ""),
     ADMIN_PORTAL_URL: (
       readEnv("NEXT_PUBLIC_ADMIN_PORTAL_URL") ||
       readEnv("ADMIN_PORTAL_URL") ||

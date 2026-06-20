@@ -21,12 +21,8 @@ enum PersonalOSAppConfig {
     }
 
     static var apiBaseURL: URL {
-        if let raw = Bundle.main.object(forInfoDictionaryKey: "PERSONAL_OS_API_URL") as? String,
-           let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
-           !raw.isEmpty {
-            return url
-        }
-        return URL(string: "https://api-personal-os.fashandcurious.com/api/v1")!
+        // Route via hosted FE BFF — FE talks to personal-os-api on Docker network, bypasses Kong 503.
+        return frontendPath("/api/mobile/v1")
     }
 
     static func frontendPath(_ path: String) -> URL {

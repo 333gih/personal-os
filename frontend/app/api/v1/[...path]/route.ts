@@ -4,8 +4,8 @@ import {
   PORTAL_COOKIE_REFRESH_401_HEADER,
   PORTAL_COOKIE_REFRESH_401_VALUE,
 } from "@/lib/auth/constants";
+import { forwardToPersonalOSApi } from "@/lib/api-upstream";
 import { ensureSessionAccess } from "@/lib/auth/session";
-import { getServerAuthEnv } from "@/lib/auth/server-env";
 
 export const runtime = "nodejs";
 
@@ -37,36 +37,7 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const { PERSONAL_OS_API_URL } = getServerAuthEnv();
-  const upstreamPath = `/api/v1/${pathSegments.join("/")}`;
-  const url = `${PERSONAL_OS_API_URL}${upstreamPath}${request.nextUrl.search}`;
-
-  const headers = new Headers();
-  const contentType = request.headers.get("content-type");
-  if (contentType) headers.set("Content-Type", contentType);
-  headers.set("Authorization", `Bearer ${bearer}`);
-  headers.set("Accept", request.headers.get("accept") || "application/json");
-
-  const hasBody = request.method !== "GET" && request.method !== "HEAD";
-  const init: RequestInit & { duplex?: "half" } = {
-    method: request.method,
-    headers,
-    cache: "no-store",
-  };
-  if (hasBody) {
-    init.body = request.body;
-    init.duplex = "half";
-  }
-
-  const upstream = await fetch(url, init);
-  const responseHeaders = new Headers();
-  const upstreamType = upstream.headers.get("content-type");
-  if (upstreamType) responseHeaders.set("Content-Type", upstreamType);
-
-  return new NextResponse(upstream.body, {
-    status: upstream.status,
-    headers: responseHeaders,
-  });
+  return forwardToPersonalOSApi(request, pathSegments, bearer);
 }
 
 type RouteContext = { params: Promise<{ path: string[] }> };
