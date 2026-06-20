@@ -21,20 +21,34 @@ struct POSJobOpportunity: Codable, Identifiable, Hashable {
 
 struct POSJobListResponse: Decodable {
     let jobs: [POSJobOpportunity]
+    let minScore: Float?
+
+    enum CodingKeys: String, CodingKey {
+        case jobs
+        case minScore = "min_score"
+    }
 }
 
 struct POSJobScanResponse: Decodable {
     let found: Int
+    let matched: Int
     let stored: Int
     let updated: Int
+    let minScore: Float?
     let scannedAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case found, stored, updated
+        case found, matched, stored, updated
+        case minScore = "min_score"
         case scannedAt = "scanned_at"
     }
 }
 
 struct POSJobStatusRequest: Encodable {
     let status: String
+}
+
+enum POSJobTab: String, CaseIterable {
+    case open = "Open"
+    case applied = "Applied"
 }

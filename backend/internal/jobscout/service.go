@@ -3,9 +3,9 @@ package jobscout
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -34,22 +34,43 @@ func NewService(db *gorm.DB, aiSvc *ai.Service, cvSvc *cv.Service) *Service {
 	}
 }
 
-func (s *Service) List(userID uuid.UUID, limit int) ([]models.JobOpportunity, error) {
+type ListOptions struct {
+	Status   string
+	MinScore float32
+	Limit    int
+}
+
+func (s *Service) List(userID uuid.UUID, opts ListOptions) ([]models.JobOpportunity, error) {
+	status := opts.Status
+	if status == "" {
+		status = models.JobStatusOpen
+	}
+	limit := opts.Limit
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
+	minScore := opts.MinScore
+	if status == models.JobStatusOpen && minScore <= 0 {
+		minScore = MinMatchScore
+	}
+
+	q := s.db.Where("user_id = ? AND status = ?", userID, status)
+	if minScore > 0 {
+		q = q.Where("match_score >= ?", minScore)
+	}
+
 	var rows []models.JobOpportunity
-	err := s.db.Where("user_id = ? AND status = ?", userID, models.JobStatusOpen).
-		Order("match_score DESC, scraped_at DESC").
-		Limit(limit).
-		Find(&rows).Error
+	err := q.Order("match_score DESC, scraped_at DESC").Limit(limit).Find(&rows).Error
 	return rows, err
 }
 
 func (s *Service) UpdateStatus(userID, jobID uuid.UUID, status string) error {
 	res := s.db.Model(&models.JobOpportunity{}).
 		Where("id = ? AND user_id = ?", jobID, userID).
-		Update("status", status)
+		Updates(map[string]any{
+			"status":     status,
+			"updated_at": time.Now().UTC(),
+		})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -60,10 +81,10 @@ func (s *Service) UpdateStatus(userID, jobID uuid.UUID, status string) error {
 }
 
 func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	skills := s.loadSkills(userID)
+	skills, profile := s.loadCandidateProfile(userID)
 	var all []rawJob
 
 	remotive, err := fetchRemotive(ctx)
@@ -73,6 +94,13 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 		all = append(all, remotive...)
 	}
 
+	remoteOK, err := fetchRemoteOK(ctx)
+	if err != nil {
+		log.Printf("jobscout: remoteok fetch: %v", err)
+	} else {
+		all = append(all, remoteOK...)
+	}
+
 	githubJobs, err := fetchGitHub(ctx, skills, s.githubTok)
 	if err != nil {
 		log.Printf("jobscout: github fetch: %v", err)
@@ -80,36 +108,74 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 		all = append(all, githubJobs...)
 	}
 
-	result := &ScanResult{Found: len(all), ScannedAt: time.Now().UTC()}
+	result := &ScanResult{
+		Found:     len(all),
+		MinScore:  MinMatchScore,
+		ScannedAt: time.Now().UTC(),
+	}
 	for _, j := range all {
-		if j.Source == "remotive" {
+		switch j.Source {
+		case "remotive":
 			result.Sources.Remotive++
-		}
-		if j.Source == "github" {
+		case "remoteok":
+			result.Sources.RemoteOK++
+		case "github":
 			result.Sources.GitHub++
 		}
 	}
 
+	type candidate struct {
+		job      rawJob
+		preScore float32
+		preHits  []string
+	}
+	candidates := make([]candidate, 0, len(all))
 	for _, j := range all {
-		score, reason := scoreJob(skills, j)
-		if score < 0.15 && j.Source == "remotive" {
+		pre, hits := preScoreJob(skills, j)
+		if pre >= preFilterMinScore || j.Source == "github" {
+			candidates = append(candidates, candidate{job: j, preScore: pre, preHits: hits})
+		}
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].preScore > candidates[j].preScore
+	})
+	if len(candidates) > maxAICandidates {
+		candidates = candidates[:maxAICandidates]
+	}
+
+	rawCandidates := make([]rawJob, len(candidates))
+	for i, c := range candidates {
+		rawCandidates[i] = c.job
+	}
+	aiScores := s.scoreJobsWithAI(userID, profile, skills, rawCandidates)
+
+	for _, c := range candidates {
+		key := c.job.Source + ":" + c.job.ExternalID
+		var aiMatch *aiBatchMatch
+		if m, ok := aiScores[c.job.ExternalID]; ok {
+			copy := m
+			aiMatch = &copy
+		}
+		score, reason := finalizeScore(c.preScore, c.preHits, aiMatch)
+		if score < MinMatchScore {
 			continue
 		}
-		skillsJSON, _ := json.Marshal(j.Skills)
+
+		skillsJSON, _ := json.Marshal(c.job.Skills)
 		row := models.JobOpportunity{
 			ID:          uuid.New(),
 			UserID:      userID,
-			Source:      j.Source,
-			ExternalID:  j.ExternalID,
-			Title:       j.Title,
-			Company:     j.Company,
-			Location:    j.Location,
-			URL:         j.URL,
-			Description: j.Description,
+			Source:      c.job.Source,
+			ExternalID:  c.job.ExternalID,
+			Title:       c.job.Title,
+			Company:     c.job.Company,
+			Location:    c.job.Location,
+			URL:         c.job.URL,
+			Description: c.job.Description,
 			Skills:      datatypes.JSON(skillsJSON),
 			MatchScore:  score,
 			MatchReason: reason,
-			PostedAt:    j.PostedAt,
+			PostedAt:    c.job.PostedAt,
 			ScrapedAt:   time.Now().UTC(),
 			Status:      models.JobStatusOpen,
 		}
@@ -130,8 +196,10 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 			}),
 		}).Create(&row)
 		if res.Error != nil {
+			log.Printf("jobscout: store %s: %v", key, res.Error)
 			continue
 		}
+		result.Matched++
 		if res.RowsAffected == 1 {
 			result.Stored++
 		} else {
@@ -139,75 +207,44 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 		}
 	}
 
-	if s.ai != nil && s.ai.Configured() {
-		s.enrichTopMatches(userID, skills)
-	}
-
 	return result, nil
 }
 
-func (s *Service) loadSkills(userID uuid.UUID) []string {
-	if s.cv == nil {
-		return defaultSkills()
+func (s *Service) loadCandidateProfile(userID uuid.UUID) ([]string, string) {
+	skills := defaultSkills()
+	var parts []string
+
+	if s.cv != nil {
+		doc, err := s.cv.Get(userID)
+		if err == nil {
+			if len(doc.Document.Skills) > 0 {
+				skills = doc.Document.Skills
+			}
+			if doc.Document.Headline != "" {
+				parts = append(parts, doc.Document.Headline)
+			}
+			if doc.Document.Summary != "" {
+				parts = append(parts, doc.Document.Summary)
+			}
+			for _, exp := range doc.Document.Experience {
+				if exp.Title != "" {
+					parts = append(parts, exp.Title+": "+trimDesc(exp.Content, 200))
+				}
+			}
+		}
 	}
-	doc, err := s.cv.Get(userID)
-	if err != nil || len(doc.Document.Skills) == 0 {
-		return defaultSkills()
+
+	profile := strings.Join(parts, "\n")
+	if profile == "" {
+		profile = "Software Engineer specializing in enterprise backend, AEM, and Spring Boot."
 	}
-	return doc.Document.Skills
+	return skills, profile
 }
 
 func defaultSkills() []string {
-	return []string{"Java", "Spring Boot", "AEM", "NestJS", "Node.js", "PostgreSQL", "Algolia"}
-}
-
-func scoreJob(skills []string, job rawJob) (float32, string) {
-	hay := strings.ToLower(job.Title + " " + job.Description + " " + strings.Join(job.Skills, " "))
-	if hay == "" {
-		return 0, ""
-	}
-	var hits []string
-	for _, skill := range skills {
-		token := strings.ToLower(strings.TrimSpace(skill))
-		if token == "" {
-			continue
-		}
-		if strings.Contains(hay, token) {
-			hits = append(hits, skill)
-		}
-	}
-	if len(hits) == 0 {
-		return 0.1, "Broad listing — review manually"
-	}
-	score := float32(len(hits)) / float32(len(skills))
-	if score > 1 {
-		score = 1
-	}
-	if score < 0.2 {
-		score = 0.2
-	}
-	return score, "Matches: " + strings.Join(hits, ", ")
-}
-
-func (s *Service) enrichTopMatches(userID uuid.UUID, skills []string) {
-	var rows []models.JobOpportunity
-	if err := s.db.Where("user_id = ? AND status = ?", userID, models.JobStatusOpen).
-		Order("match_score DESC").Limit(8).Find(&rows).Error; err != nil {
-		return
-	}
-	for i := range rows {
-		prompt := fmt.Sprintf("Skills: %s\nJob: %s at %s\nDescription excerpt: %s\nReturn JSON: {\"match_reason\":\"one sentence why this fits\"}",
-			strings.Join(skills, ", "), rows[i].Title, rows[i].Company, trimDesc(rows[i].Description, 600))
-		raw, err := s.ai.ChatJSON(userID, "jobs/match", "You are a career coach matching jobs to a software engineer CV.", prompt)
-		if err != nil {
-			continue
-		}
-		var out struct {
-			MatchReason string `json:"match_reason"`
-		}
-		if json.Unmarshal([]byte(raw), &out) == nil && out.MatchReason != "" {
-			s.db.Model(&rows[i]).Update("match_reason", out.MatchReason)
-		}
+	return []string{
+		"Java", "Spring Boot", "AEM", "NestJS", "Node.js", "TypeScript",
+		"PostgreSQL", "MongoDB", "Algolia", "Elasticsearch", "GCP", "Docker",
 	}
 }
 
@@ -217,7 +254,7 @@ func (s *Service) StartDailyWorker(ctx context.Context, interval time.Duration) 
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	log.Printf("jobscout: daily worker started (interval=%s)", interval)
+	log.Printf("jobscout: daily worker started (interval=%s, min_score=%.0f%%)", interval, MinMatchScore*100)
 	for {
 		select {
 		case <-ctx.Done():

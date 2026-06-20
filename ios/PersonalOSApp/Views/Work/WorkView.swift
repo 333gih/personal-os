@@ -261,7 +261,7 @@ struct WorkView: View {
             POSActionButton(title: "Open CV Transfer", icon: "doc.richtext", style: .secondary) {
                 nav.openCV()
             }
-            POSActionButton(title: "Job Scout — scan matches", icon: "briefcase", style: .secondary) {
+            POSActionButton(title: "Job Scout — AI matches (≥50%)", icon: "briefcase", style: .secondary) {
                 nav.openJobScout()
             }
         }

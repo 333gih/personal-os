@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	remotiveAPI = "https://remotive.com/api/remote-jobs?category=software-dev"
-	githubAPI   = "https://api.github.com/search/issues"
+	remotiveAPI   = "https://remotive.com/api/remote-jobs?category=software-dev"
+	remoteOKAPI   = "https://remoteok.com/api"
+	githubAPI     = "https://api.github.com/search/issues"
 )
 
 func fetchRemotive(ctx context.Context) ([]rawJob, error) {
@@ -151,6 +152,86 @@ func fetchGitHub(ctx context.Context, skills []string, token string) ([]rawJob, 
 			URL:         item.HTMLURL,
 			Description: trimDesc(item.Body, 2000),
 			PostedAt:    &created,
+		})
+	}
+	return out, nil
+}
+
+func fetchRemoteOK(ctx context.Context) ([]rawJob, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, remoteOKAPI, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "PersonalOS-JobScout/1.0")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 512))
+		return nil, fmt.Errorf("remoteok api %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	body, err := io.ReadAll(io.LimitReader(res.Body, 4<<20))
+	if err != nil {
+		return nil, err
+	}
+
+	var payload []json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+
+	out := make([]rawJob, 0, len(payload))
+	for _, raw := range payload {
+		var row struct {
+			ID          string   `json:"id"`
+			Slug        string   `json:"slug"`
+			Company     string   `json:"company"`
+			Position    string   `json:"position"`
+			Tags        []string `json:"tags"`
+			Description string   `json:"description"`
+			URL         string   `json:"url"`
+			ApplyURL    string   `json:"apply_url"`
+			Date        string   `json:"date"`
+			Location    string   `json:"location"`
+		}
+		if err := json.Unmarshal(raw, &row); err != nil || row.ID == "" || row.Position == "" {
+			continue
+		}
+		jobURL := strings.TrimSpace(row.URL)
+		if jobURL == "" {
+			jobURL = strings.TrimSpace(row.ApplyURL)
+		}
+		if jobURL == "" && row.Slug != "" {
+			jobURL = "https://remoteok.com/remote-jobs/" + row.Slug
+		}
+		if jobURL == "" {
+			continue
+		}
+		var posted *time.Time
+		if row.Date != "" {
+			if t, err := time.Parse("2006-01-02", row.Date); err == nil {
+				posted = &t
+			}
+		}
+		desc := row.Description
+		if desc == "" {
+			desc = strings.Join(row.Tags, ", ")
+		}
+		out = append(out, rawJob{
+			Source:      "remoteok",
+			ExternalID:  row.ID,
+			Title:       strings.TrimSpace(row.Position),
+			Company:     strings.TrimSpace(row.Company),
+			Location:    strings.TrimSpace(row.Location),
+			URL:         jobURL,
+			Description: trimDesc(desc, 4000),
+			Skills:      row.Tags,
+			PostedAt:    posted,
 		})
 	}
 	return out, nil

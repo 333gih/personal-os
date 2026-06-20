@@ -1,9 +1,12 @@
 package jobscout
 
 import (
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/personal-os/backend/internal/auth"
+	"github.com/personal-os/backend/internal/models"
 	"github.com/personal-os/backend/pkg/response"
 )
 
@@ -22,12 +25,26 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 func (h *Handler) List(c *gin.Context) {
-	jobs, err := h.service.List(auth.GetUserID(c), 50)
+	status := c.DefaultQuery("status", models.JobStatusOpen)
+	opts := ListOptions{
+		Status: status,
+		Limit:  50,
+	}
+	if status == models.JobStatusOpen {
+		opts.MinScore = MinMatchScore
+	}
+	if v := c.Query("min_score"); v != "" {
+		if f, err := strconv.ParseFloat(v, 32); err == nil {
+			opts.MinScore = float32(f)
+		}
+	}
+
+	jobs, err := h.service.List(auth.GetUserID(c), opts)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
-	response.OK(c, gin.H{"jobs": jobs})
+	response.OK(c, gin.H{"jobs": jobs, "min_score": opts.MinScore})
 }
 
 func (h *Handler) Scan(c *gin.Context) {

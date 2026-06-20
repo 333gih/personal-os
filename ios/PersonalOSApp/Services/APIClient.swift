@@ -156,8 +156,9 @@ final class APIClient: ObservableObject {
         return try decoder.decode(POSCVShareResponse.self, from: data)
     }
 
-    func fetchJobs() async throws -> [POSJobOpportunity] {
-        let data = try await authorizedRequest(path: "jobs")
+    func fetchJobs(status: String = "open") async throws -> [POSJobOpportunity] {
+        let path = "jobs?status=\(status.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? status)"
+        let data = try await authorizedRequest(path: path)
         let resp = try decoder.decode(POSJobListResponse.self, from: data)
         return resp.jobs
     }
@@ -165,6 +166,11 @@ final class APIClient: ObservableObject {
     func scanJobs() async throws -> POSJobScanResponse {
         let data = try await authorizedRequest(path: "jobs/scan", method: "POST", body: Data("{}".utf8))
         return try decoder.decode(POSJobScanResponse.self, from: data)
+    }
+
+    func updateJobStatus(id: String, status: String) async throws {
+        let payload = try JSONEncoder().encode(POSJobStatusRequest(status: status))
+        _ = try await authorizedRequest(path: "jobs/\(id)/status", method: "PATCH", body: payload)
     }
 
     func importWorkProject(title: String, company: String, markdown: String, diagram: Data?) async throws -> POSWorkImportResult {
