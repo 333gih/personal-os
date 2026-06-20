@@ -1,6 +1,7 @@
 package jobscout
 
 import (
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -19,8 +20,9 @@ func NewHandler(service *Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.GET("", h.List)
+	r.GET("/scan/status", h.ScanStatus)
 	r.POST("/scan", h.Scan)
+	r.GET("", h.List)
 	r.PATCH("/:id/status", h.UpdateStatus)
 }
 
@@ -48,12 +50,17 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Scan(c *gin.Context) {
-	out, err := h.service.Scan(auth.GetUserID(c))
-	if err != nil {
-		response.InternalError(c, err.Error())
+	st := h.service.StartScanAsync(auth.GetUserID(c))
+	if st.Status == "running" && st.Result == nil {
+		c.JSON(http.StatusAccepted, st)
 		return
 	}
-	response.OK(c, out)
+	response.OK(c, st)
+}
+
+func (h *Handler) ScanStatus(c *gin.Context) {
+	st := h.service.ScanStatus(auth.GetUserID(c))
+	response.OK(c, st)
 }
 
 func (h *Handler) UpdateStatus(c *gin.Context) {

@@ -97,7 +97,14 @@ struct POSJobScoutView: View {
                     Button {
                         Task { await scan() }
                     } label: {
-                        if isScanning { ProgressView() } else { Text("Scan") }
+                        if isScanning {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                Text("Scanning…")
+                            }
+                        } else {
+                            Text("Scan")
+                        }
                     }
                     .disabled(isScanning)
                 }
@@ -258,6 +265,7 @@ struct POSJobScoutView: View {
     private func scan() async {
         isScanning = true
         scanSummary = nil
+        errorMessage = nil
         defer { isScanning = false }
         do {
             let result = try await session.api.scanJobs()

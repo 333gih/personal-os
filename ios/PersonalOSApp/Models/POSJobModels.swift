@@ -44,6 +44,12 @@ struct POSJobScanResponse: Decodable {
     }
 }
 
+struct POSJobScanStatusResponse: Decodable {
+    let status: String
+    let error: String?
+    let result: POSJobScanResponse?
+}
+
 struct POSJobStatusRequest: Encodable {
     let status: String
 }

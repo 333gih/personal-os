@@ -11,7 +11,7 @@ import (
 const (
 	MinMatchScore     float32 = 0.5
 	maxJobsPerBatch   = 6
-	maxAICandidates   = 36
+	maxAICandidates   = 24
 	preFilterMinScore float32 = 0.08
 )
 

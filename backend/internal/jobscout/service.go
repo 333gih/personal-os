@@ -23,6 +23,7 @@ type Service struct {
 	ai        *ai.Service
 	cv        *cv.Service
 	githubTok string
+	scans     *scanTracker
 }
 
 func NewService(db *gorm.DB, aiSvc *ai.Service, cvSvc *cv.Service) *Service {
@@ -31,6 +32,7 @@ func NewService(db *gorm.DB, aiSvc *ai.Service, cvSvc *cv.Service) *Service {
 		ai:        aiSvc,
 		cv:        cvSvc,
 		githubTok: strings.TrimSpace(os.Getenv("GITHUB_TOKEN")),
+		scans:     newScanTracker(),
 	}
 }
 
@@ -81,7 +83,7 @@ func (s *Service) UpdateStatus(userID, jobID uuid.UUID, status string) error {
 }
 
 func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	skills, profile := s.loadCandidateProfile(userID)
@@ -208,6 +210,25 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 	}
 
 	return result, nil
+}
+
+func (s *Service) StartScanAsync(userID uuid.UUID) userScanState {
+	if s.scans.start(userID) {
+		return s.scans.get(userID)
+	}
+	go func() {
+		result, err := s.Scan(userID)
+		if err != nil {
+			s.scans.fail(userID, err)
+			return
+		}
+		s.scans.complete(userID, result)
+	}()
+	return s.scans.get(userID)
+}
+
+func (s *Service) ScanStatus(userID uuid.UUID) userScanState {
+	return s.scans.get(userID)
 }
 
 func (s *Service) loadCandidateProfile(userID uuid.UUID) ([]string, string) {

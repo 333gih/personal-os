@@ -87,7 +87,7 @@ final class APIClient: ObservableObject {
             throw APIError.http(-1, "Invalid response")
         }
 
-        let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+        let message = Self.friendlyHTTPMessage(status: http.statusCode, body: data)
         if http.statusCode == 503, message.localizedCaseInsensitiveContains("ring-balancer") {
             throw APIError.http(http.statusCode, "API gateway unavailable. Update app or redeploy frontend.")
         }
@@ -164,8 +164,33 @@ final class APIClient: ObservableObject {
     }
 
     func scanJobs() async throws -> POSJobScanResponse {
-        let data = try await authorizedRequest(path: "jobs/scan", method: "POST", body: Data("{}".utf8))
-        return try decoder.decode(POSJobScanResponse.self, from: data)
+        _ = try await authorizedRequest(path: "jobs/scan", method: "POST", body: Data("{}".utf8))
+
+        for attempt in 0 ..< 90 {
+            if attempt > 0 {
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+            let status = try await fetchJobScanStatus()
+            switch status.status {
+            case "completed":
+                if let result = status.result {
+                    return result
+                }
+                throw APIError.http(500, "Scan finished without results.")
+            case "failed":
+                throw APIError.http(500, status.error ?? "Job scan failed on server.")
+            case "running":
+                continue
+            default:
+                throw APIError.http(500, "Unexpected scan status: \(status.status)")
+            }
+        }
+        throw APIError.http(408, "Scan is still running — pull to refresh in a minute.")
+    }
+
+    func fetchJobScanStatus() async throws -> POSJobScanStatusResponse {
+        let data = try await authorizedRequest(path: "jobs/scan/status")
+        return try decoder.decode(POSJobScanStatusResponse.self, from: data)
     }
 
     func updateJobStatus(id: String, status: String) async throws {
@@ -201,5 +226,22 @@ final class APIClient: ObservableObject {
             contentType: "multipart/form-data; boundary=\(boundary)"
         )
         return try decoder.decode(POSWorkImportResult.self, from: data)
+    }
+
+    private static func friendlyHTTPMessage(status: Int, body: Data) -> String {
+        let raw = String(data: body, encoding: .utf8) ?? "Unknown error"
+        if raw.contains("<!DOCTYPE html") || raw.contains("<html") {
+            if status == 502 {
+                return "Gateway timeout (502). Job scan runs in the background — update the app and redeploy API if this persists."
+            }
+            if status == 504 {
+                return "Server timed out (504). Try Scan again in a moment."
+            }
+            return "Server error (\(status)). Check API and frontend deployment."
+        }
+        if raw.count > 280 {
+            return String(raw.prefix(280)) + "…"
+        }
+        return raw
     }
 }
