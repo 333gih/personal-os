@@ -1,4 +1,5 @@
 -- Expand project design systems, TINI architecture, CV entries
+-- REQUIRES: migrations/008_work_career_data.sql (run that first)
 -- psql $DATABASE_URL -f migrations/009_work_design_cv.sql
 
 DO $$
@@ -7,10 +8,18 @@ DECLARE
 BEGIN
     SELECT id INTO admin_id FROM users WHERE email = 'admin@personal-os.local' LIMIT 1;
     IF admin_id IS NULL THEN
-        RAISE NOTICE 'No admin user found.';
-        RETURN;
+        SELECT id INTO admin_id FROM users ORDER BY created_at ASC LIMIT 1;
+    END IF;
+    IF admin_id IS NULL THEN
+        RAISE EXCEPTION 'No users in database. Start the API once to create the default user.';
     END IF;
 
+    IF NOT EXISTS (
+        SELECT 1 FROM entities
+        WHERE id = 'a0000004-0001-4001-8001-000000000005'::uuid
+    ) THEN
+        RAISE EXCEPTION 'Missing career base data. Run first: psql $DATABASE_URL -f migrations/008_work_career_data.sql';
+    END IF;
     -- Update Tini Coworking project with full design system
     UPDATE entities SET
         content = 'Coworking space platform: dual NestJS backends (Admin + User), Next.js Admin/User web, mobile app for members. Listing service maps campus → block → floor → room as NFT collections on blockchain for buy/sell. RabbitMQ handles async IoT (door unlock, AC, camera, printer paper orders, RFID parking). Backend lead: Docker on Ubuntu VPS, MongoDB.',
@@ -166,23 +175,27 @@ BEGIN
     ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, content = EXCLUDED.content,
         metadata = EXCLUDED.metadata, updated_at = NOW();
 
-    -- Relationships for new entities
-    INSERT INTO relationships (user_id, source_entity_id, target_entity_id, relation_type) VALUES
-    (admin_id, 'a0000006-0001-4001-8001-000000000006'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'documents'),
-    (admin_id, 'a0000006-0001-4001-8001-000000000007'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'documents'),
-    (admin_id, 'a0000006-0001-4001-8001-000000000008'::uuid, 'a0000004-0001-4001-8001-000000000007'::uuid, 'documents'),
-    (admin_id, 'a0000005-0001-4001-8001-000000000005'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'part_of'),
-    (admin_id, 'a0000005-0001-4001-8001-000000000006'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'part_of'),
-    (admin_id, 'a0000005-0001-4001-8001-000000000007'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'part_of'),
-    (admin_id, 'a0000005-0001-4001-8001-000000000008'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'part_of'),
-    (admin_id, 'a0000007-0001-4001-8001-000000000009'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'used_in'),
-    (admin_id, 'a0000007-0001-4001-8001-000000000009'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'used_in'),
-    (admin_id, 'a0000007-0001-4001-8001-000000000010'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'used_in'),
-    (admin_id, 'a0000009-0001-4001-8001-000000000010'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'related_to'),
-    (admin_id, 'a0000009-0001-4001-8001-000000000011'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'related_to'),
-    (admin_id, 'a0000009-0001-4001-8001-000000000014'::uuid, 'a0000004-0001-4001-8001-000000000004'::uuid, 'related_to')
+    -- Relationships for new entities (skip rows when FK targets missing)
+    INSERT INTO relationships (user_id, source_entity_id, target_entity_id, relation_type)
+    SELECT admin_id, v.source_id, v.target_id, v.relation_type
+    FROM (VALUES
+        ('a0000006-0001-4001-8001-000000000006'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'documents'),
+        ('a0000006-0001-4001-8001-000000000007'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'documents'),
+        ('a0000006-0001-4001-8001-000000000008'::uuid, 'a0000004-0001-4001-8001-000000000007'::uuid, 'documents'),
+        ('a0000005-0001-4001-8001-000000000005'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'part_of'),
+        ('a0000005-0001-4001-8001-000000000006'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'part_of'),
+        ('a0000005-0001-4001-8001-000000000007'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'part_of'),
+        ('a0000005-0001-4001-8001-000000000008'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'part_of'),
+        ('a0000007-0001-4001-8001-000000000009'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'used_in'),
+        ('a0000007-0001-4001-8001-000000000009'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'used_in'),
+        ('a0000007-0001-4001-8001-000000000010'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'used_in'),
+        ('a0000009-0001-4001-8001-000000000010'::uuid, 'a0000004-0001-4001-8001-000000000005'::uuid, 'related_to'),
+        ('a0000009-0001-4001-8001-000000000011'::uuid, 'a0000004-0001-4001-8001-000000000006'::uuid, 'related_to'),
+        ('a0000009-0001-4001-8001-000000000014'::uuid, 'a0000004-0001-4001-8001-000000000004'::uuid, 'related_to')
+    ) AS v(source_id, target_id, relation_type)
+    WHERE EXISTS (SELECT 1 FROM entities e WHERE e.id = v.source_id)
+      AND EXISTS (SELECT 1 FROM entities e WHERE e.id = v.target_id)
     ON CONFLICT DO NOTHING;
-
     INSERT INTO ai.embedding_jobs (user_id, source_table, entity_type, entity_id, status)
     SELECT admin_id, 'entities', e.type, e.id, 'pending'
     FROM entities e

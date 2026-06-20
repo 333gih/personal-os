@@ -8,7 +8,10 @@ DECLARE
 BEGIN
     SELECT id INTO admin_id FROM users WHERE email = 'admin@personal-os.local' LIMIT 1;
     IF admin_id IS NULL THEN
-        RAISE NOTICE 'No admin user found. Start the API first to create default user.';
+        SELECT id INTO admin_id FROM users ORDER BY created_at ASC LIMIT 1;
+    END IF;
+    IF admin_id IS NULL THEN
+        RAISE NOTICE 'No user found. Start the API first to create default user.';
         RETURN;
     END IF;
 
