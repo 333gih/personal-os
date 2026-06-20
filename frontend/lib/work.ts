@@ -128,4 +128,25 @@ export function filterCVEntries(entities: Entity[], status: "in_cv" | "recommend
   return entities.filter((e) => e.type === "work_cv_entry" && workMeta(e).cv_status === status);
 }
 
+/** Human-readable metadata rows for entity detail (work domain). */
+export function workMetadataRows(entity: Entity): { label: string; value: string }[] {
+  const meta = workMeta(entity);
+  const rows: { label: string; value: string }[] = [];
+  if (meta.company) rows.push({ label: "Company", value: meta.company });
+  if (meta.role) rows.push({ label: "Role", value: meta.role });
+  const period = formatWorkPeriod(meta);
+  if (period) rows.push({ label: "Period", value: period });
+  if (meta.location) rows.push({ label: "Location", value: meta.location });
+  if (meta.level) rows.push({ label: "Level", value: meta.level });
+  if (meta.cv_status) {
+    rows.push({
+      label: "CV",
+      value: meta.cv_status === "in_cv" ? "On resume" : "Recommended add",
+    });
+  }
+  if (meta.work_hours) rows.push({ label: "Hours", value: meta.work_hours.replace("-", " – ") });
+  if (meta.stack?.length) rows.push({ label: "Stack", value: meta.stack.join(", ") });
+  return rows;
+}
+
 export const WORK_HOURS_DEFAULT = "08:00 — 17:00 ICT";

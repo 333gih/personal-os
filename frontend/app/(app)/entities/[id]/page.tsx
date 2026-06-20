@@ -1,32 +1,52 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { api } from "@/services/api";
+import type { AIAnalyzeResult } from "@/services/types";
+import { ArchitectureDiagram } from "@/components/mobile/architecture-diagram";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { domainLabel, formatDateTime, parseTags, typeLabel } from "@/lib/utils";
-import { designImage, formatWorkPeriod, workMeta } from "@/lib/work";
-import Image from "next/image";
+import {
+  architectureLayers,
+  designImage,
+  formatWorkPeriod,
+  workMeta,
+  workMetadataRows,
+} from "@/lib/work";
+
+function DetailSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-4xl animate-pulse space-y-4">
+      <div className="h-8 w-2/3 rounded-lg bg-muted" />
+      <div className="h-4 w-1/2 rounded bg-muted" />
+      <div className="h-40 w-full rounded-xl bg-muted" />
+      <div className="h-32 w-full rounded-xl bg-muted" />
+    </div>
+  );
+}
 
 export default function EntityDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [aiInsights, setAiInsights] = useState<AIAnalyzeResult | null>(null);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["entity-detail", id],
-    queryFn: () => api.getEntityDetail(id, true),
+    queryFn: () => api.getEntityDetail(id, false),
+    staleTime: 60_000,
   });
 
   const analyze = useMutation({
     mutationFn: () => api.analyze({ entity_id: id, action: "full" }),
-    onSuccess: () => refetch(),
+    onSuccess: (result) => setAiInsights(result),
   });
 
   const remove = useMutation({
@@ -37,13 +57,15 @@ export default function EntityDetailPage() {
     },
   });
 
-  if (isLoading) return <p className="text-muted-foreground">Loading...</p>;
+  if (isLoading) return <DetailSkeleton />;
   if (!data) return <p className="text-destructive">Entity not found</p>;
 
-  const { entity, relations, reminders, timeline, insights } = data;
+  const { entity, relations, reminders, timeline } = data;
+  const insights = aiInsights ?? data.insights;
   const tags = parseTags(entity.tags);
   const meta = workMeta(entity);
-  const designImg = designImage(entity);
+  const metaRows = entity.domain === "work" ? workMetadataRows(entity) : [];
+  const hasArchitecture = Boolean(designImage(entity) || architectureLayers(entity).length > 0);
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4 sm:space-y-6">
@@ -54,7 +76,7 @@ export default function EntityDetailPage() {
             <Badge className="bg-muted text-muted-foreground">{typeLabel(entity.type)}</Badge>
             <Badge className="bg-muted text-muted-foreground">{entity.status}</Badge>
           </div>
-          <h1 className="text-2xl font-bold">{entity.title}</h1>
+          <h1 className="font-display text-2xl font-bold">{entity.title}</h1>
           {entity.domain === "work" && (meta.company || meta.role || meta.start_date) && (
             <p className="mt-1 text-sm text-muted-foreground">
               {[meta.company, meta.role, formatWorkPeriod(meta)].filter(Boolean).join(" · ")}
@@ -72,13 +94,24 @@ export default function EntityDetailPage() {
             disabled={analyze.isPending}
           >
             <Sparkles className="mr-2 h-4 w-4" />
-            Analyze
+            {analyze.isPending ? "Analyzing…" : "Analyze with AI"}
           </Button>
           <Button variant="destructive" size="icon" onClick={() => remove.mutate()}>
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
+
+      {hasArchitecture && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">System architecture</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ArchitectureDiagram entity={entity} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -98,20 +131,27 @@ export default function EntityDetailPage() {
         </CardContent>
       </Card>
 
-      {designImg && (
+      {metaRows.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">System design</CardTitle>
+            <CardTitle className="text-lg">Details</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-muted">
-              <Image src={designImg} alt={entity.title} fill className="object-contain" sizes="(max-width: 768px) 100vw, 800px" />
-            </div>
+            <dl className="grid gap-3 sm:grid-cols-2">
+              {metaRows.map((row) => (
+                <div key={row.label}>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {row.label}
+                  </dt>
+                  <dd className="mt-0.5 text-sm">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
           </CardContent>
         </Card>
       )}
 
-      {Object.keys(entity.metadata || {}).length > 0 && (
+      {entity.domain !== "work" && Object.keys(entity.metadata || {}).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Metadata</CardTitle>
@@ -172,6 +212,7 @@ export default function EntityDetailPage() {
                     <Link
                       href={`/entities/${rel.related_entity.id}`}
                       className="font-medium text-primary hover:underline"
+                      prefetch
                     >
                       {rel.related_entity.title}
                     </Link>

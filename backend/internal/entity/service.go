@@ -70,6 +70,11 @@ func NewService(db *gorm.DB, aiSvc *ai.Service, embedSvc *embedding.Service) *Se
 	return &Service{db: db, ai: aiSvc, embed: embedSvc}
 }
 
+// entityReads omits pgvector embedding — not needed for API responses and costly on list/detail.
+func entityReads(db *gorm.DB) *gorm.DB {
+	return db.Omit("embedding")
+}
+
 func (s *Service) Create(userID uuid.UUID, input CreateInput) (*models.Entity, error) {
 	tagsJSON, _ := json.Marshal(input.Tags)
 	if input.Tags == nil {
@@ -104,7 +109,7 @@ func (s *Service) Create(userID uuid.UUID, input CreateInput) (*models.Entity, e
 
 func (s *Service) Get(userID, id uuid.UUID) (*models.Entity, error) {
 	var entity models.Entity
-	err := s.db.Where("id = ? AND user_id = ?", id, userID).First(&entity).Error
+	err := entityReads(s.db).Where("id = ? AND user_id = ?", id, userID).First(&entity).Error
 	return &entity, err
 }
 
@@ -134,7 +139,7 @@ func (s *Service) List(userID uuid.UUID, f ListFilter) ([]models.Entity, int64, 
 	}
 
 	var entities []models.Entity
-	err := q.Order("updated_at DESC").Limit(limit).Offset(f.Offset).Find(&entities).Error
+	err := entityReads(q).Order("updated_at DESC").Limit(limit).Offset(f.Offset).Find(&entities).Error
 	return entities, total, err
 }
 
@@ -215,7 +220,7 @@ func (s *Service) GetDetail(userID, id uuid.UUID, includeInsights bool) (*Detail
 	entityMap := map[uuid.UUID]models.Entity{}
 	if len(relatedIDs) > 0 {
 		var related []models.Entity
-		s.db.Where("id IN ?", relatedIDs).Find(&related)
+		entityReads(s.db).Where("id IN ?", relatedIDs).Find(&related)
 		for _, e := range related {
 			entityMap[e.ID] = e
 		}
@@ -296,7 +301,7 @@ func (s *Service) Recent(userID uuid.UUID, limit int) ([]models.Entity, error) {
 		limit = 10
 	}
 	var entities []models.Entity
-	err := s.db.Where("user_id = ?", userID).Order("updated_at DESC").Limit(limit).Find(&entities).Error
+	err := entityReads(s.db).Where("user_id = ?", userID).Order("updated_at DESC").Limit(limit).Find(&entities).Error
 	return entities, err
 }
 
