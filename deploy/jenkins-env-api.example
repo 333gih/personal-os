@@ -11,8 +11,10 @@
 #   • personal-os-api-app-{env}  (--env-file)
 #   • personal-os-pg-{env}       (POSTGRES_DATABASE_* at deploy)
 #
-# AI (OpenRouter + DeepSeek): set OPENROUTER_API_KEY in the secret file.
-# See backend/.env.example for OPENROUTER_MODEL, OPENAI_EMBEDDING_MODEL, EMBEDDING_*.
+# Required for CV Transfer (1.5.6+):
+#   OPENROUTER_API_KEY          — POST /cv/refine AI coach
+#   STORAGE_PROVIDER=seaweedfs  — POST /cv/share PDF upload to SeaweedFS
+#   S3_*                        — same SeaweedFS creds as fash core-service
 #
 # Docker network shared with fash-api-gateway (Kong upstream).
 # ENVIRONMENT=prod but gateway still on dev → set dev network explicitly:
