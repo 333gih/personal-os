@@ -9,4 +9,6 @@
 \ir 008_work_career_data.sql
 \echo '==> 009_work_design_cv.sql'
 \ir 009_work_design_cv.sql
+\echo '==> 011_work_career_assign_user.sql'
+\ir 011_work_career_assign_user.sql
 \echo '==> Career migrations complete'

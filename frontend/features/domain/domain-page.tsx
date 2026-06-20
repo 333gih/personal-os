@@ -21,8 +21,12 @@ const DOMAIN_TYPES: Record<string, { label: string; types?: { value: string; lab
     label: "Work",
     types: [
       { value: "work_project", label: "Project" },
+      { value: "work_employer", label: "Employer" },
+      { value: "work_role", label: "Role" },
       { value: "work_feature", label: "Feature" },
+      { value: "work_design_doc", label: "Design Doc" },
       { value: "work_technology", label: "Technology" },
+      { value: "work_cv_entry", label: "CV Entry" },
       { value: "work_problem", label: "Problem" },
       { value: "work_decision", label: "Decision" },
       { value: "work_lesson", label: "Lesson" },
