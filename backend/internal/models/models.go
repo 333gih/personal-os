@@ -115,6 +115,7 @@ const (
 	TypeWorkFeature     = "work_feature"
 	TypeWorkDesignDoc   = "work_design_doc"
 	TypeWorkCVEntry     = "work_cv_entry"
+	TypeWorkCVDocument  = "work_cv_document"
 	TypeTechnology      = "work_technology"
 	TypeProblem         = "work_problem"
 	TypeDecision        = "work_decision"
@@ -139,7 +140,7 @@ func DomainForType(entityType string) string {
 		return DomainInbox
 	case TypeCourse, TypeCertificate, TypeSkill, TypeTopic, TypeLearningNote:
 		return DomainLearning
-	case TypeWorkEmployer, TypeWorkRole, TypeWorkProject, TypeWorkFeature, TypeWorkDesignDoc, TypeWorkCVEntry,
+	case TypeWorkEmployer, TypeWorkRole, TypeWorkProject, TypeWorkFeature, TypeWorkDesignDoc, TypeWorkCVEntry, TypeWorkCVDocument,
 		TypeTechnology, TypeProblem, TypeDecision, TypeLesson:
 		return DomainWork
 	case TypeGoalTarget, TypeGoalHabit, TypeGoalMilestone:

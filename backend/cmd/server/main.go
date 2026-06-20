@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/personal-os/backend/internal/ai"
 	"github.com/personal-os/backend/internal/auth"
+	"github.com/personal-os/backend/internal/cv"
 	"github.com/personal-os/backend/internal/dashboard"
 	"github.com/personal-os/backend/internal/embedding"
 	"github.com/personal-os/backend/internal/entity"
@@ -143,6 +144,10 @@ func main() {
 
 	dashboardHandler := dashboard.NewHandler(entitySvc, reminderSvc)
 	dashboardHandler.RegisterRoutes(protected.Group("/dashboard"))
+
+	cvSvc := cv.NewService(db, aiSvc, storageSvc)
+	cvHandler := cv.NewHandler(cvSvc)
+	cvHandler.RegisterRoutes(protected.Group("/cv"))
 
 	addr := ":" + cfg.AppPort
 	log.Printf("personal-os API listening on %s", addr)

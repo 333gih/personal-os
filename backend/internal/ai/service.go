@@ -371,6 +371,33 @@ func (s *Service) chat(userID uuid.UUID, endpoint, prompt string) (string, error
 	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
 }
 
+// ChatJSON runs a custom system prompt and returns raw assistant text (for CV coach, etc.).
+func (s *Service) ChatJSON(userID uuid.UUID, endpoint, systemPrompt, userPrompt string) (string, error) {
+	if !s.Configured() {
+		return "", fmt.Errorf("ai not configured")
+	}
+	start := time.Now()
+	resp, err := s.client.CreateChatCompletion(context.Background(), openai.ChatCompletionRequest{
+		Model: s.chatModel,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: userPrompt},
+		},
+		Temperature: 0.3,
+	})
+	latency := int(time.Since(start).Milliseconds())
+	if err != nil {
+		return "", err
+	}
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("empty response")
+	}
+	if userID != uuid.Nil {
+		s.logInteraction(userID, endpoint, s.chatModel, resp.Usage.PromptTokens, resp.Usage.CompletionTokens, latency)
+	}
+	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
+}
+
 func (s *Service) logInteraction(userID uuid.UUID, endpoint, model string, tokensIn, tokensOut, latencyMs int) {
 	if s.db == nil || userID == uuid.Nil {
 		return

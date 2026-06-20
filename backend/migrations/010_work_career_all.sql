@@ -19,6 +19,8 @@
 \ir 009_work_design_cv.sql
 \echo '==> 013_fpt_architecture_layers.sql'
 \ir 013_fpt_architecture_layers.sql
+\echo '==> 014_cv_system.sql'
+\ir 014_cv_system.sql
 \echo '==> 011_work_career_assign_user.sql'
 \ir 011_work_career_assign_user.sql
 \echo '==> Career migrations complete for mphuc8671@gmail.com'

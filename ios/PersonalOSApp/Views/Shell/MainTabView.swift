@@ -99,12 +99,14 @@ struct MainTabView: View {
     @State private var tab: POSTab = .home
     @State private var webSheet: WebSheetRoute?
     @State private var entityDetail: POSEntityDetailRoute?
+    @State private var showCVHub = false
 
     private var nav: POSNavigationActions {
         POSNavigationActions(
             onOpen: openRoute,
             onSwitchTab: { tab = $0 },
-            onLegacyScreen: { webSheet = $0.embedded() }
+            onLegacyScreen: { webSheet = $0.embedded() },
+            onOpenCV: { showCVHub = true }
         )
     }
 
@@ -149,6 +151,10 @@ struct MainTabView: View {
                 onClose: { entityDetail = nil }
             )
             .environmentObject(session)
+        }
+        .fullScreenCover(isPresented: $showCVHub) {
+            POSCVHubView()
+                .environmentObject(session)
         }
         .task { await session.refreshUser() }
     }

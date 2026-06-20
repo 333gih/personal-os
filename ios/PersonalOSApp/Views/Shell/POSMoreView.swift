@@ -27,6 +27,14 @@ struct POSMoreView: View {
         ]),
         ("Explore", [
             POSMoreMenuItem(
+                title: "CV Transfer",
+                subtitle: "Ideal resume, AI edit, PDF export & share",
+                systemImage: "doc.richtext.fill",
+                tint: POSTheme.primaryDark,
+                path: "/cv",
+                sheetTitle: "CV"
+            ),
+            POSMoreMenuItem(
                 title: "Startup",
                 subtitle: "Ideas, pain points, and experiments",
                 systemImage: "rocket.fill",
@@ -69,7 +77,11 @@ struct POSMoreView: View {
                             VStack(spacing: 10) {
                                 ForEach(section.items) { item in
                                     Button {
-                                        nav.onOpen(.path(item.path, title: item.sheetTitle))
+                                        if item.path == "/cv" {
+                                            nav.openCV()
+                                        } else {
+                                            nav.onOpen(.path(item.path, title: item.sheetTitle))
+                                        }
                                     } label: {
                                         POSListRow(
                                             title: item.title,

@@ -90,4 +90,30 @@ final class APIClient: ObservableObject {
         let data = try await authorizedRequest(path: "search", method: "POST", body: payload)
         return try decoder.decode(POSSearchResponse.self, from: data)
     }
+
+    func fetchCV() async throws -> POSAssembledCV {
+        let data = try await authorizedRequest(path: "cv")
+        return try decoder.decode(POSAssembledCV.self, from: data)
+    }
+
+    func saveCV(document: POSCVDocument) async throws -> POSAssembledCV {
+        let payload = try JSONEncoder().encode(POSCVSaveRequest(document: document))
+        let data = try await authorizedRequest(path: "cv", method: "PUT", body: payload)
+        return try decoder.decode(POSAssembledCV.self, from: data)
+    }
+
+    func refineCV(instruction: String, section: String, content: String) async throws -> POSCVRefineResponse {
+        let payload = try JSONEncoder().encode(POSCVRefineRequest(instruction: instruction, section: section, content: content))
+        let data = try await authorizedRequest(path: "cv/refine", method: "POST", body: payload)
+        return try decoder.decode(POSCVRefineResponse.self, from: data)
+    }
+
+    func downloadCVPDF() async throws -> Data {
+        try await authorizedRequest(path: "cv/export/pdf")
+    }
+
+    func shareCV() async throws -> POSCVShareResponse {
+        let data = try await authorizedRequest(path: "cv/share", method: "POST", body: Data("{}".utf8))
+        return try decoder.decode(POSCVShareResponse.self, from: data)
+    }
 }

@@ -255,6 +255,9 @@ struct WorkView: View {
         if !cvInResume.isEmpty || !cvRecommended.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 POSSectionHeader(title: "CV experience", eyebrow: "On resume vs recommended")
+                POSActionButton(title: "Open CV Transfer", icon: "doc.richtext", style: .secondary) {
+                    nav.openCV()
+                }
                 if !cvInResume.isEmpty {
                     POSCard {
                         Label("Already in CV", systemImage: "checkmark.seal")

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -124,4 +125,37 @@ func (s *Service) Download(userID uuid.UUID, storageKey string) (io.ReadCloser, 
 		return nil, nil, err
 	}
 	return obj, &f, nil
+}
+
+// UploadBytes stores raw bytes (e.g. generated CV PDF) under personal-os/{userId}/{relativeKey}.
+func (s *Service) UploadBytes(userID uuid.UUID, relativeKey, contentType string, data []byte) (string, error) {
+	if s.s3 == nil {
+		return "", ErrStorageNotConfigured
+	}
+	if !strings.HasPrefix(relativeKey, "cv/") {
+		return "", fmt.Errorf("invalid upload path")
+	}
+	key := fmt.Sprintf("personal-os/%s/%s", userID.String(), relativeKey)
+	reader := bytes.NewReader(data)
+	_, err := s.s3.client.PutObject(context.Background(), s.s3.bucket, key, reader, int64(len(data)), minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return "", err
+	}
+	record := models.File{
+		UserID:     userID,
+		Filename:   filepath.Base(relativeKey),
+		MimeType:   contentType,
+		Size:       int64(len(data)),
+		StorageKey: key,
+	}
+	if err := s.db.Create(&record).Error; err != nil {
+		return "", err
+	}
+	url, err := s.s3.PresignURL(context.Background(), key, 24*time.Hour)
+	if err != nil {
+		url = s.s3.PublicURL(key)
+	}
+	return url, nil
 }
