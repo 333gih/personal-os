@@ -14,7 +14,7 @@ func AIEntityType(domain, entityType string) string {
 	case DomainJournal:
 		return AITypeJournal
 	case DomainWork:
-		return AITypeTask
+		return AITypeWork
 	}
 	if strings.HasPrefix(entityType, "goal_") {
 		return AITypeGoal
@@ -29,7 +29,7 @@ func AIEntityType(domain, entityType string) string {
 		return AITypeStartup
 	}
 	if strings.HasPrefix(entityType, "work_") {
-		return AITypeTask
+		return AITypeWork
 	}
 	if strings.HasPrefix(entityType, "entertainment_") {
 		return AITypeBook

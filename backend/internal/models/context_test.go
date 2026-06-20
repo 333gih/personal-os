@@ -8,7 +8,7 @@ func TestAIEntityType(t *testing.T) {
 	}{
 		{DomainLearning, TypeCourse, AITypeLearning},
 		{DomainStartup, TypeStartupIdea, AITypeStartup},
-		{DomainWork, TypeWorkProject, AITypeTask},
+		{DomainWork, TypeWorkProject, AITypeWork},
 		{DomainGoal, TypeGoalHabit, AITypeGoal},
 		{DomainJournal, TypeJournalEntry, AITypeJournal},
 		{DomainInbox, TypeInboxNote, AITypeTask},

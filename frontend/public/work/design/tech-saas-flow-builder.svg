@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" font-family="system-ui,sans-serif">
+  <rect width="640" height="360" fill="#faf8f5"/>
+  <text x="320" y="28" text-anchor="middle" font-size="16" font-weight="600" fill="#1a1a1a">Flow Diagram Builder  Architecture</text>
+  <rect x="200" y="52" width="240" height="56" rx="8" fill="#e8f4fc" stroke="#3b82f6"/>
+  <text x="320" y="84" text-anchor="middle" font-size="12" fill="#1e40af">Next.js Web App</text>
+  <rect x="160" y="128" width="320" height="64" rx="8" fill="#fef3c7" stroke="#d97706"/>
+  <text x="320" y="152" text-anchor="middle" font-size="12" font-weight="600" fill="#92400e">Canvas Editor (React Flow)</text>
+  <text x="320" y="172" text-anchor="middle" font-size="10" fill="#334155">Drag-drop nodes · connectors · export JSON/SVG</text>
+  <rect x="200" y="212" width="240" height="48" rx="8" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="320" y="240" text-anchor="middle" font-size="11" fill="#334155">Node.js API  save/load diagrams, share links</text>
+  <rect x="240" y="280" width="160" height="48" rx="8" fill="#f3e8ff" stroke="#9333ea"/>
+  <text x="320" y="308" text-anchor="middle" font-size="11" font-weight="600" fill="#6b21a8">PostgreSQL / MongoDB</text>
+</svg>

@@ -209,6 +209,8 @@ func domainForAIType(aiType string) string {
 		return models.DomainGoal
 	case models.AITypeJournal:
 		return models.DomainJournal
+	case models.AITypeWork:
+		return models.DomainWork
 	case models.AITypeBook:
 		return models.DomainEntertainment
 	default:

@@ -17,10 +17,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const defaultSystemPrompt = `You are the AI layer of Personal OS — a private knowledge system for one person.
+const defaultSystemPrompt = `You are the AI layer of Personal OS — a private knowledge system for Nguyen Khoa Minh Phuc (Software Engineer, HCMC).
 You help classify notes, summarize learning, connect work items, track reading, and suggest practical next actions.
+Work context: career spans FPT Software (AEM/Spring Boot), TINI GROUP (NestJS backend lead), Tech Saas (Next.js), freelance. Key projects: NW3S/Canon, Vietnam Airlines/Algolia, Destu/Chugai AEM Cloud, Tini Coworking IoT. Core work hours: 08:00–17:00 ICT.
 Always respond with valid JSON only. No markdown fences, no commentary outside JSON.
-Domains: inbox, learning, work, startup, entertainment (reading). Be concise, warm, and actionable.`
+Domains: inbox, learning, work, startup, entertainment (reading). Be concise, warm, and actionable.
+Work entity types: work_employer, work_role, work_project, work_feature, work_design_doc, work_technology, work_decision, work_lesson.`
 
 type ClientConfig struct {
 	BaseURL         string

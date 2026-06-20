@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 480" font-family="system-ui,sans-serif">
+  <rect width="720" height="480" fill="#faf8f5"/>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="600" fill="#1a1a1a">Tini Coworking  System Architecture</text>
+  <rect x="40" y="48" width="640" height="72" rx="8" fill="#e8f4fc" stroke="#3b82f6"/>
+  <text x="360" y="72" text-anchor="middle" font-size="12" font-weight="600" fill="#1e40af">Clients</text>
+  <text x="130" y="98" text-anchor="middle" font-size="11" fill="#334155">Next.js Admin</text>
+  <text x="290" y="98" text-anchor="middle" font-size="11" fill="#334155">Next.js User</text>
+  <text x="450" y="98" text-anchor="middle" font-size="11" fill="#334155">Mobile App (User)</text>
+  <text x="590" y="98" text-anchor="middle" font-size="11" fill="#334155">IoT Devices</text>
+  <rect x="120" y="140" width="480" height="64" rx="8" fill="#fef3c7" stroke="#d97706"/>
+  <text x="360" y="164" text-anchor="middle" font-size="12" font-weight="600" fill="#92400e">NestJS Backends (Docker / Ubuntu VPS)</text>
+  <text x="240" y="188" text-anchor="middle" font-size="11" fill="#334155">Admin API</text>
+  <text x="480" y="188" text-anchor="middle" font-size="11" fill="#334155">User API</text>
+  <rect x="200" y="224" width="320" height="48" rx="8" fill="#fce7f3" stroke="#db2777"/>
+  <text x="360" y="252" text-anchor="middle" font-size="11" font-weight="600" fill="#9d174d">Listing Service  blocks / floors / rooms ’ NFT mint &amp; marketplace</text>
+  <rect x="160" y="288" width="400" height="56" rx="8" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="360" y="312" text-anchor="middle" font-size="12" font-weight="600" fill="#166534">Async Layer</text>
+  <text x="360" y="332" text-anchor="middle" font-size="11" fill="#334155">RabbitMQ  door unlock, printer, booking, notifications (non-blocking)</text>
+  <rect x="80" y="360" width="200" height="56" rx="8" fill="#f3e8ff" stroke="#9333ea"/>
+  <text x="180" y="384" text-anchor="middle" font-size="11" font-weight="600" fill="#6b21a8">MongoDB</text>
+  <text x="180" y="402" text-anchor="middle" font-size="10" fill="#334155">spaces, bookings, users</text>
+  <rect x="300" y="360" width="120" height="56" rx="8" fill="#f3e8ff" stroke="#9333ea"/>
+  <text x="360" y="392" text-anchor="middle" font-size="11" font-weight="600" fill="#6b21a8">Blockchain</text>
+  <rect x="440" y="360" width="200" height="56" rx="8" fill="#f3e8ff" stroke="#9333ea"/>
+  <text x="540" y="384" text-anchor="middle" font-size="11" font-weight="600" fill="#6b21a8">Third-party IoT</text>
+  <text x="540" y="402" text-anchor="middle" font-size="10" fill="#334155">door, AC, camera, printer, RFID</text>
+</svg>

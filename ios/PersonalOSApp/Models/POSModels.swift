@@ -6,7 +6,16 @@ struct POSUser: Codable, Identifiable {
     let name: String
 }
 
-struct POSEntity: Codable, Identifiable {
+struct POSArchitectureLayer: Codable, Identifiable {
+    var id: String { layer }
+    let layer: String
+    let nodes: [String]
+}
+
+struct POSEntity: Codable, Identifiable, Hashable {
+    static func == (lhs: POSEntity, rhs: POSEntity) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
     let id: String
     let type: String
     let title: String
@@ -16,15 +25,77 @@ struct POSEntity: Codable, Identifiable {
     let createdAt: String
     let updatedAt: String
     let tags: POSTagsValue?
+    let metadata: POSWorkMetadata?
 
     enum CodingKeys: String, CodingKey {
-        case id, type, title, content, status, domain, tags
+        case id, type, title, content, status, domain, tags, metadata
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
 
     var tagList: [String] {
         tags?.values ?? []
+    }
+
+    var isActiveWork: Bool {
+        metadata?.status == "active" || (metadata?.status == nil && status == "active")
+    }
+
+    var architectureLayers: [POSArchitectureLayer] {
+        metadata?.architectureLayers ?? []
+    }
+
+    func designImageURL() -> URL? {
+        guard let path = metadata?.heroImage, !path.isEmpty else { return nil }
+        if path.hasPrefix("http") { return URL(string: path) }
+        return PersonalOSAppConfig.frontendPath(path)
+    }
+}
+
+struct POSWorkMetadata: Codable {
+    let kind: String?
+    let company: String?
+    let role: String?
+    let startDate: String?
+    let endDate: String?
+    let status: String?
+    let location: String?
+    let priority: String?
+    let workHours: String?
+    let level: String?
+    let image: String?
+    let designImages: [String]?
+    let architectureLayers: [POSArchitectureLayer]?
+    let cvStatus: String?
+
+    enum CodingKeys: String, CodingKey {
+        case kind, company, role, status, location, priority, level, image
+        case startDate = "start_date"
+        case endDate = "end_date"
+        case workHours = "work_hours"
+        case designImages = "design_images"
+        case architectureLayers = "architecture_layers"
+        case cvStatus = "cv_status"
+    }
+
+    func periodLabel() -> String {
+        let start = startDate.flatMap { POSFormatting.monthYear($0) } ?? ""
+        let end: String
+        if let endDate, !endDate.isEmpty {
+            end = POSFormatting.monthYear(endDate)
+        } else if status == "active" {
+            end = "Present"
+        } else {
+            end = ""
+        }
+        if !start.isEmpty && !end.isEmpty { return "\(start) — \(end)" }
+        if !start.isEmpty { return "\(start) — Present" }
+        return end
+    }
+
+    var heroImage: String? {
+        if let image, !image.isEmpty { return image }
+        return designImages?.first
     }
 }
 

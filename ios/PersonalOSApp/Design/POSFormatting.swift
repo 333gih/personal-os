@@ -59,4 +59,14 @@ enum POSFormatting {
         default: return domain.capitalized
         }
     }
+
+    static func monthYear(_ iso: String) -> String {
+        let prefix = String(iso.prefix(10))
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let date = formatter.date(from: prefix) else { return iso }
+        formatter.dateFormat = "MMM yyyy"
+        return formatter.string(from: date)
+    }
 }

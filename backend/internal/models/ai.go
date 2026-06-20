@@ -16,6 +16,7 @@ const (
 	EmbeddingJobFailed     = "failed"
 
 	AITypeTask      = "TASK"
+	AITypeWork      = "WORK"
 	AITypeLearning  = "LEARNING"
 	AITypeStartup   = "STARTUP"
 	AITypeBook      = "BOOK"

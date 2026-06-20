@@ -9,12 +9,9 @@ import { api } from "@/services/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  domainLabel,
-  formatDateTime,
-  parseTags,
-  typeLabel,
-} from "@/lib/utils";
+import { domainLabel, formatDateTime, parseTags, typeLabel } from "@/lib/utils";
+import { designImage, formatWorkPeriod, workMeta } from "@/lib/work";
+import Image from "next/image";
 
 export default function EntityDetailPage() {
   const params = useParams();
@@ -45,6 +42,8 @@ export default function EntityDetailPage() {
 
   const { entity, relations, reminders, timeline, insights } = data;
   const tags = parseTags(entity.tags);
+  const meta = workMeta(entity);
+  const designImg = designImage(entity);
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4 sm:space-y-6">
@@ -56,6 +55,11 @@ export default function EntityDetailPage() {
             <Badge className="bg-muted text-muted-foreground">{entity.status}</Badge>
           </div>
           <h1 className="text-2xl font-bold">{entity.title}</h1>
+          {entity.domain === "work" && (meta.company || meta.role || meta.start_date) && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {[meta.company, meta.role, formatWorkPeriod(meta)].filter(Boolean).join(" · ")}
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">
             Created {formatDateTime(entity.created_at)} · Updated {formatDateTime(entity.updated_at)}
           </p>
@@ -93,6 +97,19 @@ export default function EntityDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {designImg && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">System design</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-muted">
+              <Image src={designImg} alt={entity.title} fill className="object-contain" sizes="(max-width: 768px) 100vw, 800px" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {Object.keys(entity.metadata || {}).length > 0 && (
         <Card>
