@@ -11,7 +11,7 @@ settings:
     SWIFT_VERSION: "5.9"
     TARGETED_DEVICE_FAMILY: "1,2"
     MARKETING_VERSION: "1.5.10"
-    CURRENT_PROJECT_VERSION: "21"
+    CURRENT_PROJECT_VERSION: "22"
 
 targets:
   PersonalOS:
@@ -43,7 +43,7 @@ targets:
     settings:
       base:
         MARKETING_VERSION: "1.5.10"
-        CURRENT_PROJECT_VERSION: "21"
+        CURRENT_PROJECT_VERSION: "22"
         PRODUCT_NAME: Personal OS
         PRODUCT_BUNDLE_IDENTIFIER: com.personalos.story-tracker
         INFOPLIST_FILE: PersonalOSApp/Info.plist
@@ -88,7 +88,7 @@ targets:
     settings:
       base:
         MARKETING_VERSION: "1.5.10"
-        CURRENT_PROJECT_VERSION: "21"
+        CURRENT_PROJECT_VERSION: "22"
         PRODUCT_NAME: StoryTrackerExtension
         PRODUCT_BUNDLE_IDENTIFIER: com.personalos.story-tracker.extension
         INFOPLIST_FILE: StoryTrackerExtension/Info.plist

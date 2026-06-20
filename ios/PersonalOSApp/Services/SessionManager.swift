@@ -64,7 +64,7 @@ final class SessionManager: ObservableObject {
 
     /// Returns a usable access token, refreshing proactively when near expiry.
     func validAccessToken() async -> String? {
-        guard var session = storedSession else {
+        guard let session = storedSession else {
             if let token = accessToken, !JWTHelpers.isExpired(token) {
                 return token
             }

@@ -106,7 +106,7 @@ struct POSWorkImportView: View {
                     .font(.subheadline.weight(.medium))
                 }
             }
-            .onChange(of: selectedPhoto) { _, item in
+            .onChange(of: selectedPhoto) { item in
                 Task { await loadPhoto(item) }
             }
             if let diagramPreview {
