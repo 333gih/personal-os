@@ -63,23 +63,14 @@ final class APIClient: ObservableObject {
         return try decoder.decode(POSDashboard.self, from: data)
     }
 
-    func listEntities(domain: String, limit: Int = 50) async throws -> POSEntityListResponse {
-        var components = URLComponents(url: PersonalOSAppConfig.apiBaseURL.appending(path: "entities"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "domain", value: domain),
-            URLQueryItem(name: "limit", value: String(limit)),
-        ]
-        guard let url = components.url else { throw APIError.http(-1, "Bad URL") }
-
-        guard let token = session?.accessToken else { throw APIError.unauthorized }
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
-            throw APIError.http((response as? HTTPURLResponse)?.statusCode ?? -1, "entities failed")
+    func listEntities(domain: String, limit: Int = 120) async throws -> POSEntityListResponse {
+        let path = "entities?domain=\(domain.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? domain)&limit=\(limit)"
+        let data = try await authorizedRequest(path: path)
+        do {
+            return try decoder.decode(POSEntityListResponse.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
         }
-        return try decoder.decode(POSEntityListResponse.self, from: data)
     }
 
     func search(query: String, mode: String = "hybrid") async throws -> POSSearchResponse {

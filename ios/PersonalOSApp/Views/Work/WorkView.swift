@@ -6,6 +6,7 @@ struct WorkView: View {
 
     @State private var items: [POSEntity] = []
     @State private var isLoading = true
+    @State private var loadError: String?
     @State private var architectureProject: POSEntity?
 
     private var profile: POSEntity? {
@@ -49,6 +50,15 @@ struct WorkView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     profileHero
+                    if let loadError, !isLoading {
+                        POSEmptyState(
+                            systemImage: "exclamationmark.triangle",
+                            title: "Could not load career data",
+                            message: loadError,
+                            actionTitle: "Retry",
+                            action: { Task { await load() } }
+                        )
+                    }
                     timelineSection
                     focusCard
                     projectsSection
@@ -373,11 +383,22 @@ struct WorkView: View {
 
     private func load() async {
         isLoading = true
+        loadError = nil
         defer { isLoading = false }
+        guard session.isAuthenticated else {
+            loadError = "Not signed in."
+            items = []
+            return
+        }
         do {
-            items = try await session.api.listEntities(domain: "work").items
+            let response = try await session.api.listEntities(domain: "work", limit: 120)
+            items = response.items
+            if response.items.isEmpty {
+                loadError = "No work entries yet. Open the app once while signed in as mphuc8671@gmail.com so the server can sync career data."
+            }
         } catch {
             items = []
+            loadError = error.localizedDescription
         }
     }
 }

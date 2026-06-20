@@ -72,6 +72,7 @@ func (h *Handler) Me(c *gin.Context) {
 		response.NotFound(c, "user not found")
 		return
 	}
+	h.service.SyncCareerForUser(userID, user.Email)
 	response.OK(c, user)
 }
 

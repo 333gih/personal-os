@@ -33,6 +33,20 @@ struct POSEntity: Codable, Identifiable, Hashable {
         case updatedAt = "updated_at"
     }
 
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        type = try c.decode(String.self, forKey: .type)
+        title = try c.decode(String.self, forKey: .title)
+        content = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
+        status = try c.decodeIfPresent(String.self, forKey: .status) ?? "active"
+        domain = try c.decodeIfPresent(String.self, forKey: .domain) ?? "work"
+        createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt) ?? ""
+        updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt) ?? ""
+        tags = try? c.decode(POSTagsValue.self, forKey: .tags)
+        metadata = try? c.decode(POSWorkMetadata.self, forKey: .metadata)
+    }
+
     var tagList: [String] {
         tags?.values ?? []
     }
@@ -78,6 +92,24 @@ struct POSWorkMetadata: Codable {
         case cvStatus = "cv_status"
     }
 
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try? c.decode(String.self, forKey: .kind)
+        company = try? c.decode(String.self, forKey: .company)
+        role = try? c.decode(String.self, forKey: .role)
+        startDate = POSEntity.decodeFlexibleString(c, key: .startDate)
+        endDate = POSEntity.decodeFlexibleString(c, key: .endDate)
+        status = try? c.decode(String.self, forKey: .status)
+        location = try? c.decode(String.self, forKey: .location)
+        priority = try? c.decode(String.self, forKey: .priority)
+        workHours = try? c.decode(String.self, forKey: .workHours)
+        level = try? c.decode(String.self, forKey: .level)
+        image = try? c.decode(String.self, forKey: .image)
+        designImages = try? c.decode([String].self, forKey: .designImages)
+        architectureLayers = try? c.decode([POSArchitectureLayer].self, forKey: .architectureLayers)
+        cvStatus = try? c.decode(String.self, forKey: .cvStatus)
+    }
+
     func periodLabel() -> String {
         let start = startDate.flatMap { POSFormatting.monthYear($0) } ?? ""
         let end: String
@@ -99,12 +131,24 @@ struct POSWorkMetadata: Codable {
     }
 }
 
+extension POSEntity {
+    static func decodeFlexibleString(_ c: KeyedDecodingContainer<POSWorkMetadata.CodingKeys>, key: POSWorkMetadata.CodingKeys) -> String? {
+        if let s = try? c.decode(String.self, forKey: key) { return s }
+        if (try? c.decodeNil(forKey: key)) == true { return nil }
+        return nil
+    }
+}
+
 enum POSTagsValue: Codable {
     case array([String])
     case string(String)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
+        if try container.decodeNil() {
+            self = .array([])
+            return
+        }
         if let arr = try? container.decode([String].self) {
             self = .array(arr)
         } else if let str = try? container.decode(String.self) {

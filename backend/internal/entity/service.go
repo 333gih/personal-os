@@ -129,7 +129,7 @@ func (s *Service) List(userID uuid.UUID, f ListFilter) ([]models.Entity, int64, 
 	}
 
 	limit := f.Limit
-	if limit <= 0 || limit > 100 {
+	if limit <= 0 || limit > 200 {
 		limit = 20
 	}
 
