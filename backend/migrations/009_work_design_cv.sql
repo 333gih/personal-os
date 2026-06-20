@@ -5,18 +5,14 @@
 DO $$
 DECLARE
     admin_id UUID;
+    career_owner_email TEXT := 'mphuc8671@gmail.com';
 BEGIN
-    SELECT id INTO admin_id FROM users WHERE email = 'admin@personal-os.local' LIMIT 1;
+    SELECT id INTO admin_id FROM users
+    WHERE lower(trim(email)) = lower(trim(career_owner_email))
+    LIMIT 1;
+
     IF admin_id IS NULL THEN
-        SELECT id INTO admin_id FROM users
-        WHERE email NOT LIKE '%@personal-os.local%'
-        ORDER BY created_at ASC LIMIT 1;
-    END IF;
-    IF admin_id IS NULL THEN
-        SELECT id INTO admin_id FROM users ORDER BY created_at ASC LIMIT 1;
-    END IF;
-    IF admin_id IS NULL THEN
-        RAISE EXCEPTION 'No users in database. Start the API once to create the default user.';
+        RAISE EXCEPTION 'Career owner % not found. Log in once with this email, then re-run migrations/010_work_career_all.sql', career_owner_email;
     END IF;
 
     IF NOT EXISTS (

@@ -5,19 +5,14 @@
 DO $$
 DECLARE
     admin_id UUID;
+    career_owner_email TEXT := 'mphuc8671@gmail.com';
 BEGIN
-    SELECT id INTO admin_id FROM users WHERE email = 'admin@personal-os.local' LIMIT 1;
+    SELECT id INTO admin_id FROM users
+    WHERE lower(trim(email)) = lower(trim(career_owner_email))
+    LIMIT 1;
+
     IF admin_id IS NULL THEN
-        SELECT id INTO admin_id FROM users
-        WHERE email NOT LIKE '%@personal-os.local%'
-        ORDER BY created_at ASC LIMIT 1;
-    END IF;
-    IF admin_id IS NULL THEN
-        SELECT id INTO admin_id FROM users ORDER BY created_at ASC LIMIT 1;
-    END IF;
-    IF admin_id IS NULL THEN
-        RAISE NOTICE 'No user found. Start the API first to create default user.';
-        RETURN;
+        RAISE EXCEPTION 'Career owner % not found. Log in to Personal OS once with this email (Fash Auth), then re-run this migration.', career_owner_email;
     END IF;
 
     -- Remove placeholder work seed from 002
