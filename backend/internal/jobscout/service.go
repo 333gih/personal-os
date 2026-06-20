@@ -127,18 +127,22 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 	}
 
 	type candidate struct {
-		job      rawJob
-		preScore float32
-		preHits  []string
+		job          rawJob
+		preScore     float32
+		preHits      []string
+		primaryMatch bool
 	}
 	candidates := make([]candidate, 0, len(all))
 	for _, j := range all {
-		pre, hits := preScoreJob(skills, j)
-		if pre >= preFilterMinScore || j.Source == "github" {
-			candidates = append(candidates, candidate{job: j, preScore: pre, preHits: hits})
+		pre, hits, primary := preScoreJob(profile, j)
+		if pre >= preFilterMinScore || primary || j.Source == "github" {
+			candidates = append(candidates, candidate{job: j, preScore: pre, preHits: hits, primaryMatch: primary})
 		}
 	}
 	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].primaryMatch != candidates[j].primaryMatch {
+			return candidates[i].primaryMatch
+		}
 		return candidates[i].preScore > candidates[j].preScore
 	})
 	if len(candidates) > maxAICandidates {
@@ -149,7 +153,7 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 	for i, c := range candidates {
 		rawCandidates[i] = c.job
 	}
-	aiScores := s.scoreJobsWithAI(userID, profile, skills, rawCandidates)
+	aiScores := s.scoreJobsWithAI(userID, profile, rawCandidates)
 
 	for _, c := range candidates {
 		key := c.job.Source + ":" + c.job.ExternalID
@@ -158,7 +162,7 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 			copy := m
 			aiMatch = &copy
 		}
-		score, reason := finalizeScore(c.preScore, c.preHits, aiMatch)
+		score, reason := finalizeScore(c.preScore, c.preHits, c.primaryMatch, aiMatch)
 		if score < MinMatchScore {
 			continue
 		}
@@ -231,35 +235,23 @@ func (s *Service) ScanStatus(userID uuid.UUID) userScanState {
 	return s.scans.get(userID)
 }
 
-func (s *Service) loadCandidateProfile(userID uuid.UUID) ([]string, string) {
-	skills := defaultSkills()
-	var parts []string
+func (s *Service) loadCandidateProfile(userID uuid.UUID) ([]string, cv.StackProfile) {
+	fallbackSkills := defaultSkills()
+	profile := cv.StackProfile{
+		PrimaryStack:    []string{"Java", "Spring Boot", "AEM"},
+		AllSkills:       fallbackSkills,
+		YearsExperience: 3,
+		ProfileText:     "Software Engineer specializing in enterprise backend.",
+		RoleTitle:       "Software Engineer",
+	}
 
 	if s.cv != nil {
 		doc, err := s.cv.Get(userID)
 		if err == nil {
-			if len(doc.Document.Skills) > 0 {
-				skills = doc.Document.Skills
-			}
-			if doc.Document.Headline != "" {
-				parts = append(parts, doc.Document.Headline)
-			}
-			if doc.Document.Summary != "" {
-				parts = append(parts, doc.Document.Summary)
-			}
-			for _, exp := range doc.Document.Experience {
-				if exp.Title != "" {
-					parts = append(parts, exp.Title+": "+trimDesc(exp.Content, 200))
-				}
-			}
+			profile = cv.BuildStackProfile(doc.Document)
 		}
 	}
-
-	profile := strings.Join(parts, "\n")
-	if profile == "" {
-		profile = "Software Engineer specializing in enterprise backend, AEM, and Spring Boot."
-	}
-	return skills, profile
+	return profile.AllSkills, profile
 }
 
 func defaultSkills() []string {

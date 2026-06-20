@@ -32,9 +32,11 @@ func (s *Service) Get(userID uuid.UUID) (*AssembledCV, error) {
 		return nil, err
 	}
 	if doc != nil {
+		cvDoc := metadataToDocument(doc)
+		NormalizeDocument(&cvDoc)
 		return &AssembledCV{
 			DocumentID: doc.ID.String(),
-			Document:   metadataToDocument(doc),
+			Document:   cvDoc,
 			Source:     "ideal",
 		}, nil
 	}
@@ -42,11 +44,13 @@ func (s *Service) Get(userID uuid.UUID) (*AssembledCV, error) {
 	if err != nil {
 		return nil, err
 	}
+	NormalizeDocument(&assembled)
 	return &AssembledCV{Document: assembled, Source: "assembled"}, nil
 }
 
 func (s *Service) Save(userID uuid.UUID, doc CVDocument) (*AssembledCV, error) {
 	doc.Variant = "ideal"
+	NormalizeDocument(&doc)
 
 	existing, err := s.loadDocument(userID)
 	if err != nil && err != gorm.ErrRecordNotFound {
@@ -109,8 +113,10 @@ func (s *Service) MergeSkills(userID uuid.UUID, skills []string) ([]string, erro
 	if err != nil {
 		return nil, err
 	}
+	doc := cv.Document
+	NormalizeDocument(&doc)
 	seen := map[string]bool{}
-	for _, sk := range cv.Document.Skills {
+	for _, sk := range AllSkills(doc) {
 		seen[strings.ToLower(strings.TrimSpace(sk))] = true
 	}
 	var added []string
@@ -124,13 +130,18 @@ func (s *Service) MergeSkills(userID uuid.UUID, skills []string) ([]string, erro
 			continue
 		}
 		seen[key] = true
-		cv.Document.Skills = append(cv.Document.Skills, label)
 		added = append(added, label)
 	}
 	if len(added) == 0 {
 		return nil, nil
 	}
-	if _, err := s.Save(userID, cv.Document); err != nil {
+	if len(doc.SkillGroups) == 0 {
+		doc.SkillGroups = []SkillGroup{{Category: "Skills", Items: added}}
+	} else {
+		doc.SkillGroups[0].Items = append(doc.SkillGroups[0].Items, added...)
+	}
+	doc.Skills = AllSkills(doc)
+	if _, err := s.Save(userID, doc); err != nil {
 		return nil, err
 	}
 	return added, nil
@@ -193,12 +204,15 @@ func (s *Service) assembleFromEntries(userID uuid.UUID) (CVDocument, error) {
 	}
 
 	doc := CVDocument{
-		Variant:  "assembled",
-		Headline: "Software Engineer — AEM, Spring Boot, NestJS",
-		Summary:  "Enterprise AEM/Spring Boot engineer with NestJS backend lead experience. Delivers migration pipelines, global search, and IoT platforms.",
-		Contact:  Contact{Location: "Ho Chi Minh City, Vietnam"},
-		Skills:   []string{"AEM", "Spring Boot", "Java", "NestJS", "Algolia", "GCP", "PostgreSQL", "MongoDB"},
+		Variant:         "assembled",
+		Headline:        "Software Engineer — AEM, Spring Boot, NestJS",
+		Summary:         "Enterprise AEM/Spring Boot engineer with NestJS backend lead experience. Delivers migration pipelines, global search, and IoT platforms.",
+		Contact:         Contact{Location: "Ho Chi Minh City, Vietnam"},
+		SkillGroups:     defaultSkillGroups(),
+		PrimaryStack:    []string{"Java", "Spring Boot", "AEM"},
+		YearsExperience: 3.5,
 	}
+	doc.Skills = AllSkills(doc)
 
 	for _, e := range entries {
 		meta := map[string]any(e.Metadata)

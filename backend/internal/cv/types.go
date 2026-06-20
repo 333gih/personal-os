@@ -5,6 +5,25 @@ type Contact struct {
 	Phone    string `json:"phone"`
 	Location string `json:"location"`
 	LinkedIn string `json:"linkedin,omitempty"`
+	GitHub   string `json:"github,omitempty"`
+}
+
+type SkillGroup struct {
+	Category string   `json:"category"`
+	Items    []string `json:"items"`
+}
+
+type EducationItem struct {
+	School  string `json:"school"`
+	Degree  string `json:"degree,omitempty"`
+	Period  string `json:"period,omitempty"`
+	Content string `json:"content,omitempty"`
+}
+
+type CertificateItem struct {
+	Title  string `json:"title"`
+	Issuer string `json:"issuer,omitempty"`
+	Period string `json:"period,omitempty"`
 }
 
 type BulletItem struct {
@@ -17,15 +36,20 @@ type BulletItem struct {
 }
 
 type CVDocument struct {
-	Variant   string       `json:"variant"`
-	Headline  string       `json:"headline"`
-	Summary   string       `json:"summary"`
-	Contact   Contact      `json:"contact"`
-	Skills    []string     `json:"skills"`
-	Experience []BulletItem `json:"experience"`
-	Projects  []BulletItem `json:"projects"`
-	PhotoURL  string       `json:"photo_url,omitempty"`
-	UpdatedAt string       `json:"updated_at,omitempty"`
+	Variant         string            `json:"variant"`
+	Headline        string            `json:"headline"`
+	Summary         string            `json:"summary"`
+	Contact         Contact           `json:"contact"`
+	Skills          []string          `json:"skills"`
+	SkillGroups     []SkillGroup      `json:"skill_groups,omitempty"`
+	PrimaryStack    []string          `json:"primary_stack,omitempty"`
+	YearsExperience float32           `json:"years_experience,omitempty"`
+	Education       []EducationItem   `json:"education,omitempty"`
+	Certificates    []CertificateItem `json:"certificates,omitempty"`
+	Experience      []BulletItem      `json:"experience"`
+	Projects        []BulletItem      `json:"projects"`
+	PhotoURL        string            `json:"photo_url,omitempty"`
+	UpdatedAt       string            `json:"updated_at,omitempty"`
 }
 
 type AssembledCV struct {
@@ -54,4 +78,25 @@ type ShareResponse struct {
 	URL       string `json:"url"`
 	ExpiresIn string `json:"expires_in"`
 	Filename  string `json:"filename"`
+}
+
+type SuggestedSkill struct {
+	Category string `json:"category"`
+	Skill    string `json:"skill"`
+	Reason   string `json:"reason,omitempty"`
+}
+
+type SuggestSkillsResponse struct {
+	PrimaryStack []string         `json:"primary_stack"`
+	Suggestions  []SuggestedSkill `json:"suggestions"`
+}
+
+type AddSkillRequest struct {
+	Category string `json:"category" binding:"required"`
+	Skill    string `json:"skill" binding:"required"`
+}
+
+type AddSkillResponse struct {
+	Added    []string   `json:"added"`
+	Document CVDocument `json:"document"`
 }

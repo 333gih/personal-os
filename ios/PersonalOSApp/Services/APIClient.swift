@@ -156,6 +156,17 @@ final class APIClient: ObservableObject {
         return try decoder.decode(POSCVShareResponse.self, from: data)
     }
 
+    func suggestCVSkills() async throws -> POSCVSuggestSkillsResponse {
+        let data = try await authorizedRequest(path: "cv/suggest-skills", method: "POST", body: Data("{}".utf8))
+        return try decoder.decode(POSCVSuggestSkillsResponse.self, from: data)
+    }
+
+    func addCVSkill(category: String, skill: String) async throws -> POSCVAddSkillResponse {
+        let payload = try JSONEncoder().encode(POSCVAddSkillRequest(category: category, skill: skill))
+        let data = try await authorizedRequest(path: "cv/skills/add", method: "POST", body: payload)
+        return try decoder.decode(POSCVAddSkillResponse.self, from: data)
+    }
+
     func fetchJobs(status: String = "open") async throws -> [POSJobOpportunity] {
         let path = "jobs?status=\(status.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? status)"
         let data = try await authorizedRequest(path: path)

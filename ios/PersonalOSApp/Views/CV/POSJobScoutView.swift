@@ -140,7 +140,7 @@ struct POSJobScoutView: View {
     }
 
     private var headerCopy: some View {
-        Text("AI matches jobs from Remotive + RemoteOK (≥50% fit to your CV). Tap Apply to open the listing in Safari, then mark done when finished.")
+        Text("AI matches jobs to your primary stack from CV (Java/Spring Boot/AEM or whatever you use). Primary-stack roles score ~100%. Tap Scan, then Apply in Safari.")
             .font(.caption)
             .foregroundStyle(POSTheme.muted)
             .padding(.horizontal, 16)
@@ -163,9 +163,9 @@ struct POSJobScoutView: View {
     private var emptyTabState: some View {
         POSEmptyState(
             systemImage: tab == .open ? "sparkles" : "checkmark.seal",
-            title: tab == .open ? "No jobs ≥50% match" : "No applied jobs",
+            title: tab == .open ? "No matching jobs yet" : "No applied jobs",
             message: tab == .open
-                ? "Tap Scan to crawl listings and run AI matching against your CV skills."
+                ? "Tap Scan to crawl listings and match against your CV primary stack."
                 : "Jobs you mark as applied after submitting will appear here.",
             actionTitle: tab == .open ? "Scan now" : nil,
             action: tab == .open ? { Task { await scan() } } : nil
@@ -255,7 +255,7 @@ struct POSJobScoutView: View {
             openJobs = try await open
             appliedJobs = try await applied
             if openJobs.isEmpty && tab == .open {
-                errorMessage = "No listings at 50%+ match yet. Tap Scan — needs OPENROUTER_API_KEY on server for AI scoring."
+                errorMessage = "No listings matched yet. Tap Scan — needs OPENROUTER_API_KEY on server for AI scoring."
             }
         } catch {
             errorMessage = error.localizedDescription

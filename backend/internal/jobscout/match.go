@@ -6,19 +6,21 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/personal-os/backend/internal/cv"
 )
 
 const (
-	MinMatchScore     float32 = 0.5
-	maxJobsPerBatch   = 6
-	maxAICandidates   = 24
-	preFilterMinScore float32 = 0.08
+	MinMatchScore       float32 = 0.35
+	PrimaryMatchFloor   float32 = 0.85
+	maxJobsPerBatch     = 6
+	maxAICandidates     = 48
+	preFilterMinScore   float32 = 0.05
 )
 
 var skillAliases = map[string][]string{
 	"java":           {"java", "jvm", "spring"},
 	"spring boot":    {"spring boot", "spring-boot", "springboot", "spring"},
-	"aem":            {"aem", "adobe experience manager", "adobe cms", "sling"},
+	"aem":            {"aem", "adobe experience manager", "adobe cms", "sling", "htl"},
 	"nestjs":         {"nestjs", "nest.js", "nest js"},
 	"node.js":        {"node.js", "nodejs", "node "},
 	"postgresql":     {"postgresql", "postgres", "psql"},
@@ -32,6 +34,18 @@ var skillAliases = map[string][]string{
 	"kubernetes":     {"kubernetes", "k8s"},
 	"graphql":        {"graphql", "graph ql"},
 	"rabbitmq":       {"rabbitmq", "message queue", "amqp"},
+	"golang":         {"golang", " go ", "go developer"},
+	"python":         {"python", "django", "flask"},
+	"angular":        {"angular"},
+	"vue":            {"vue", "vuejs"},
+	".net":           {".net", "dotnet", "c#"},
+	"php":            {"php", "laravel"},
+	"ruby":           {"ruby", "rails"},
+	"rust":           {"rust"},
+	"swift":          {"swift", "swiftui", "ios"},
+	"kotlin":         {"kotlin", "android"},
+	"aws":            {"aws", "amazon web services"},
+	"azure":          {"azure"},
 }
 
 type aiBatchMatch struct {
@@ -41,60 +55,106 @@ type aiBatchMatch struct {
 	Skills     []string `json:"matched_skills"`
 }
 
-func preScoreJob(skills []string, job rawJob) (float32, []string) {
+func preScoreJob(profile cv.StackProfile, job rawJob) (float32, []string, bool) {
 	hay := strings.ToLower(job.Title + " " + job.Description + " " + strings.Join(job.Skills, " "))
 	if hay == "" {
-		return 0, nil
+		return 0, nil, false
+	}
+	titleHay := strings.ToLower(job.Title)
+
+	var primaryHits, secondaryHits []string
+	seen := map[string]bool{}
+
+	for _, skill := range profile.PrimaryStack {
+		if hit := matchSkill(skill, hay); hit != "" {
+			if !seen[strings.ToLower(hit)] {
+				seen[strings.ToLower(hit)] = true
+				primaryHits = append(primaryHits, hit)
+			}
+		}
 	}
 
-	var hits []string
-	seen := map[string]bool{}
-	for _, skill := range skills {
-		token := strings.ToLower(strings.TrimSpace(skill))
-		if token == "" {
+	for _, skill := range profile.AllSkills {
+		if containsSkill(profile.PrimaryStack, skill) {
 			continue
 		}
-		if matchSkillInHay(token, hay) {
-			if !seen[token] {
-				seen[token] = true
-				hits = append(hits, skill)
+		if hit := matchSkill(skill, hay); hit != "" {
+			key := strings.ToLower(hit)
+			if !seen[key] {
+				seen[key] = true
+				secondaryHits = append(secondaryHits, hit)
 			}
-			continue
 		}
-		for _, alias := range skillAliases[token] {
-			if strings.Contains(hay, alias) {
-				if !seen[token] {
-					seen[token] = true
-					hits = append(hits, skill)
-				}
+	}
+
+	allHits := append(append([]string{}, primaryHits...), secondaryHits...)
+	primaryMatch := len(primaryHits) > 0
+
+	if primaryMatch {
+		score := PrimaryMatchFloor + float32(len(primaryHits)-1)*0.05
+		for _, p := range profile.PrimaryStack {
+			if matchSkill(p, titleHay) != "" {
+				score = 0.98
 				break
 			}
 		}
+		if score > 1 {
+			score = 1
+		}
+		return score, allHits, true
 	}
 
-	if len(hits) == 0 {
-		return 0, nil
+	if len(secondaryHits) > 0 {
+		score := float32(len(secondaryHits)) * 0.12
+		if score > 0.72 {
+			score = 0.72
+		}
+		if score < MinMatchScore {
+			score = MinMatchScore
+		}
+		return score, allHits, false
 	}
 
-	denom := len(skills)
-	if denom > 6 {
-		denom = 6
+	return 0, nil, false
+}
+
+func containsSkill(list []string, skill string) bool {
+	skill = strings.ToLower(strings.TrimSpace(skill))
+	for _, item := range list {
+		if strings.ToLower(strings.TrimSpace(item)) == skill {
+			return true
+		}
 	}
-	if denom < 1 {
-		denom = 1
+	return false
+}
+
+func matchSkill(skill, hay string) string {
+	token := strings.ToLower(strings.TrimSpace(skill))
+	if token == "" {
+		return ""
 	}
-	score := float32(len(hits)) / float32(denom)
-	if score > 1 {
-		score = 1
+	if matchSkillInHay(token, hay) {
+		return strings.TrimSpace(skill)
 	}
-	return score, hits
+	for _, alias := range skillAliases[token] {
+		if strings.Contains(hay, alias) {
+			return strings.TrimSpace(skill)
+		}
+	}
+	// Parenthetical e.g. "Java (Spring Boot, AEM)"
+	if i := strings.Index(token, "("); i > 0 {
+		base := strings.TrimSpace(token[:i])
+		if base != "" && matchSkillInHay(base, hay) {
+			return strings.TrimSpace(skill)
+		}
+	}
+	return ""
 }
 
 func matchSkillInHay(skill, hay string) bool {
 	if strings.Contains(hay, skill) {
 		return true
 	}
-	// "Spring Boot" vs springboot
 	compact := strings.ReplaceAll(skill, " ", "")
 	if compact != skill && strings.Contains(strings.ReplaceAll(hay, " ", ""), compact) {
 		return true
@@ -102,7 +162,7 @@ func matchSkillInHay(skill, hay string) bool {
 	return false
 }
 
-func (s *Service) scoreJobsWithAI(userID uuid.UUID, profile string, skills []string, candidates []rawJob) map[string]aiBatchMatch {
+func (s *Service) scoreJobsWithAI(userID uuid.UUID, profile cv.StackProfile, candidates []rawJob) map[string]aiBatchMatch {
 	out := map[string]aiBatchMatch{}
 	if s.ai == nil || !s.ai.Configured() || len(candidates) == 0 {
 		return out
@@ -114,7 +174,7 @@ func (s *Service) scoreJobsWithAI(userID uuid.UUID, profile string, skills []str
 			end = len(candidates)
 		}
 		batch := candidates[i:end]
-		matches, err := s.aiScoreBatch(userID, profile, skills, batch)
+		matches, err := s.aiScoreBatch(userID, profile, batch)
 		if err != nil {
 			continue
 		}
@@ -134,7 +194,7 @@ func (s *Service) scoreJobsWithAI(userID uuid.UUID, profile string, skills []str
 	return out
 }
 
-func (s *Service) aiScoreBatch(userID uuid.UUID, profile string, skills []string, jobs []rawJob) ([]aiBatchMatch, error) {
+func (s *Service) aiScoreBatch(userID uuid.UUID, profile cv.StackProfile, jobs []rawJob) ([]aiBatchMatch, error) {
 	type jobBrief struct {
 		ExternalID  string   `json:"external_id"`
 		Source      string   `json:"source"`
@@ -158,17 +218,23 @@ func (s *Service) aiScoreBatch(userID uuid.UUID, profile string, skills []string
 	}
 	jobsJSON, _ := json.Marshal(briefs)
 
-	system := `You are a job matching engine for a software engineer. Compare each job listing to the candidate profile.
+	system := fmt.Sprintf(`You are a job matching engine. Compare each job to the candidate's PRIMARY STACK (not every skill they know).
 Respond with JSON only:
-{"matches":[{"external_id":"id","score":0-100,"reason":"one sentence","matched_skills":["skill1","skill2"]}]}
+{"matches":[{"external_id":"id","score":0-100,"reason":"one sentence","matched_skills":["skill1"]}]}
 Rules:
-- score is fit percentage 0-100 (skills, role level, stack, domain).
-- Only include jobs with score >= 50 in the matches array.
-- Be realistic: generic listings with no stack overlap should score below 50.
-- matched_skills lists candidate skills that align with the job.`
+- Candidate has ~%.1f years experience as %s.
+- PRIMARY STACK (most important): %s
+- Jobs clearly requiring the primary stack should score 90-100.
+- Related backend/full-stack roles with partial overlap: 50-85.
+- Unrelated stacks (no primary overlap): below 35 — omit from matches.
+- Include jobs with score >= 35 in the matches array.
+- matched_skills lists candidate skills that align with the job.`,
+		profile.YearsExperience,
+		profile.RoleTitle,
+		strings.Join(profile.PrimaryStack, ", "))
 
-	prompt := fmt.Sprintf("Candidate profile:\n%s\n\nCV skills: %s\n\nJobs JSON:\n%s",
-		profile, strings.Join(skills, ", "), string(jobsJSON))
+	prompt := fmt.Sprintf("Candidate profile:\n%s\n\nAll CV skills: %s\n\nJobs JSON:\n%s",
+		profile.ProfileText, strings.Join(profile.AllSkills, ", "), string(jobsJSON))
 
 	raw, err := s.ai.ChatJSON(userID, "jobs/match", system, prompt)
 	if err != nil {
@@ -202,13 +268,31 @@ func parseMatchJSON(raw string, dest any) error {
 	return json.Unmarshal([]byte(raw), dest)
 }
 
-func finalizeScore(preScore float32, preHits []string, ai *aiBatchMatch) (float32, string) {
+func finalizeScore(preScore float32, preHits []string, primaryMatch bool, ai *aiBatchMatch) (float32, string) {
+	if primaryMatch && preScore >= PrimaryMatchFloor {
+		reason := "Primary stack match: " + strings.Join(preHits, ", ")
+		if ai != nil && strings.TrimSpace(ai.Reason) != "" {
+			score := ai.Score
+			if score > 1 {
+				score = score / 100
+			}
+			if score >= PrimaryMatchFloor {
+				return score, ai.Reason
+			}
+		}
+		return preScore, reason
+	}
+
 	if ai != nil && ai.Score >= MinMatchScore {
 		reason := strings.TrimSpace(ai.Reason)
 		if reason == "" && len(ai.Skills) > 0 {
 			reason = "Matches: " + strings.Join(ai.Skills, ", ")
 		}
-		return ai.Score, reason
+		score := ai.Score
+		if score > 1 {
+			score = score / 100
+		}
+		return score, reason
 	}
 
 	if preScore >= MinMatchScore {

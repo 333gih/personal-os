@@ -5,6 +5,31 @@ struct POSCVContact: Codable, Hashable {
     var phone: String?
     var location: String?
     var linkedin: String?
+    var github: String?
+}
+
+struct POSCVSkillGroup: Codable, Hashable, Identifiable {
+    var category: String
+    var items: [String]
+
+    var id: String { category }
+}
+
+struct POSCVEducation: Codable, Hashable, Identifiable {
+    var school: String
+    var degree: String?
+    var period: String?
+    var content: String?
+
+    var id: String { "\(school)-\(period ?? "")" }
+}
+
+struct POSCVCertificate: Codable, Hashable, Identifiable {
+    var title: String
+    var issuer: String?
+    var period: String?
+
+    var id: String { "\(title)-\(issuer ?? "")" }
 }
 
 struct POSCVBullet: Codable, Identifiable, Hashable {
@@ -24,13 +49,21 @@ struct POSCVDocument: Codable, Hashable {
     var summary: String
     var contact: POSCVContact?
     var skills: [String]?
+    var skillGroups: [POSCVSkillGroup]?
+    var primaryStack: [String]?
+    var yearsExperience: Float?
+    var education: [POSCVEducation]?
+    var certificates: [POSCVCertificate]?
     var experience: [POSCVBullet]?
     var projects: [POSCVBullet]?
     var photoURL: String?
     var updatedAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case variant, headline, summary, contact, skills, experience, projects
+        case variant, headline, summary, contact, skills, experience, projects, education, certificates
+        case skillGroups = "skill_groups"
+        case primaryStack = "primary_stack"
+        case yearsExperience = "years_experience"
         case photoURL = "photo_url"
         case updatedAt = "updated_at"
     }
@@ -81,13 +114,30 @@ struct POSCVSaveRequest: Encodable {
     let document: POSCVDocument
 }
 
-struct POSCVSaveResponse: Decodable {
-    let documentID: String?
-    let document: POSCVDocument
-    let source: String
+struct POSCVSuggestedSkill: Codable, Identifiable, Hashable {
+    var category: String
+    var skill: String
+    var reason: String?
+
+    var id: String { "\(category)-\(skill)" }
+}
+
+struct POSCVSuggestSkillsResponse: Decodable {
+    let primaryStack: [String]?
+    let suggestions: [POSCVSuggestedSkill]
 
     enum CodingKeys: String, CodingKey {
-        case documentID = "document_id"
-        case document, source
+        case primaryStack = "primary_stack"
+        case suggestions
     }
+}
+
+struct POSCVAddSkillRequest: Encodable {
+    let category: String
+    let skill: String
+}
+
+struct POSCVAddSkillResponse: Decodable {
+    let added: [String]?
+    let document: POSCVDocument
 }

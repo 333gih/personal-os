@@ -21,6 +21,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("", h.Get)
 	r.PUT("", h.Save)
 	r.POST("/refine", h.Refine)
+	r.POST("/suggest-skills", h.SuggestSkills)
+	r.POST("/skills/add", h.AddSkill)
 	r.GET("/export/html", h.ExportHTML)
 	r.GET("/export/pdf", h.ExportPDF)
 	r.POST("/share", h.Share)
@@ -56,6 +58,29 @@ func (h *Handler) Refine(c *gin.Context) {
 		return
 	}
 	out, err := h.service.Refine(auth.GetUserID(c), req)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) SuggestSkills(c *gin.Context) {
+	out, err := h.service.SuggestSkills(auth.GetUserID(c))
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) AddSkill(c *gin.Context) {
+	var req AddSkillRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	out, err := h.service.AddSkill(auth.GetUserID(c), req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

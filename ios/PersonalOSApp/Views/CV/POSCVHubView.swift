@@ -19,6 +19,9 @@ struct POSCVHubView: View {
     @State private var editSummary: String = ""
     @State private var editHeadline: String = ""
     @State private var editSkillsText: String = ""
+    @State private var suggestedSkills: [POSCVSuggestedSkill] = []
+    @State private var primaryStackLabel: String = ""
+    @State private var isLoadingSuggestions = false
 
     var body: some View {
         NavigationStack {
@@ -116,6 +119,92 @@ struct POSCVHubView: View {
                 .textContentType(.URL)
                 .keyboardType(.URL)
                 .autocapitalization(.none)
+            TextField("GitHub URL", text: bindingContact(\.github))
+                .textContentType(.URL)
+                .keyboardType(.URL)
+                .autocapitalization(.none)
+        }
+    }
+
+    private var skillGroupsSection: some View {
+        POSCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Skills (by category)").font(.caption.weight(.semibold))
+                let groups = cv?.document.skillGroups ?? []
+                if groups.isEmpty {
+                    TextField("Comma-separated skills", text: $editSkillsText, axis: .vertical)
+                        .font(.subheadline)
+                        .lineLimit(2...6)
+                        .onChange(of: editSkillsText) { v in
+                            let skills = v.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                            updateDocument { $0.skills = skills.isEmpty ? nil : skills }
+                        }
+                } else {
+                    ForEach(groups) { group in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(group.category).font(.caption.weight(.semibold)).foregroundStyle(POSTheme.primaryDark)
+                            Text(group.items.joined(separator: ", "))
+                                .font(.caption)
+                                .foregroundStyle(POSTheme.ink)
+                        }
+                        if group.id != groups.last?.id {
+                            Divider()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var suggestedSkillsSection: some View {
+        POSCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("AI skill suggestions", systemImage: "plus.circle")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(POSTheme.primaryDark)
+                    Spacer()
+                    Button {
+                        Task { await loadSuggestions() }
+                    } label: {
+                        if isLoadingSuggestions {
+                            ProgressView()
+                        } else {
+                            Text("Refresh")
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+                    .disabled(isLoadingSuggestions)
+                }
+                Text("Tap a skill to add it directly into your CV.")
+                    .font(.caption2)
+                    .foregroundStyle(POSTheme.muted)
+                if suggestedSkills.isEmpty {
+                    Text("Refresh to get AI suggestions based on your experience.")
+                        .font(.caption)
+                        .foregroundStyle(POSTheme.muted)
+                } else {
+                    FlowLayout(spacing: 8) {
+                        ForEach(suggestedSkills) { item in
+                            Button {
+                                Task { await addSuggestedSkill(item) }
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("+ \(item.skill)")
+                                        .font(.caption.weight(.semibold))
+                                    Text(item.category)
+                                        .font(.caption2)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(POSTheme.border.opacity(0.35))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -138,16 +227,39 @@ struct POSCVHubView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     POSSectionHeader(title: "Edit sections", eyebrow: "Resume body")
 
-                    POSCard {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Skills").font(.caption.weight(.semibold))
-                            TextField("Comma-separated skills", text: $editSkillsText, axis: .vertical)
-                                .font(.subheadline)
-                                .lineLimit(2...6)
-                                .onChange(of: editSkillsText) { v in
-                                    let skills = v.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-                                    updateDocument { $0.skills = skills.isEmpty ? nil : skills }
+                    if !primaryStackLabel.isEmpty {
+                        POSCard {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Primary stack (Job Scout)").font(.caption.weight(.semibold))
+                                Text(primaryStackLabel)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(POSTheme.primaryDark)
+                                Text("Jobs matching this stack score highest — detected from your CV, not hardcoded.")
+                                    .font(.caption2)
+                                    .foregroundStyle(POSTheme.muted)
+                            }
+                        }
+                    }
+
+                    skillGroupsSection
+                    suggestedSkillsSection
+
+                    if let education = cv?.document.education, !education.isEmpty {
+                        POSCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Education").font(.caption.weight(.semibold))
+                                ForEach(education) { item in
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.school).font(.subheadline.weight(.medium))
+                                        if let degree = item.degree, !degree.isEmpty {
+                                            Text(degree).font(.caption)
+                                        }
+                                        if let period = item.period, !period.isEmpty {
+                                            Text(period).font(.caption2).foregroundStyle(POSTheme.muted)
+                                        }
+                                    }
                                 }
+                            }
                         }
                     }
 
@@ -275,8 +387,39 @@ struct POSCVHubView: View {
             editHeadline = cv?.document.headline ?? ""
             editSummary = cv?.document.summary ?? ""
             editSkillsText = (cv?.document.skills ?? []).joined(separator: ", ")
+            if let stack = cv?.document.primaryStack, !stack.isEmpty {
+                primaryStackLabel = stack.joined(separator: " · ")
+            } else if let groups = cv?.document.skillGroups, let first = groups.first?.items.prefix(3) {
+                primaryStackLabel = first.joined(separator: " · ")
+            }
+            await loadSuggestions()
         } catch {
             loadError = error.localizedDescription
+        }
+    }
+
+    private func loadSuggestions() async {
+        isLoadingSuggestions = true
+        defer { isLoadingSuggestions = false }
+        do {
+            let resp = try await session.api.suggestCVSkills()
+            suggestedSkills = resp.suggestions
+            if let stack = resp.primaryStack, !stack.isEmpty {
+                primaryStackLabel = stack.joined(separator: " · ")
+            }
+        } catch {
+            // Suggestions are optional — keep UI usable without AI.
+        }
+    }
+
+    private func addSuggestedSkill(_ item: POSCVSuggestedSkill) async {
+        do {
+            let resp = try await session.api.addCVSkill(category: item.category, skill: item.skill)
+            cv = POSAssembledCV(documentID: cv?.documentID, document: resp.document, source: cv?.source ?? "ideal")
+            suggestedSkills.removeAll { $0.id == item.id }
+            POSHaptics.light()
+        } catch {
+            alertMessage = error.localizedDescription
         }
     }
 
