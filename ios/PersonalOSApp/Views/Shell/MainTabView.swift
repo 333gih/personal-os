@@ -84,29 +84,38 @@ struct POSBottomTabBar: View {
     }
 }
 
+struct POSEntityDetailRoute: Identifiable, Equatable {
+    let id: String
+    let title: String
+    var initialSection: POSEntityDetailSection = .overview
+
+    static func == (lhs: POSEntityDetailRoute, rhs: POSEntityDetailRoute) -> Bool {
+        lhs.id == rhs.id && lhs.initialSection == rhs.initialSection
+    }
+}
+
 struct MainTabView: View {
     @EnvironmentObject private var session: SessionManager
     @State private var tab: POSTab = .home
     @State private var webSheet: WebSheetRoute?
+    @State private var entityDetail: POSEntityDetailRoute?
 
     private var nav: POSNavigationActions {
         POSNavigationActions(
-            onOpen: openWeb,
+            onOpen: openRoute,
             onSwitchTab: { tab = $0 },
-            onLegacyScreen: { webSheet = $0 }
+            onLegacyScreen: { webSheet = $0.embedded() }
         )
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            if tab != .more {
-                POSAppHeader(
-                    title: tab.headerTitle,
-                    initials: session.userInitials(),
-                    onAvatarTap: { openWeb(.path("/settings", title: "Profile")) },
-                    onSettingsTap: { tab = .more }
-                )
-            }
+            POSAppHeader(
+                title: tab.headerTitle,
+                initials: session.userInitials(),
+                onAvatarTap: { openRoute(.path("/settings", title: "Profile")) },
+                onSettingsTap: { tab = .more }
+            )
 
             Group {
                 switch tab {
@@ -119,7 +128,7 @@ struct MainTabView: View {
                 case .search:
                     SearchView(nav: nav)
                 case .more:
-                    LegacyWebTabView(path: "/settings")
+                    POSMoreView(nav: nav)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -130,12 +139,31 @@ struct MainTabView: View {
         .sheet(item: $webSheet) { route in
             LegacyWebScreen(route: route) { webSheet = nil }
         }
+        .fullScreenCover(item: $entityDetail) { route in
+            POSEntityDetailView(
+                entityId: route.id,
+                initialSection: route.initialSection,
+                onOpenEntity: { id, title in
+                    entityDetail = POSEntityDetailRoute(id: id, title: title)
+                },
+                onClose: { entityDetail = nil }
+            )
+            .environmentObject(session)
+        }
         .task { await session.refreshUser() }
     }
 
-    private func openWeb(_ route: WebSheetRoute) {
+    private func openRoute(_ route: WebSheetRoute) {
         POSHaptics.light()
-        webSheet = route
+        if let entityId = route.entityId {
+            entityDetail = POSEntityDetailRoute(
+                id: entityId,
+                title: route.title,
+                initialSection: route.entitySection ?? .overview
+            )
+        } else {
+            webSheet = route.embedded()
+        }
     }
 }
 
@@ -143,13 +171,40 @@ struct WebSheetRoute: Identifiable {
     let id = UUID()
     let url: URL
     let title: String
+    var entitySection: POSEntityDetailSection?
 
-    static func entity(_ id: String, title: String) -> WebSheetRoute {
-        WebSheetRoute(url: PersonalOSAppConfig.frontendPath("/entities/\(id)"), title: title)
+    var entityId: String? {
+        let path = url.path
+        guard path.contains("/entities/") else { return nil }
+        let raw = path.components(separatedBy: "/entities/").last ?? ""
+        return raw.split(separator: "/").first.map(String.init)
+    }
+
+    func embedded() -> WebSheetRoute {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return self }
+        var items = components.queryItems ?? []
+        if !items.contains(where: { $0.name == "embed" }) {
+            items.append(URLQueryItem(name: "embed", value: "1"))
+        }
+        components.queryItems = items
+        return WebSheetRoute(
+            url: components.url ?? url,
+            title: title,
+            entitySection: entitySection
+        )
+    }
+
+    static func entity(_ id: String, title: String, section: POSEntityDetailSection = .overview) -> WebSheetRoute {
+        WebSheetRoute(
+            url: PersonalOSAppConfig.frontendPath("/entities/\(id)"),
+            title: title,
+            entitySection: section
+        )
     }
 
     static func path(_ path: String, title: String) -> WebSheetRoute {
         WebSheetRoute(url: PersonalOSAppConfig.frontendPath(path), title: title)
+            .embedded()
     }
 }
 

@@ -73,6 +73,15 @@ final class APIClient: ObservableObject {
         }
     }
 
+    func entityDetail(id: String) async throws -> POSEntityDetailResponse {
+        let data = try await authorizedRequest(path: "entities/\(id)/detail")
+        do {
+            return try decoder.decode(POSEntityDetailResponse.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
+
     func search(query: String, mode: String = "hybrid") async throws -> POSSearchResponse {
         let payload = try JSONEncoder().encode(["query": query, "mode": mode])
         let data = try await authorizedRequest(path: "search", method: "POST", body: payload)

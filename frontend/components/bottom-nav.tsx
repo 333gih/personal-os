@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { IOS_TAB_ITEMS, MOBILE_TAB_ITEMS } from "@/lib/nav";
+import { MOBILE_TAB_ITEMS } from "@/lib/nav";
 import { isPersonalOSIosApp } from "@/lib/ios-app";
 import { useEffect, useState } from "react";
 
@@ -19,7 +19,11 @@ export function BottomNav({ onOpenMenu }: BottomNavProps) {
     setIosApp(isPersonalOSIosApp());
   }, []);
 
-  const tabs = iosApp ? IOS_TAB_ITEMS : MOBILE_TAB_ITEMS;
+  if (iosApp) {
+    return null;
+  }
+
+  const tabs = MOBILE_TAB_ITEMS;
 
   return (
     <nav

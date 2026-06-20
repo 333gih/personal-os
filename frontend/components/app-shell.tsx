@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Menu, Settings, X } from "lucide-react";
 import { clearAccessTokenCache } from "@/lib/auth/access-token";
 import { IOS_DRAWER_ITEMS, navLabelForPath } from "@/lib/nav";
-import { isPersonalOSIosApp } from "@/lib/ios-app";
+import { isPersonalOSIosApp, isPersonalOSIosEmbed } from "@/lib/ios-app";
 import { api } from "@/services/api";
 import { BottomNav } from "@/components/bottom-nav";
 import { SidebarFooter, SidebarNav } from "@/components/sidebar-nav";
@@ -26,9 +26,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [iosApp, setIosApp] = useState(false);
+  const [iosEmbed, setIosEmbed] = useState(false);
 
   useEffect(() => {
     setIosApp(isPersonalOSIosApp());
+    setIosEmbed(isPersonalOSIosEmbed());
   }, []);
 
   const { data: user } = useQuery({
@@ -93,7 +95,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile top bar */}
+        {/* Mobile top bar — hidden in iOS embed sheets (native toolbar handles chrome) */}
+        {!iosEmbed ? (
         <header className="sticky top-0 z-30 flex min-h-[3.25rem] items-center gap-2 border-b bg-background/95 px-3 pt-safe backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden">
           {iosApp ? (
             <button
@@ -122,18 +125,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="w-9 shrink-0" />
           )}
         </header>
+        ) : null}
 
         <main
           className={cn(
             "flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain p-4 pb-mobile-nav sm:p-5 lg:p-8 lg:pb-8",
             iosApp && "ios-app-main",
+            iosEmbed && "pb-4 ios-embed-main",
           )}
         >
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
 
-      <BottomNav onOpenMenu={() => setMenuOpen(true)} />
+      {!iosApp ? <BottomNav onOpenMenu={() => setMenuOpen(true)} /> : null}
     </div>
   );
 }

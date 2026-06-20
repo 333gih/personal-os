@@ -228,6 +228,74 @@ struct POSSearchResponse: Codable {
     let count: Int
 }
 
+struct POSEntityDetailResponse: Codable {
+    let entity: POSEntity
+    let relations: [POSRelationItem]
+}
+
+struct POSRelationItem: Codable, Identifiable {
+    var id: String { relatedEntity.id }
+    let relationType: String
+    let direction: String
+    let relatedEntity: POSEntity
+
+    enum CodingKeys: String, CodingKey {
+        case relationType = "relation_type"
+        case direction
+        case relatedEntity = "related_entity"
+    }
+
+    var relationLabel: String {
+        let arrow = direction == "outgoing" ? "→" : "←"
+        return "\(relationType.replacingOccurrences(of: "_", with: " ")) \(arrow)"
+    }
+}
+
+extension POSEntity {
+    var typeLabel: String {
+        type
+            .replacingOccurrences(of: "work_", with: "")
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+    }
+
+    var typeIcon: String {
+        if type.contains("project") { return "folder.fill" }
+        if type.contains("role") { return "person.crop.rectangle" }
+        if type.contains("employer") { return "building.2.fill" }
+        if type.contains("feature") { return "puzzlepiece.fill" }
+        if type.contains("design") { return "square.grid.2x2" }
+        if type.contains("cv_entry") { return "doc.text.fill" }
+        if type.contains("technology") { return "cpu" }
+        if type.contains("decision") { return "lightbulb.fill" }
+        if type.contains("lesson") { return "book.fill" }
+        return "doc"
+    }
+
+    var detailSubtitle: String? {
+        let parts = [metadata?.company, metadata?.role, metadata?.periodLabel()]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    var metadataRows: [(label: String, value: String)] {
+        var rows: [(String, String)] = []
+        if let company = metadata?.company, !company.isEmpty { rows.append(("Company", company)) }
+        if let role = metadata?.role, !role.isEmpty { rows.append(("Role", role)) }
+        if let period = metadata?.periodLabel(), !period.isEmpty { rows.append(("Period", period)) }
+        if let location = metadata?.location, !location.isEmpty { rows.append(("Location", location)) }
+        if let level = metadata?.level, !level.isEmpty { rows.append(("Level", level.capitalized)) }
+        if let cv = metadata?.cvStatus, !cv.isEmpty {
+            rows.append(("CV", cv == "in_cv" ? "On resume" : "Recommended add"))
+        }
+        if let hours = metadata?.workHours, !hours.isEmpty {
+            rows.append(("Hours", hours.replacingOccurrences(of: "-", with: " – ")))
+        }
+        return rows
+    }
+}
+
 enum POSTab: Int, CaseIterable, Identifiable {
     case home, work, learning, search, more
 
@@ -249,7 +317,7 @@ enum POSTab: Int, CaseIterable, Identifiable {
         case .work: return "Career Path"
         case .learning: return "Personal OS"
         case .search: return "Personal OS"
-        case .more: return "Personal OS"
+        case .more: return "More"
         }
     }
 

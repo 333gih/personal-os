@@ -22,8 +22,10 @@ struct LegacyWebScreen: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") { onClose() }
+                            .fontWeight(.semibold)
                     }
                 }
         }
+        .presentationDragIndicator(.visible)
     }
 }

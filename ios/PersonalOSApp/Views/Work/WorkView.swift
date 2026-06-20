@@ -7,7 +7,6 @@ struct WorkView: View {
     @State private var items: [POSEntity] = []
     @State private var isLoading = true
     @State private var loadError: String?
-    @State private var architectureProject: POSEntity?
 
     private var profile: POSEntity? {
         items.first { $0.metadata?.kind == "profile" }
@@ -69,9 +68,6 @@ struct WorkView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 88)
             }
-        }
-        .sheet(item: $architectureProject) { project in
-            POSProjectArchitectureSheet(project: project)
         }
         .overlay(alignment: .bottom) {
             HStack(spacing: 10) {
@@ -211,7 +207,8 @@ struct WorkView: View {
                                     if !item.architectureLayers.isEmpty || item.designImageURL() != nil {
                                         POSArchitectureDiagram(
                                             layers: Array(item.architectureLayers.prefix(2)),
-                                            imageURL: nil
+                                            imageURL: nil,
+                                            style: .compact
                                         )
                                     }
                                     if !item.tagList.isEmpty {
@@ -232,7 +229,7 @@ struct WorkView: View {
                         .buttonStyle(POSPressButtonStyle())
                         if !item.architectureLayers.isEmpty || item.designImageURL() != nil {
                             POSActionButton(title: "View architecture", icon: "square.grid.2x2", style: .secondary) {
-                                architectureProject = item
+                                nav.onOpen(.entity(item.id, title: item.title, section: .architecture))
                             }
                         }
                     }

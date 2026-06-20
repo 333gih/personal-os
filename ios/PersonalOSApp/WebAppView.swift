@@ -40,9 +40,13 @@ private struct WebAppWebView: UIViewRepresentable {
         window.__PERSONAL_OS_IOS_APP__=true;
         document.documentElement.classList.add('personal-os-ios');
         """
+        let embedFlag = startURL.query?.contains("embed=1") == true ? """
+        window.__PERSONAL_OS_IOS_EMBED__=true;
+        document.documentElement.classList.add('personal-os-ios-embed');
+        """ : ""
         config.userContentController.addUserScript(
             WKUserScript(
-                source: iosFlag,
+                source: iosFlag + embedFlag,
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: true
             )
