@@ -76,11 +76,11 @@ struct POSCVHubView: View {
                     .foregroundStyle(POSTheme.primaryDark)
                 TextField("Headline", text: $editHeadline)
                     .font(.posDisplay(18))
-                    .onChange(of: editHeadline) { _, v in updateDocument { $0.headline = v } }
+                    .onChange(of: editHeadline) { v in updateDocument { $0.headline = v } }
                 TextField("Professional summary", text: $editSummary, axis: .vertical)
                     .font(.subheadline)
                     .lineLimit(3...8)
-                    .onChange(of: editSummary) { _, v in updateDocument { $0.summary = v } }
+                    .onChange(of: editSummary) { v in updateDocument { $0.summary = v } }
                 if let source = cv?.source {
                     Text(source == "ideal" ? "Pre-built ideal resume — edit, export, or share." : "Assembled from career entries.")
                         .font(.caption)
