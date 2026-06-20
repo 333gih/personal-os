@@ -181,7 +181,7 @@ func (s *Service) UploadBytes(userID uuid.UUID, relativeKey, contentType string,
 	if s.s3 == nil {
 		return "", ErrStorageNotConfigured
 	}
-	if !strings.HasPrefix(relativeKey, "cv/") {
+	if !strings.HasPrefix(relativeKey, "cv/") && !strings.HasPrefix(relativeKey, "work/") {
 		return "", fmt.Errorf("invalid upload path")
 	}
 	key := s.s3.ObjectKey(userID, relativeKey)

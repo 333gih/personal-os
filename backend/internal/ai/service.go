@@ -28,6 +28,7 @@ type ClientConfig struct {
 	BaseURL         string
 	APIKey          string
 	ChatModel       string
+	VisionModel     string
 	EmbeddingModel  string
 	SystemPrompt    string
 	SiteURL         string
@@ -38,6 +39,7 @@ type Service struct {
 	db             *gorm.DB
 	client         *openai.Client
 	chatModel      string
+	visionModel    string
 	embeddingModel string
 	systemPrompt   string
 	configured     bool
@@ -77,6 +79,7 @@ func NewService(db *gorm.DB, cfg ClientConfig) *Service {
 	svc := &Service{
 		db:             db,
 		chatModel:      cfg.ChatModel,
+		visionModel:    cfg.VisionModel,
 		embeddingModel: cfg.EmbeddingModel,
 		systemPrompt:   cfg.SystemPrompt,
 	}
@@ -110,7 +113,11 @@ func NewService(db *gorm.DB, cfg ClientConfig) *Service {
 
 	svc.client = openai.NewClientWithConfig(clientCfg)
 	svc.configured = true
-	log.Printf("ai: ready provider=%s chat=%s embed=%s", providerLabel(cfg.BaseURL), svc.chatModel, svc.embeddingModel)
+	vision := svc.visionModel
+	if vision == "" {
+		vision = svc.chatModel + " (vision fallback)"
+	}
+	log.Printf("ai: ready provider=%s chat=%s vision=%s embed=%s", providerLabel(cfg.BaseURL), svc.chatModel, vision, svc.embeddingModel)
 	return svc
 }
 

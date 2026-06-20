@@ -22,7 +22,7 @@ struct LoginWebView: View {
             } else {
                 LoginWebViewRepresentable(
                     loadError: $loadError,
-                    onToken: { token in session.saveToken(token) }
+                    onHandoff: { handoff in session.saveHandoff(handoff) }
                 )
                 .ignoresSafeArea(edges: .bottom)
             }
@@ -33,10 +33,10 @@ struct LoginWebView: View {
 
 private struct LoginWebViewRepresentable: UIViewRepresentable {
     @Binding var loadError: String?
-    let onToken: (String) -> Void
+    let onHandoff: (POSMobileAuthHandoff) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(loadError: $loadError, onToken: onToken)
+        Coordinator(loadError: $loadError, onHandoff: onHandoff)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -59,17 +59,25 @@ private struct LoginWebViewRepresentable: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         @Binding var loadError: String?
-        let onToken: (String) -> Void
+        let onHandoff: (POSMobileAuthHandoff) -> Void
         weak var webView: WKWebView?
 
-        init(loadError: Binding<String?>, onToken: @escaping (String) -> Void) {
+        init(loadError: Binding<String?>, onHandoff: @escaping (POSMobileAuthHandoff) -> Void) {
             _loadError = loadError
-            self.onToken = onToken
+            self.onHandoff = onHandoff
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.name == "posAuth", let token = message.body as? String, !token.isEmpty else { return }
-            onToken(token)
+            guard message.name == "posAuth" else { return }
+            if let json = message.body as? String, let handoff = decodeHandoff(json) {
+                onHandoff(handoff)
+                return
+            }
+            if let dict = message.body as? [String: Any],
+               let data = try? JSONSerialization.data(withJSONObject: dict),
+               let handoff = try? JSONDecoder().decode(POSMobileAuthHandoff.self, from: data) {
+                onHandoff(handoff)
+            }
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -81,12 +89,23 @@ private struct LoginWebViewRepresentable: UIViewRepresentable {
 
         private func fetchToken(in webView: WKWebView) {
             let script = """
-            fetch('/api/auth/token', { credentials: 'include' })
+            fetch('/api/auth/mobile/handoff', { credentials: 'include' })
               .then(r => r.json())
-              .then(d => window.webkit.messageHandlers.posAuth.postMessage(d.access_token || ''))
+              .then(d => {
+                if (!d.access_token || !d.refresh_token) {
+                  window.webkit.messageHandlers.posAuth.postMessage('');
+                  return;
+                }
+                window.webkit.messageHandlers.posAuth.postMessage(JSON.stringify(d));
+              })
               .catch(() => window.webkit.messageHandlers.posAuth.postMessage(''));
             """
             webView.evaluateJavaScript(script)
+        }
+
+        private func decodeHandoff(_ json: String) -> POSMobileAuthHandoff? {
+            guard !json.isEmpty, let data = json.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(POSMobileAuthHandoff.self, from: data)
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

@@ -101,6 +101,7 @@ struct MainTabView: View {
     @State private var entityDetail: POSEntityDetailRoute?
     @State private var showCVHub = false
     @State private var showJobScout = false
+    @State private var showWorkImport = false
 
     private var nav: POSNavigationActions {
         POSNavigationActions(
@@ -108,7 +109,8 @@ struct MainTabView: View {
             onSwitchTab: { tab = $0 },
             onLegacyScreen: { webSheet = $0.embedded() },
             onOpenCV: { showCVHub = true },
-            onOpenJobScout: { showJobScout = true }
+            onOpenJobScout: { showJobScout = true },
+            onOpenWorkImport: { showWorkImport = true }
         )
     }
 
@@ -162,7 +164,13 @@ struct MainTabView: View {
             POSJobScoutView()
                 .environmentObject(session)
         }
-        .task { await session.refreshUser() }
+        .sheet(isPresented: $showWorkImport) {
+            POSWorkImportView { projectId, title in
+                entityDetail = POSEntityDetailRoute(id: projectId, title: title, initialSection: .architecture)
+            }
+            .environmentObject(session)
+        }
+        .task { await session.bootstrap() }
     }
 
     private func openRoute(_ route: WebSheetRoute) {

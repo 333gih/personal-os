@@ -255,7 +255,10 @@ struct WorkView: View {
     private var careerToolsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             POSSectionHeader(title: "Career tools", eyebrow: "CV & opportunities")
-            POSActionButton(title: "Open CV Transfer", icon: "doc.richtext", style: .primary) {
+            POSActionButton(title: "Import project (AI)", icon: "square.and.arrow.down", style: .primary) {
+                nav.openWorkImport()
+            }
+            POSActionButton(title: "Open CV Transfer", icon: "doc.richtext", style: .secondary) {
                 nav.openCV()
             }
             POSActionButton(title: "Job Scout — scan matches", icon: "briefcase", style: .secondary) {

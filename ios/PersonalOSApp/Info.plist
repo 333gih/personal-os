@@ -33,6 +33,8 @@
 	<dict/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Personal OS uses your photo library to import system design diagrams into work projects.</string>
 	<key>PERSONAL_OS_FE_URL</key>
 	<string>https://personal-os-fe.fashandcurious.com/dashboard</string>
 	<key>UISupportedInterfaceOrientations</key>

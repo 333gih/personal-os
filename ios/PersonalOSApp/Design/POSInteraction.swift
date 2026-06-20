@@ -32,6 +32,7 @@ struct POSNavigationActions {
     let onLegacyScreen: (WebSheetRoute) -> Void
     var onOpenCV: (() -> Void)?
     var onOpenJobScout: (() -> Void)?
+    var onOpenWorkImport: (() -> Void)?
 
     func captureNote() {
         POSHaptics.medium()
@@ -51,6 +52,11 @@ struct POSNavigationActions {
     func openJobScout() {
         POSHaptics.light()
         onOpenJobScout?()
+    }
+
+    func openWorkImport() {
+        POSHaptics.light()
+        onOpenWorkImport?()
     }
 
     func openStorySync() {

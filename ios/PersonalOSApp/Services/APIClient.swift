@@ -23,15 +23,62 @@ final class APIClient: ObservableObject {
 
     weak var session: SessionManager?
 
-    func authorizedRequest(path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
-        guard let token = session?.accessToken, !token.isEmpty else {
+    func authorizedRequest(path: String, method: String = "GET", body: Data? = nil, contentType: String = "application/json") async throws -> Data {
+        guard let session else { throw APIError.unauthorized }
+
+        guard let token = await session.validAccessToken() else {
             throw APIError.unauthorized
         }
 
+        let first = try await performRequest(
+            path: path,
+            method: method,
+            body: body,
+            contentType: contentType,
+            token: token
+        )
+
+        if first.status != 401 {
+            guard (200 ... 299).contains(first.status) else {
+                throw APIError.http(first.status, first.message)
+            }
+            return first.data
+        }
+
+        guard let refreshed = await session.refreshAccessToken(force: true) else {
+            throw APIError.unauthorized
+        }
+
+        let retry = try await performRequest(
+            path: path,
+            method: method,
+            body: body,
+            contentType: contentType,
+            token: refreshed
+        )
+
+        if retry.status == 401 {
+            session.signOut()
+            throw APIError.unauthorized
+        }
+
+        guard (200 ... 299).contains(retry.status) else {
+            throw APIError.http(retry.status, retry.message)
+        }
+        return retry.data
+    }
+
+    private struct HTTPResult {
+        let data: Data
+        let status: Int
+        let message: String
+    }
+
+    private func performRequest(path: String, method: String, body: Data?, contentType: String, token: String) async throws -> HTTPResult {
         let url = PersonalOSAppConfig.apiBaseURL.appending(path: path.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.httpBody = body
 
@@ -40,20 +87,12 @@ final class APIClient: ObservableObject {
             throw APIError.http(-1, "Invalid response")
         }
 
-        if http.statusCode == 401 {
-            session?.signOut()
-            throw APIError.unauthorized
+        let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+        if http.statusCode == 503, message.localizedCaseInsensitiveContains("ring-balancer") {
+            throw APIError.http(http.statusCode, "API gateway unavailable. Update app or redeploy frontend.")
         }
 
-        guard (200 ... 299).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
-            if http.statusCode == 503, message.localizedCaseInsensitiveContains("ring-balancer") {
-                throw APIError.http(http.statusCode, "API gateway unavailable. Update app or redeploy frontend.")
-            }
-            throw APIError.http(http.statusCode, message)
-        }
-
-        return data
+        return HTTPResult(data: data, status: http.statusCode, message: message)
     }
 
     func me() async throws -> POSUser {
@@ -126,5 +165,35 @@ final class APIClient: ObservableObject {
     func scanJobs() async throws -> POSJobScanResponse {
         let data = try await authorizedRequest(path: "jobs/scan", method: "POST", body: Data("{}".utf8))
         return try decoder.decode(POSJobScanResponse.self, from: data)
+    }
+
+    func importWorkProject(title: String, company: String, markdown: String, diagram: Data?) async throws -> POSWorkImportResult {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+        func appendField(_ name: String, _ value: String) {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            body.append(value.data(using: .utf8)!)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+        appendField("title", title)
+        appendField("company", company)
+        appendField("markdown", markdown)
+        if let diagram, !diagram.isEmpty {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"diagram\"; filename=\"diagram.png\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: image/png\r\n\r\n".data(using: .utf8)!)
+            body.append(diagram)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        let data = try await authorizedRequest(
+            path: "work/import",
+            method: "POST",
+            body: body,
+            contentType: "multipart/form-data; boundary=\(boundary)"
+        )
+        return try decoder.decode(POSWorkImportResult.self, from: data)
     }
 }

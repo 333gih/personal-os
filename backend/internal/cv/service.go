@@ -103,6 +103,39 @@ Respond with JSON only: {"reply":"conversational feedback","refined_content":"op
 	return &out, nil
 }
 
+// MergeSkills appends deduplicated skill labels to the user's CV document.
+func (s *Service) MergeSkills(userID uuid.UUID, skills []string) ([]string, error) {
+	cv, err := s.Get(userID)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	for _, sk := range cv.Document.Skills {
+		seen[strings.ToLower(strings.TrimSpace(sk))] = true
+	}
+	var added []string
+	for _, sk := range skills {
+		label := strings.TrimSpace(sk)
+		if label == "" {
+			continue
+		}
+		key := strings.ToLower(label)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		cv.Document.Skills = append(cv.Document.Skills, label)
+		added = append(added, label)
+	}
+	if len(added) == 0 {
+		return nil, nil
+	}
+	if _, err := s.Save(userID, cv.Document); err != nil {
+		return nil, err
+	}
+	return added, nil
+}
+
 func (s *Service) ExportHTML(userID uuid.UUID) (string, error) {
 	cv, err := s.Get(userID)
 	if err != nil {

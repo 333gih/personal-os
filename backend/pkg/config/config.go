@@ -20,7 +20,8 @@ type Config struct {
 	JWTExpiry        time.Duration
 	OpenAIBaseURL    string
 	OpenAIAPIKey     string
-	OpenAIModel      string
+	OpenAIModel          string
+	OpenAIVisionModel    string
 	OpenAIEmbeddingModel string
 	OpenRouterSiteURL    string
 	OpenRouterAppName    string
@@ -47,6 +48,10 @@ func Load() *Config {
 		chatModel = getEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat")
 	}
 	embedModel := getEnv("OPENAI_EMBEDDING_MODEL", "openai/text-embedding-3-small")
+	visionModel := getEnv("OPENROUTER_VISION_MODEL", "")
+	if visionModel == "" {
+		visionModel = getEnv("OPENAI_VISION_MODEL", "google/gemini-2.0-flash-001")
+	}
 
 	return &Config{
 		AppEnv:               getEnv("APP_ENV", "development"),
@@ -62,6 +67,7 @@ func Load() *Config {
 		OpenAIBaseURL:        strings.TrimSuffix(baseURL, "/"),
 		OpenAIAPIKey:         resolveLLMAPIKey(),
 		OpenAIModel:          chatModel,
+		OpenAIVisionModel:    visionModel,
 		OpenAIEmbeddingModel: embedModel,
 		OpenRouterSiteURL:    firstNonEmpty(getEnv("OPENROUTER_SITE_URL", ""), appPublicURL, "https://personal-os.fashandcurious.com"),
 		OpenRouterAppName:    firstNonEmpty(getEnv("OPENROUTER_APP_NAME", ""), "Personal OS"),

@@ -19,6 +19,7 @@ import (
 	"github.com/personal-os/backend/internal/relation"
 	"github.com/personal-os/backend/internal/readingprogress"
 	"github.com/personal-os/backend/internal/reminder"
+	"github.com/personal-os/backend/internal/workimport"
 	"github.com/personal-os/backend/internal/search"
 	"github.com/personal-os/backend/internal/storage"
 	"github.com/personal-os/backend/pkg/config"
@@ -55,6 +56,7 @@ func main() {
 		BaseURL:        cfg.OpenAIBaseURL,
 		APIKey:         cfg.OpenAIAPIKey,
 		ChatModel:      cfg.OpenAIModel,
+		VisionModel:    cfg.OpenAIVisionModel,
 		EmbeddingModel: cfg.OpenAIEmbeddingModel,
 		SiteURL:        cfg.OpenRouterSiteURL,
 		AppName:        cfg.OpenRouterAppName,
@@ -156,6 +158,10 @@ func main() {
 	jobScoutHandler := jobscout.NewHandler(jobScoutSvc)
 	jobScoutHandler.RegisterRoutes(protected.Group("/jobs"))
 	go jobScoutSvc.StartDailyWorker(context.Background(), 24*time.Hour)
+
+	workImportSvc := workimport.NewService(db, aiSvc, storageSvc, embedSvc, cvSvc)
+	workImportHandler := workimport.NewHandler(workImportSvc)
+	workImportHandler.RegisterRoutes(protected.Group("/work"))
 
 	addr := ":" + cfg.AppPort
 	log.Printf("personal-os API listening on %s", addr)
