@@ -62,6 +62,7 @@ struct WorkView: View {
                     focusCard
                     projectsSection
                     designSection
+                    careerToolsSection
                     cvExperienceSection
                     cvShelfSection
                 }
@@ -251,12 +252,27 @@ struct WorkView: View {
     }
 
     @ViewBuilder
+    private var careerToolsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            POSSectionHeader(title: "Career tools", eyebrow: "CV & opportunities")
+            POSActionButton(title: "Open CV Transfer", icon: "doc.richtext", style: .primary) {
+                nav.openCV()
+            }
+            POSActionButton(title: "Job Scout — scan matches", icon: "briefcase", style: .secondary) {
+                nav.openJobScout()
+            }
+        }
+    }
+
+    @ViewBuilder
     private var cvExperienceSection: some View {
         if !cvInResume.isEmpty || !cvRecommended.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 POSSectionHeader(title: "CV experience", eyebrow: "On resume vs recommended")
-                POSActionButton(title: "Open CV Transfer", icon: "doc.richtext", style: .secondary) {
-                    nav.openCV()
+                if !cvInResume.isEmpty || !cvRecommended.isEmpty {
+                    POSActionButton(title: "Open CV Transfer", icon: "doc.richtext", style: .secondary) {
+                        nav.openCV()
+                    }
                 }
                 if !cvInResume.isEmpty {
                     POSCard {

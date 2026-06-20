@@ -14,7 +14,12 @@
 # Required for CV Transfer (1.5.6+):
 #   OPENROUTER_API_KEY          — POST /cv/refine AI coach
 #   STORAGE_PROVIDER=seaweedfs  — POST /cv/share PDF upload to SeaweedFS
-#   S3_*                        — same SeaweedFS creds as fash core-service
+#   S3_BUCKET=fash-uploads        — shared fash bucket (NOT personal-os unless created)
+#   S3_PUBLIC_BASE_URL=https://storage.fashandcurious.com/fash-uploads
+#   S3_* credentials            — same as fash core-service
+#   GITHUB_TOKEN (optional)     — Job Scout GitHub search rate limits
+#
+# Run migration 015_job_opportunities.sql for Job Scout.
 #
 # Docker network shared with fash-api-gateway (Kong upstream).
 # ENVIRONMENT=prod but gateway still on dev → set dev network explicitly:

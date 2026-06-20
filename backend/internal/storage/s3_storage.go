@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/personal-os/backend/pkg/config"
@@ -18,6 +19,7 @@ type S3Storage struct {
 	presignClient *minio.Client
 	bucket        string
 	baseURL       string
+	sharedBucket  bool // true when using fash-uploads with personal-os/ key prefix
 }
 
 func NewS3Storage(cfg config.StorageConfig) (*S3Storage, error) {
@@ -62,7 +64,19 @@ func NewS3Storage(cfg config.StorageConfig) (*S3Storage, error) {
 		presignClient: presignClient,
 		bucket:        cfg.Bucket,
 		baseURL:       baseURL,
+		sharedBucket:  cfg.Bucket != "personal-os",
 	}, nil
+}
+
+// ObjectKey builds the S3 object key for a user-owned file.
+// fash-uploads bucket: personal-os/{userId}/{relative}
+// dedicated personal-os bucket: {userId}/{relative}
+func (s *S3Storage) ObjectKey(userID uuid.UUID, relativeKey string) string {
+	relativeKey = strings.TrimPrefix(strings.TrimSpace(relativeKey), "/")
+	if s.sharedBucket {
+		return fmt.Sprintf("personal-os/%s/%s", userID.String(), relativeKey)
+	}
+	return fmt.Sprintf("%s/%s", userID.String(), relativeKey)
 }
 
 func (s *S3Storage) EnsureBucket(ctx context.Context) error {
@@ -121,10 +135,10 @@ func isRetryableStorageErr(err error) bool {
 
 func (s *S3Storage) publicObjectURLForKey(key string) string {
 	base := strings.TrimSuffix(s.baseURL, "/")
-	if s.bucket != "" && !strings.HasSuffix(base, "/"+s.bucket) {
-		return base + "/" + s.bucket + "/" + key
+	if s.bucket != "" && strings.HasSuffix(base, "/"+s.bucket) {
+		return base + "/" + key
 	}
-	return base + "/" + key
+	return base + "/" + s.bucket + "/" + key
 }
 
 func (s *S3Storage) PresignURL(ctx context.Context, key string, ttl time.Duration) (string, error) {

@@ -116,4 +116,15 @@ final class APIClient: ObservableObject {
         let data = try await authorizedRequest(path: "cv/share", method: "POST", body: Data("{}".utf8))
         return try decoder.decode(POSCVShareResponse.self, from: data)
     }
+
+    func fetchJobs() async throws -> [POSJobOpportunity] {
+        let data = try await authorizedRequest(path: "jobs")
+        let resp = try decoder.decode(POSJobListResponse.self, from: data)
+        return resp.jobs
+    }
+
+    func scanJobs() async throws -> POSJobScanResponse {
+        let data = try await authorizedRequest(path: "jobs/scan", method: "POST", body: Data("{}".utf8))
+        return try decoder.decode(POSJobScanResponse.self, from: data)
+    }
 }

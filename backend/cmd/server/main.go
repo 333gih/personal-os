@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -11,6 +12,7 @@ import (
 	"github.com/personal-os/backend/internal/auth"
 	"github.com/personal-os/backend/internal/cv"
 	"github.com/personal-os/backend/internal/dashboard"
+	"github.com/personal-os/backend/internal/jobscout"
 	"github.com/personal-os/backend/internal/embedding"
 	"github.com/personal-os/backend/internal/entity"
 	"github.com/personal-os/backend/internal/infrastructure/qdrant"
@@ -105,6 +107,7 @@ func main() {
 			"status":  "ok",
 			"service": "personal-os",
 			"ai":      aiSvc.Status(),
+			"storage": storageSvc.StorageStatus(),
 		})
 	})
 
@@ -148,6 +151,11 @@ func main() {
 	cvSvc := cv.NewService(db, aiSvc, storageSvc)
 	cvHandler := cv.NewHandler(cvSvc)
 	cvHandler.RegisterRoutes(protected.Group("/cv"))
+
+	jobScoutSvc := jobscout.NewService(db, aiSvc, cvSvc)
+	jobScoutHandler := jobscout.NewHandler(jobScoutSvc)
+	jobScoutHandler.RegisterRoutes(protected.Group("/jobs"))
+	go jobScoutSvc.StartDailyWorker(context.Background(), 24*time.Hour)
 
 	addr := ":" + cfg.AppPort
 	log.Printf("personal-os API listening on %s", addr)

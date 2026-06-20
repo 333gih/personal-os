@@ -35,6 +35,14 @@ struct POSMoreView: View {
                 sheetTitle: "CV"
             ),
             POSMoreMenuItem(
+                title: "Job Scout",
+                subtitle: "Daily skill-matched jobs from Remotive & GitHub",
+                systemImage: "briefcase.fill",
+                tint: POSTheme.focus,
+                path: "/jobs",
+                sheetTitle: "Jobs"
+            ),
+            POSMoreMenuItem(
                 title: "Startup",
                 subtitle: "Ideas, pain points, and experiments",
                 systemImage: "rocket.fill",
@@ -79,6 +87,8 @@ struct POSMoreView: View {
                                     Button {
                                         if item.path == "/cv" {
                                             nav.openCV()
+                                        } else if item.path == "/jobs" {
+                                            nav.openJobScout()
                                         } else {
                                             nav.onOpen(.path(item.path, title: item.sheetTitle))
                                         }

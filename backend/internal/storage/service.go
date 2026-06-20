@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -31,21 +33,69 @@ type UploadResult struct {
 }
 
 func NewService(db *gorm.DB, cfg config.StorageConfig) (*Service, error) {
-	s3, err := NewS3Storage(cfg)
+	s3, activeCfg, err := connectStorage(cfg)
 	if err != nil {
-		return nil, err
+		log.Printf("storage: %v", err)
 	}
-	if s3 != nil {
-		if err := s3.EnsureBucket(context.Background()); err != nil {
-			// Do not block API startup — uploads return ErrStorageNotConfigured at runtime.
-			s3 = nil
+	return &Service{db: db, s3: s3, cfg: activeCfg}, nil
+}
+
+func connectStorage(cfg config.StorageConfig) (*S3Storage, config.StorageConfig, error) {
+	if !cfg.IsRemote() {
+		return nil, cfg, nil
+	}
+	for _, bucket := range bucketCandidates(cfg.Bucket) {
+		try := cfg
+		try.Bucket = bucket
+		s3, err := NewS3Storage(try)
+		if err != nil {
+			continue
 		}
+		if err := s3.EnsureBucket(context.Background()); err != nil {
+			log.Printf("storage: bucket %q unavailable: %v", bucket, err)
+			continue
+		}
+		log.Printf("storage: SeaweedFS ready bucket=%q endpoint=%s", bucket, cfg.Endpoint)
+		return s3, try, nil
 	}
-	return &Service{db: db, s3: s3, cfg: cfg}, nil
+	return nil, cfg, fmt.Errorf("no reachable S3 bucket (tried %v) — use S3_BUCKET=fash-uploads on fash VPS", bucketCandidates(cfg.Bucket))
+}
+
+func bucketCandidates(primary string) []string {
+	seen := map[string]bool{}
+	add := func(b string) {
+		b = strings.TrimSpace(b)
+		if b == "" || seen[b] {
+			return
+		}
+		seen[b] = true
+	}
+	add(primary)
+	add(os.Getenv("S3_FALLBACK_BUCKET"))
+	add("fash-uploads")
+	add("personal-os")
+	out := make([]string, 0, len(seen))
+	for b := range seen {
+		out = append(out, b)
+	}
+	return out
 }
 
 func (s *Service) Enabled() bool {
 	return s.s3 != nil
+}
+
+type Status struct {
+	Enabled  bool   `json:"enabled"`
+	Bucket   string `json:"bucket,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
+}
+
+func (s *Service) StorageStatus() Status {
+	if s.s3 == nil {
+		return Status{Enabled: false, Bucket: s.cfg.Bucket, Endpoint: s.cfg.Endpoint}
+	}
+	return Status{Enabled: true, Bucket: s.s3.bucket, Endpoint: s.cfg.Endpoint}
 }
 
 func (s *Service) Upload(userID uuid.UUID, entityID *uuid.UUID, header *multipart.FileHeader) (*UploadResult, error) {
@@ -60,8 +110,7 @@ func (s *Service) Upload(userID uuid.UUID, entityID *uuid.UUID, header *multipar
 	defer file.Close()
 
 	ext := filepath.Ext(header.Filename)
-	// personal-os/ prefix keeps objects separate from fash-uploads bucket if shared
-	key := fmt.Sprintf("personal-os/%s/%s%s", userID.String(), uuid.New().String(), ext)
+	key := s.s3.ObjectKey(userID, uuid.New().String()+ext)
 
 	contentType := header.Header.Get("Content-Type")
 	if contentType == "" {
@@ -105,8 +154,8 @@ func (s *Service) PresignedURL(userID uuid.UUID, storageKey string) (string, err
 	if s.s3 == nil {
 		return "", ErrStorageNotConfigured
 	}
-	if !strings.HasPrefix(storageKey, "personal-os/"+userID.String()+"/") &&
-		!strings.HasPrefix(storageKey, userID.String()+"/") {
+	if !strings.HasPrefix(storageKey, userID.String()+"/") &&
+		!strings.HasPrefix(storageKey, "personal-os/"+userID.String()+"/") {
 		return "", fmt.Errorf("access denied")
 	}
 	return s.s3.PresignURL(context.Background(), storageKey, 24*time.Hour)
@@ -135,7 +184,7 @@ func (s *Service) UploadBytes(userID uuid.UUID, relativeKey, contentType string,
 	if !strings.HasPrefix(relativeKey, "cv/") {
 		return "", fmt.Errorf("invalid upload path")
 	}
-	key := fmt.Sprintf("personal-os/%s/%s", userID.String(), relativeKey)
+	key := s.s3.ObjectKey(userID, relativeKey)
 	reader := bytes.NewReader(data)
 	_, err := s.s3.client.PutObject(context.Background(), s.s3.bucket, key, reader, int64(len(data)), minio.PutObjectOptions{
 		ContentType: contentType,

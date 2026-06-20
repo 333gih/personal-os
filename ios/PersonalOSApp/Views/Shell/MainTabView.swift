@@ -100,13 +100,15 @@ struct MainTabView: View {
     @State private var webSheet: WebSheetRoute?
     @State private var entityDetail: POSEntityDetailRoute?
     @State private var showCVHub = false
+    @State private var showJobScout = false
 
     private var nav: POSNavigationActions {
         POSNavigationActions(
             onOpen: openRoute,
             onSwitchTab: { tab = $0 },
             onLegacyScreen: { webSheet = $0.embedded() },
-            onOpenCV: { showCVHub = true }
+            onOpenCV: { showCVHub = true },
+            onOpenJobScout: { showJobScout = true }
         )
     }
 
@@ -152,8 +154,12 @@ struct MainTabView: View {
             )
             .environmentObject(session)
         }
-        .fullScreenCover(isPresented: $showCVHub) {
+        .sheet(isPresented: $showCVHub) {
             POSCVHubView()
+                .environmentObject(session)
+        }
+        .sheet(isPresented: $showJobScout) {
+            POSJobScoutView()
                 .environmentObject(session)
         }
         .task { await session.refreshUser() }

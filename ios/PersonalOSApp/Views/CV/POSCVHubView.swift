@@ -15,6 +15,7 @@ struct POSCVHubView: View {
     @State private var selectedSection = "summary"
     @State private var showShareSheet = false
     @State private var sharePDFData: Data?
+    @State private var alertMessage: String?
     @State private var editSummary: String = ""
     @State private var editHeadline: String = ""
     @State private var editSkillsText: String = ""
@@ -65,6 +66,14 @@ struct POSCVHubView: View {
                 if let sharePDFData {
                     POSActivityShareSheet(items: [sharePDFData, "My CV.pdf"])
                 }
+            }
+            .alert("CV Transfer", isPresented: Binding(
+                get: { alertMessage != nil },
+                set: { if !$0 { alertMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { alertMessage = nil }
+            } message: {
+                Text(alertMessage ?? "")
             }
         }
     }
@@ -341,7 +350,7 @@ struct POSCVHubView: View {
                 }
             }
         } catch {
-            loadError = error.localizedDescription
+            alertMessage = error.localizedDescription
         }
     }
 }
