@@ -17,6 +17,7 @@ struct POSCVHubView: View {
     @State private var sharePDFData: Data?
     @State private var editSummary: String = ""
     @State private var editHeadline: String = ""
+    @State private var editSkillsText: String = ""
 
     var body: some View {
         NavigationStack {
@@ -74,15 +75,16 @@ struct POSCVHubView: View {
                 Label("Ideal CV", systemImage: "doc.richtext")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(POSTheme.primaryDark)
-                TextField("Headline", text: $editHeadline)
+                TextField("Headline (Name — Role)", text: $editHeadline)
                     .font(.posDisplay(18))
                     .onChange(of: editHeadline) { v in updateDocument { $0.headline = v } }
                 TextField("Professional summary", text: $editSummary, axis: .vertical)
                     .font(.subheadline)
                     .lineLimit(3...8)
                     .onChange(of: editSummary) { v in updateDocument { $0.summary = v } }
+                contactFields
                 if let source = cv?.source {
-                    Text(source == "ideal" ? "Pre-built ideal resume — edit, export, or share." : "Assembled from career entries.")
+                    Text(source == "ideal" ? "Pre-built ideal resume — edit sections below, export, or share." : "Assembled from career entries.")
                         .font(.caption)
                         .foregroundStyle(POSTheme.muted)
                 }
@@ -90,58 +92,123 @@ struct POSCVHubView: View {
         }
     }
 
+    private var contactFields: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Contact").font(.caption.weight(.semibold)).foregroundStyle(POSTheme.muted)
+            TextField("Email", text: bindingContact(\.email))
+                .textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
+                .autocapitalization(.none)
+            TextField("Phone", text: bindingContact(\.phone))
+                .textContentType(.telephoneNumber)
+                .keyboardType(.phonePad)
+            TextField("Location", text: bindingContact(\.location))
+            TextField("LinkedIn URL", text: bindingContact(\.linkedin))
+                .textContentType(.URL)
+                .keyboardType(.URL)
+                .autocapitalization(.none)
+        }
+    }
+
+    private func bindingContact(_ keyPath: WritableKeyPath<POSCVContact, String?>) -> Binding<String> {
+        Binding(
+            get: { cv?.document.contact?[keyPath: keyPath] ?? "" },
+            set: { newValue in
+                updateDocument { doc in
+                    var contact = doc.contact ?? POSCVContact()
+                    contact[keyPath: keyPath] = newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : newValue
+                    doc.contact = contact
+                }
+            }
+        )
+    }
+
     private var previewSection: some View {
         Group {
-            if let doc = cv?.document {
+            if cv?.document != nil {
                 VStack(alignment: .leading, spacing: 12) {
-                    POSSectionHeader(title: "Preview", eyebrow: "On resume")
-                    if let skills = doc.skills, !skills.isEmpty {
-                        POSCard {
+                    POSSectionHeader(title: "Edit sections", eyebrow: "Resume body")
+
+                    POSCard {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("Skills").font(.caption.weight(.semibold))
-                            FlowLayout(spacing: 6) {
-                                ForEach(skills, id: \.self) { skill in
-                                    Text(skill)
-                                        .font(.caption2)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(POSTheme.border.opacity(0.35))
-                                        .clipShape(Capsule())
+                            TextField("Comma-separated skills", text: $editSkillsText, axis: .vertical)
+                                .font(.subheadline)
+                                .lineLimit(2...6)
+                                .onChange(of: editSkillsText) { v in
+                                    let skills = v.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                                    updateDocument { $0.skills = skills.isEmpty ? nil : skills }
                                 }
-                            }
                         }
                     }
-                    if let exp = doc.experience, !exp.isEmpty {
-                        bulletCard(title: "Experience", items: exp)
-                    }
-                    if let projects = doc.projects, !projects.isEmpty {
-                        bulletCard(title: "Projects", items: projects)
+
+                    editableBulletSection(title: "Experience", keyPath: \.experience)
+                    editableBulletSection(title: "Projects", keyPath: \.projects)
+                }
+            }
+        }
+    }
+
+    private func editableBulletSection(title: String, keyPath: WritableKeyPath<POSCVDocument, [POSCVBullet]?>) -> some View {
+        POSCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(title).font(.caption.weight(.semibold)).foregroundStyle(POSTheme.primaryDark)
+                let items = cv?.document[keyPath: keyPath] ?? []
+                ForEach(Array(items.enumerated()), id: \.element.stableID) { index, item in
+                    editableBulletRow(title: title, index: index, item: item, keyPath: keyPath)
+                    if index < items.count - 1 {
+                        Divider()
                     }
                 }
             }
         }
+    }
+
+    private func editableBulletRow(title: String, index: Int, item: POSCVBullet, keyPath: WritableKeyPath<POSCVDocument, [POSCVBullet]?>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField("Title / role", text: bindingBullet(index: index, keyPath: keyPath, itemKeyPath: \.title))
+                .font(.subheadline.weight(.medium))
+            TextField("Company", text: bindingOptionalBullet(index: index, keyPath: keyPath, itemKeyPath: \.company))
+                .font(.caption)
+            TextField("Period (e.g. 2024 — Present)", text: bindingOptionalBullet(index: index, keyPath: keyPath, itemKeyPath: \.period))
+                .font(.caption)
+            TextField("Details (one bullet per line)", text: bindingBullet(index: index, keyPath: keyPath, itemKeyPath: \.content), axis: .vertical)
+                .font(.caption)
+                .lineLimit(3...10)
+        }
+    }
+
+    private func bindingBullet(index: Int, keyPath: WritableKeyPath<POSCVDocument, [POSCVBullet]?>, itemKeyPath: WritableKeyPath<POSCVBullet, String>) -> Binding<String> {
+        Binding(
+            get: { cv?.document[keyPath: keyPath]?[safe: index]?[keyPath: itemKeyPath] ?? "" },
+            set: { newValue in
+                updateDocument { doc in
+                    guard var items = doc[keyPath: keyPath], index < items.count else { return }
+                    items[index][keyPath: itemKeyPath] = newValue
+                    doc[keyPath: keyPath] = items
+                }
+            }
+        )
+    }
+
+    private func bindingOptionalBullet(index: Int, keyPath: WritableKeyPath<POSCVDocument, [POSCVBullet]?>, itemKeyPath: WritableKeyPath<POSCVBullet, String?>) -> Binding<String> {
+        Binding(
+            get: { cv?.document[keyPath: keyPath]?[safe: index]?[keyPath: itemKeyPath] ?? "" },
+            set: { newValue in
+                updateDocument { doc in
+                    guard var items = doc[keyPath: keyPath], index < items.count else { return }
+                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    items[index][keyPath: itemKeyPath] = trimmed.isEmpty ? nil : trimmed
+                    doc[keyPath: keyPath] = items
+                }
+            }
+        )
     }
 
     private func updateDocument(_ mutate: (inout POSCVDocument) -> Void) {
         guard var doc = cv?.document else { return }
         mutate(&doc)
         cv = POSAssembledCV(documentID: cv?.documentID, document: doc, source: cv?.source ?? "ideal")
-    }
-
-    private func bulletCard(title: String, items: [POSCVBullet]) -> some View {
-        POSCard {
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(POSTheme.primaryDark)
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(items, id: \.stableID) { item in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title).font(.subheadline.weight(.medium))
-                        if let company = item.company {
-                            Text(company).font(.caption).foregroundStyle(POSTheme.muted)
-                        }
-                        Text(item.content).font(.caption).foregroundStyle(POSTheme.ink.opacity(0.85)).lineLimit(3)
-                    }
-                }
-            }
-        }
     }
 
     private var aiCoachSection: some View {
@@ -198,6 +265,7 @@ struct POSCVHubView: View {
             cv = try await session.api.fetchCV()
             editHeadline = cv?.document.headline ?? ""
             editSummary = cv?.document.summary ?? ""
+            editSkillsText = (cv?.document.skills ?? []).joined(separator: ", ")
         } catch {
             loadError = error.localizedDescription
         }
@@ -296,4 +364,11 @@ struct POSActivityShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard index >= 0, index < count else { return nil }
+        return self[index]
+    }
 }
