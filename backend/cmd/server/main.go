@@ -48,7 +48,17 @@ func main() {
 		log.Printf("auth: fash-auth-service JWT validation enabled (issuer=%s)", cfg.FashAuth.JWTIssuer)
 	}
 
-	aiSvc := ai.NewService(db, cfg.OpenAIBaseURL, cfg.OpenAIAPIKey, cfg.OpenAIModel)
+	aiSvc := ai.NewService(db, ai.ClientConfig{
+		BaseURL:        cfg.OpenAIBaseURL,
+		APIKey:         cfg.OpenAIAPIKey,
+		ChatModel:      cfg.OpenAIModel,
+		EmbeddingModel: cfg.OpenAIEmbeddingModel,
+		SiteURL:        cfg.OpenRouterSiteURL,
+		AppName:        cfg.OpenRouterAppName,
+	})
+	if !aiSvc.Configured() {
+		log.Printf("ai: analyze/embeddings will use fallbacks until OPENROUTER_API_KEY is set")
+	}
 
 	qdrantClient := qdrant.NewClient(
 		cfg.AI.QdrantURL,
@@ -90,7 +100,11 @@ func main() {
 	r.Use(corsMiddleware(cfg.CORSOrigins))
 
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "personal-os"})
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"service": "personal-os",
+			"ai":      aiSvc.Status(),
+		})
 	})
 
 	api := r.Group("/api/v1")

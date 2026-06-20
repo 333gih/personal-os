@@ -21,6 +21,9 @@ type Config struct {
 	OpenAIBaseURL    string
 	OpenAIAPIKey     string
 	OpenAIModel      string
+	OpenAIEmbeddingModel string
+	OpenRouterSiteURL    string
+	OpenRouterAppName    string
 	Storage          StorageConfig
 	TrustedProxies   []string
 	CORSOrigins      []string
@@ -34,30 +37,52 @@ type Config struct {
 func Load() *Config {
 	embeddingDim, _ := strconv.Atoi(getEnv("EMBEDDING_DIM", "1536"))
 	appName := getEnv("APP_NAME", "personal-os-api")
+	appPublicURL := getEnv("APP_PUBLIC_URL", "")
+	baseURL := getEnv("OPENAI_BASE_URL", "")
+	if baseURL == "" {
+		baseURL = getEnv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+	}
+	chatModel := getEnv("OPENAI_MODEL", "")
+	if chatModel == "" {
+		chatModel = getEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat")
+	}
+	embedModel := getEnv("OPENAI_EMBEDDING_MODEL", "openai/text-embedding-3-small")
 
 	return &Config{
-		AppEnv:           getEnv("APP_ENV", "development"),
-		AppName:          appName,
-		AppHost:          getEnv("APP_HOST", "0.0.0.0"),
-		AppPort:          getEnv("APP_PORT", "8080"),
-		AppPublicURL:     getEnv("APP_PUBLIC_URL", ""),
-		LogLevel:         getEnv("LOG_LEVEL", "info"),
-		DatabaseURL:      loadDatabaseURL(),
-		JWTSecret:        loadJWTSecret(),
-		JWTIssuer:        firstNonEmpty(os.Getenv("JWT_ISSUER"), appName),
-		JWTExpiry:        time.Duration(parseJWTExpiryHours()) * time.Hour,
-		OpenAIBaseURL:    getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-		OpenAIAPIKey:     getEnv("OPENAI_API_KEY", ""),
-		OpenAIModel:      getEnv("OPENAI_MODEL", "gpt-4o-mini"),
-		Storage:          LoadStorageConfig(),
-		TrustedProxies:   loadTrustedProxies(),
-		CORSOrigins:      loadCORSOrigins(),
-		EmbeddingDim:     embeddingDim,
-		DefaultUserEmail: getEnv("DEFAULT_USER_EMAIL", "admin@personal-os.local"),
-		DefaultUserPass:  getEnv("DEFAULT_USER_PASSWORD", "changeme123"),
-		FashAuth:         loadFashAuthConfig(),
-		AI:               loadAIConfig(),
+		AppEnv:               getEnv("APP_ENV", "development"),
+		AppName:              appName,
+		AppHost:              getEnv("APP_HOST", "0.0.0.0"),
+		AppPort:              getEnv("APP_PORT", "8080"),
+		AppPublicURL:         appPublicURL,
+		LogLevel:             getEnv("LOG_LEVEL", "info"),
+		DatabaseURL:          loadDatabaseURL(),
+		JWTSecret:            loadJWTSecret(),
+		JWTIssuer:            firstNonEmpty(os.Getenv("JWT_ISSUER"), appName),
+		JWTExpiry:            time.Duration(parseJWTExpiryHours()) * time.Hour,
+		OpenAIBaseURL:        strings.TrimSuffix(baseURL, "/"),
+		OpenAIAPIKey:         resolveLLMAPIKey(),
+		OpenAIModel:          chatModel,
+		OpenAIEmbeddingModel: embedModel,
+		OpenRouterSiteURL:    firstNonEmpty(getEnv("OPENROUTER_SITE_URL", ""), appPublicURL, "https://personal-os.fashandcurious.com"),
+		OpenRouterAppName:    firstNonEmpty(getEnv("OPENROUTER_APP_NAME", ""), "Personal OS"),
+		Storage:              LoadStorageConfig(),
+		TrustedProxies:       loadTrustedProxies(),
+		CORSOrigins:          loadCORSOrigins(),
+		EmbeddingDim:         embeddingDim,
+		DefaultUserEmail:     getEnv("DEFAULT_USER_EMAIL", "admin@personal-os.local"),
+		DefaultUserPass:      getEnv("DEFAULT_USER_PASSWORD", "changeme123"),
+		FashAuth:             loadFashAuthConfig(),
+		AI:                   loadAIConfig(),
 	}
+}
+
+func resolveLLMAPIKey() string {
+	for _, key := range []string{"OPENROUTER_API_KEY", "OPENAI_API_KEY"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func getEnv(key, fallback string) string {

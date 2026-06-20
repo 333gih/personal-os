@@ -15,10 +15,19 @@ func NewHandler(service *Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
+	r.GET("/status", h.Status)
 	r.POST("/analyze", h.Analyze)
 }
 
+func (h *Handler) Status(c *gin.Context) {
+	response.OK(c, h.service.Status())
+}
+
 func (h *Handler) Analyze(c *gin.Context) {
+	if !h.service.Configured() {
+		response.ServiceUnavailable(c, "AI is not configured on this server")
+		return
+	}
 	var req AnalyzeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
