@@ -42,8 +42,8 @@ targets:
         basedOnDependencyAnalysis: false
     settings:
       base:
-        MARKETING_VERSION: "1.5.3"
-        CURRENT_PROJECT_VERSION: "14"
+        MARKETING_VERSION: "1.5.4"
+        CURRENT_PROJECT_VERSION: "15"
         PRODUCT_NAME: Personal OS
         PRODUCT_BUNDLE_IDENTIFIER: com.personalos.story-tracker
         INFOPLIST_FILE: PersonalOSApp/Info.plist
