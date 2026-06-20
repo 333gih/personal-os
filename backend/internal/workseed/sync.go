@@ -31,6 +31,10 @@ func ensureOwnerCareer(db *gorm.DB, userID uuid.UUID) error {
 		return err
 	}
 
+	if err := runDesignPatch(db); err != nil {
+		log.Printf("workseed: fpt architecture patch: %v", err)
+	}
+
 	var workCount int64
 	if err := db.Model(&models.Entity{}).
 		Where("user_id = ? AND domain = ? AND status = ?", userID, models.DomainWork, "active").

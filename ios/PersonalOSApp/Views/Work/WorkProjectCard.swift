@@ -118,8 +118,34 @@ private struct WorkArchitecturePreview: View {
     let entity: POSEntity
 
     var body: some View {
+        if !entity.architectureLayers.isEmpty {
+            layerPreview
+        } else if let url = entity.designImageURL() {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                case .failure:
+                    EmptyView()
+                default:
+                    ProgressView()
+                        .frame(maxWidth: .infinity, minHeight: 80)
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(POSTheme.border.opacity(0.2))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private var layerPreview: some View {
         let layers = entity.architectureLayers.prefix(1)
-        VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(layers.enumerated()), id: \.offset) { _, layer in
                 Text(layer.layer.uppercased())
                     .font(.caption2.weight(.bold))

@@ -154,7 +154,7 @@ struct POSEntityDetailView: View {
                             .foregroundStyle(POSTheme.primaryDark)
                         POSArchitectureDiagram(
                             layers: entity.architectureLayers,
-                            imageURL: nil,
+                            imageURL: entity.designImageURL(),
                             style: .compact
                         )
                         POSActionButton(title: "Open full diagram", icon: "arrow.up.right", style: .secondary) {

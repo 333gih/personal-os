@@ -52,7 +52,18 @@ func RunBootstrapSQL(db *gorm.DB, userID uuid.UUID) error {
 			return fmt.Errorf("exec %s: %w", name, err)
 		}
 	}
+	if err := runDesignPatch(db); err != nil {
+		return fmt.Errorf("design patch: %w", err)
+	}
 	return reassignCareerSeed(db, userID)
+}
+
+func runDesignPatch(db *gorm.DB) error {
+	raw, err := sqlFS.ReadFile("sql/013_fpt_architecture.sql")
+	if err != nil {
+		return fmt.Errorf("read 013: %w", err)
+	}
+	return db.Exec(string(raw)).Error
 }
 
 func patchUserID(sql string, userID uuid.UUID) string {
