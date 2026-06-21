@@ -301,6 +301,11 @@ final class APIClient: ObservableObject {
         return try POSJSONCoding.makeDecoder().decode(POSTodayStudyPlan.self, from: data)
     }
 
+    func fetchLearningLesson(id: String) async throws -> POSLearningLesson {
+        let data = try await authorizedRequest(path: "learning/lessons/\(id)")
+        return try POSJSONCoding.makeDecoder().decode(POSLearningLesson.self, from: data)
+    }
+
     func fetchNotificationLog(limit: Int = 50) async throws -> [POSNotificationLogItem] {
         let data = try await authorizedRequest(path: "learning/notifications/log?limit=\(limit)")
         return try POSJSONCoding.makeDecoder().decode(POSNotificationLogResponse.self, from: data).items

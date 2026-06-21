@@ -94,6 +94,11 @@ struct POSEntityDetailRoute: Identifiable, Equatable {
     }
 }
 
+struct POSLearningLessonRoute: Identifiable, Equatable {
+    let id: String
+    let title: String
+}
+
 struct MainTabView: View {
     @EnvironmentObject private var session: SessionManager
     @State private var tab: POSTab = .home
@@ -119,6 +124,7 @@ struct MainTabView: View {
     @State private var learningCoachEntityID: String?
     @State private var learningCoachTopic = ""
     @State private var learningReloadToken = UUID()
+    @State private var learningLesson: POSLearningLessonRoute?
 
     private var nav: POSNavigationActions {
         POSNavigationActions(
@@ -143,6 +149,9 @@ struct MainTabView: View {
                 learningCoachEntityID = entityID
                 learningCoachTopic = topic
                 showLearningCoach = true
+            },
+            onOpenLearningLesson: { id, title in
+                learningLesson = POSLearningLessonRoute(id: id, title: title)
             },
             onOpenInterviewPrep: { showInterviewPrep = true }
         )
@@ -189,6 +198,16 @@ struct MainTabView: View {
                     entityDetail = POSEntityDetailRoute(id: id, title: title)
                 },
                 onClose: { entityDetail = nil }
+            )
+            .environmentObject(session)
+        }
+        .fullScreenCover(item: $learningLesson) { route in
+            POSLearningLessonView(
+                entityId: route.id,
+                onOpenModule: { id, title in
+                    learningLesson = POSLearningLessonRoute(id: id, title: title)
+                },
+                onClose: { learningLesson = nil }
             )
             .environmentObject(session)
         }
@@ -264,7 +283,7 @@ struct MainTabView: View {
         .sheet(isPresented: $showLearningAdd) {
             POSLearningAddView(track: learningTrack) { entityId, title in
                 learningReloadToken = UUID()
-                entityDetail = POSEntityDetailRoute(id: entityId, title: title)
+                learningLesson = POSLearningLessonRoute(id: entityId, title: title)
             }
             .environmentObject(session)
         }

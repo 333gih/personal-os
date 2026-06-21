@@ -26,6 +26,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/notifications/log", h.NotificationLog)
 	r.POST("/coach/async", h.CoachAsync)
 	r.GET("/jobs/:id", h.GetJob)
+	r.GET("/lessons/:id", h.GetLesson)
 }
 
 func (h *Handler) GetSchedule(c *gin.Context) {
@@ -103,6 +104,24 @@ func (h *Handler) CoachAsync(c *gin.Context) {
 		return
 	}
 	response.Created(c, out)
+}
+
+func (h *Handler) GetLesson(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid lesson id")
+		return
+	}
+	out, err := h.svc.GetLesson(auth.GetUserID(c), id)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.NotFound(c, "lesson not found")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.OK(c, out)
 }
 
 func (h *Handler) GetJob(c *gin.Context) {

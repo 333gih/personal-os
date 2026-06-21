@@ -43,7 +43,7 @@ struct LearningView: View {
                             focus: todayPlan?.dsa,
                             onOpenPattern: {
                                 if let id = todayPlan?.dsa?.patternEntityID {
-                                    nav.onOpen(.entity(id, title: todayPlan?.dsa?.patternTitle ?? "Pattern"))
+                                    nav.openLearningLesson(id: id, title: todayPlan?.dsa?.patternTitle ?? "Pattern")
                                 }
                             },
                             onCoach: {
@@ -59,10 +59,10 @@ struct LearningView: View {
                         plan: todayPlan,
                         isLoading: isLoadingToday,
                         onOpenBlock: { block in
-                            let track: POSLearningTrack = block.track == "english" ? .english : .dsa
                             if let entityID = block.entityID {
-                                nav.onOpen(.entity(entityID, title: block.title))
+                                nav.openLearningLesson(id: entityID, title: block.title)
                             } else {
+                                let track: POSLearningTrack = block.track == "english" ? .english : .dsa
                                 nav.openLearningCoach(track: track, topic: block.title)
                             }
                         },
@@ -166,7 +166,7 @@ struct LearningView: View {
             if isLoading {
                 POSLoadingView()
             } else if let course = dsaCourse {
-                Button { nav.onOpen(.entity(course.id, title: course.title)) } label: {
+                Button { nav.openLearningLesson(id: course.id, title: course.title) } label: {
                     POSCard {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(course.title).font(.headline)
@@ -221,7 +221,7 @@ struct LearningView: View {
             } else {
                 ForEach(englishCourses) { course in
                     VStack(alignment: .leading, spacing: 8) {
-                        Button { nav.onOpen(.entity(course.id, title: course.title)) } label: {
+                        Button { nav.openLearningLesson(id: course.id, title: course.title) } label: {
                             POSCard {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(course.title).font(.subheadline.weight(.semibold))
@@ -233,7 +233,7 @@ struct LearningView: View {
 
                         let modules = englishModules.filter { $0.metadata?.courseSlug == course.metadata?.courseSlug }
                         ForEach(modules) { mod in
-                            Button { nav.onOpen(.entity(mod.id, title: mod.title)) } label: {
+                            Button { nav.openLearningLesson(id: mod.id, title: mod.title) } label: {
                                 POSListRow(
                                     title: mod.title,
                                     subtitle: mod.content,
@@ -251,7 +251,7 @@ struct LearningView: View {
 
     private func patternRow(_ pattern: POSEntity) -> some View {
         Button {
-            nav.onOpen(.entity(pattern.id, title: pattern.title))
+            nav.openLearningLesson(id: pattern.id, title: pattern.title)
         } label: {
             HStack(spacing: 12) {
                 Text("\(pattern.metadata?.patternOrder ?? 0)")

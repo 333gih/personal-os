@@ -41,6 +41,7 @@ struct POSNavigationActions {
     var onOpenLearningHub: (() -> Void)?
     var onOpenLearningAdd: ((POSLearningTrack) -> Void)?
     var onOpenLearningCoach: ((POSLearningTrack, String?, String) -> Void)?
+    var onOpenLearningLesson: ((String, String) -> Void)?
     var onOpenInterviewPrep: (() -> Void)?
 
     func captureNote() {
@@ -106,6 +107,11 @@ struct POSNavigationActions {
     func openLearningCoach(track: POSLearningTrack, entityID: String? = nil, topic: String = "") {
         POSHaptics.light()
         onOpenLearningCoach?(track, entityID, topic)
+    }
+
+    func openLearningLesson(id: String, title: String) {
+        POSHaptics.light()
+        onOpenLearningLesson?(id, title)
     }
 
     func openInterviewPrep() {

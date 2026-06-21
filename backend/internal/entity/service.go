@@ -3,6 +3,8 @@ package entity
 import (
 	"encoding/json"
 	"errors"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/personal-os/backend/internal/ai"
@@ -110,7 +112,40 @@ func (s *Service) Create(userID uuid.UUID, input CreateInput) (*models.Entity, e
 func (s *Service) Get(userID, id uuid.UUID) (*models.Entity, error) {
 	var entity models.Entity
 	err := entityReads(s.db).Where("id = ? AND user_id = ?", id, userID).First(&entity).Error
-	return &entity, err
+	if err == nil {
+		return &entity, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	return s.claimLearningSeedEntity(userID, id)
+}
+
+const learningSeedIDPrefix = "c000000c-0001-4001-8001-"
+
+// claimLearningSeedEntity attaches curriculum seed rows to the requesting user when
+// Fash JWT user_id differs from the migration admin_id (common 404 on detail).
+func (s *Service) claimLearningSeedEntity(userID, id uuid.UUID) (*models.Entity, error) {
+	if !strings.HasPrefix(id.String(), learningSeedIDPrefix) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var entity models.Entity
+	if err := entityReads(s.db).Where("id = ?", id).First(&entity).Error; err != nil {
+		return nil, err
+	}
+	if entity.Domain != models.DomainLearning {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if entity.UserID != userID {
+		if err := s.db.Model(&entity).Updates(map[string]any{
+			"user_id":    userID,
+			"updated_at": time.Now(),
+		}).Error; err != nil {
+			return nil, err
+		}
+		entity.UserID = userID
+	}
+	return &entity, nil
 }
 
 func (s *Service) List(userID uuid.UUID, f ListFilter) ([]models.Entity, int64, error) {

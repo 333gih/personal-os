@@ -207,6 +207,80 @@ struct POSNotificationLogResponse: Decodable {
     let items: [POSNotificationLogItem]
 }
 
+struct POSLearningLesson: Decodable {
+    let entityID: String
+    let title: String
+    let content: String
+    let type: String
+    let track: String
+    let phase: String?
+    let weeks: String?
+    let patternOrder: Int
+    let whenToUse: String?
+    let recognitionSignals: [String]?
+    let practiceStrategy: String?
+    let codeTemplate: String?
+    let problems: [String]?
+    let benchmarks: POSDSABenchmarks?
+    let modules: [POSLessonModule]?
+    let practiceModes: [POSPracticeMode]
+    let curriculumWeek: Int
+
+    enum CodingKeys: String, CodingKey {
+        case title, content, type, track, phase, weeks, problems, modules, benchmarks
+        case entityID = "entity_id"
+        case patternOrder = "pattern_order"
+        case whenToUse = "when_to_use"
+        case recognitionSignals = "recognition_signals"
+        case practiceStrategy = "practice_strategy"
+        case codeTemplate = "code_template"
+        case practiceModes = "practice_modes"
+        case curriculumWeek = "curriculum_week"
+    }
+
+    var isCourse: Bool { type.contains("course") }
+    var isDSA: Bool { track == "dsa" }
+}
+
+struct POSLessonModule: Identifiable, Decodable {
+    let id: String
+    let title: String
+    let subtitle: String?
+    let patternOrder: Int
+    let phase: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, subtitle, phase
+        case patternOrder = "pattern_order"
+    }
+}
+
+struct POSPracticeMode: Identifiable, Decodable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let durationMinutes: Int
+    let focus: String
+    let async: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, subtitle, focus, async
+        case durationMinutes = "duration_minutes"
+    }
+}
+
+struct POSDSABenchmarks: Decodable {
+    let easyMinutes: Int
+    let mediumMinutes: Int
+    let hardMinutes: Int
+
+    enum CodingKeys: String, CodingKey {
+        case easyMinutes = "easy_minutes"
+        case mediumMinutes = "medium_minutes"
+        case hardMinutes = "hard_minutes"
+    }
+}
+
 enum POSLearningTrack: String, CaseIterable, Identifiable {
     case dsa, english
 

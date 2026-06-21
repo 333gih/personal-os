@@ -129,9 +129,11 @@ func (s *Service) Coach(userID uuid.UUID, in CoachInput) (*CoachResult, error) {
 	}
 	topic := strings.TrimSpace(in.Topic)
 	if in.EntityID != "" {
-		var ent models.Entity
-		if err := s.db.Where("id = ? AND user_id = ?", in.EntityID, userID).First(&ent).Error; err == nil {
-			topic = ent.Title + "\n" + ent.Content
+		eid, err := uuid.Parse(in.EntityID)
+		if err == nil {
+			if ent, err := s.entity.Get(userID, eid); err == nil {
+				topic = ent.Title + "\n" + ent.Content
+			}
 		}
 	}
 	if topic == "" {
