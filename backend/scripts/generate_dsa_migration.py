@@ -127,14 +127,26 @@ def sql_str(s: str) -> str:
     return s.replace("'", "''")
 
 
+def sql_dollar(s: str, prefix: str = "j") -> str:
+    """PostgreSQL dollar-quoted literal — safe for JSON with quotes/backslashes."""
+    tag = prefix
+    n = 0
+    while f"${tag}$" in s:
+        n += 1
+        tag = f"{prefix}{n}"
+    return f"${tag}${s}${tag}$"
+
+
 def main():
     paras = extract_paras(DOCX)
     parsed = parse_patterns(paras)
 
     lines = [
         "-- DSA Mastery daily program — enriched from dsa_mastery_system.docx",
-        "-- psql $DATABASE_URL -f migrations/022_dsa_mastery_daily_program.sql",
-        "",
+        "--",
+        "-- Run from backend/ directory (NOT by pasting Python into psql):",
+        "--   psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f migrations/022_dsa_mastery_daily_program.sql",
+        "--",
         "ALTER TABLE learning_schedules",
         "    ADD COLUMN IF NOT EXISTS dsa_program_start DATE DEFAULT CURRENT_DATE;",
         "",
@@ -199,7 +211,7 @@ def main():
         lines.append(f"    UPDATE entities SET")
         lines.append(f"        title = '{sql_str(name)}',")
         lines.append(f"        content = '{sql_str(content)}',")
-        lines.append(f"        metadata = metadata || '{sql_str(meta_json)}'::jsonb,")
+        lines.append(f"        metadata = metadata || {sql_dollar(meta_json, f'm{order}')}::jsonb,")
         lines.append(f"        updated_at = NOW()")
         lines.append(f"    WHERE id = '{eid}'::uuid AND user_id = admin_id;")
         lines.append("")
@@ -236,11 +248,11 @@ def main():
         ),
     ]
 
-    for eid, etype, title, content, meta in guides:
+    for i, (eid, etype, title, content, meta) in enumerate(guides):
         meta_json = json.dumps(meta, ensure_ascii=False)
         lines.append(f"    INSERT INTO entities (id, user_id, type, title, content, tags, source, metadata, domain, status)")
         lines.append(f"    VALUES ('{eid}'::uuid, admin_id, '{etype}', '{sql_str(title)}',")
-        lines.append(f"     '{sql_str(content)}', '[\"dsa\"]'::jsonb, 'learning_seed', '{sql_str(meta_json)}'::jsonb, 'learning', 'active')")
+        lines.append(f"     '{sql_str(content)}', '[\"dsa\"]'::jsonb, 'learning_seed', {sql_dollar(meta_json, f'g{i}')}::jsonb, 'learning', 'active')")
         lines.append(f"    ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, content = EXCLUDED.content,")
         lines.append(f"        metadata = entities.metadata || EXCLUDED.metadata, updated_at = NOW();")
         lines.append("")
