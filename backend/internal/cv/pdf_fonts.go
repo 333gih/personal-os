@@ -57,7 +57,7 @@ func newCVPDF() (*gofpdf.Fpdf, error) {
 
 	pdf := gofpdf.New("P", "mm", "A4", dir)
 	pdf.SetMargins(cvMarginL, cvMarginT, cvMarginR)
-	pdf.SetAutoPageBreak(true, cvMarginB)
+	pdf.SetAutoPageBreak(false, 0)
 
 	for _, spec := range []struct{ style, file string }{
 		{"", "DejaVuSans.ttf"},

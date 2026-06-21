@@ -8,13 +8,27 @@ import (
 )
 
 const (
-	cvMarginL = 12.0
-	cvMarginR = 12.0
-	cvMarginT = 12.0
-	cvMarginB = 14.0
+	cvMarginL = 10.0
+	cvMarginR = 10.0
+	cvMarginT = 10.0
+	cvMarginB = 10.0
 	cvAccentR = 26
 	cvAccentG = 54
 	cvAccentB = 93
+
+	cvFontName    = 15.5
+	cvFontRole    = 9.5
+	cvFontContact = 7.5
+	cvFontSection = 7.8
+	cvFontBody    = 7.5
+	cvFontSmall   = 7.0
+	cvFontBullet  = 7.3
+
+	cvLineBody   = 3.4
+	cvLineTight  = 3.2
+	cvLineTitle  = 4.0
+	cvSectionGap = 2.8
+	cvBlockGap   = 2.0
 )
 
 func renderPDF(doc CVDocument) ([]byte, error) {
@@ -25,144 +39,41 @@ func renderPDF(doc CVDocument) ([]byte, error) {
 	}
 
 	pdf.AddPage()
-	pageW, _ := pdf.GetPageSize()
+	pdf.SetAutoPageBreak(false, 0)
+
+	pageW, pageH := pdf.GetPageSize()
 	contentW := pageW - cvMarginL - cvMarginR
 	leftW := contentW * 0.32
-	rightW := contentW - leftW - 6
+	rightW := contentW - leftW - 5
 	leftX := cvMarginL
-	rightX := cvMarginL + leftW + 6
+	rightX := cvMarginL + leftW + 5
 
 	name, role := splitHeadline(doc.Headline)
-	setDejaVu(pdf, "B", 18)
+	setDejaVu(pdf, "B", cvFontName)
 	pdf.SetTextColor(cvAccentR, cvAccentG, cvAccentB)
-	pdf.MultiCell(contentW, 7.5, strings.ToUpper(name), "", "L", false)
+	pdf.SetXY(cvMarginL, cvMarginT)
+	pdf.MultiCell(contentW, 6.5, strings.ToUpper(name), "", "L", false)
 
 	if role != "" {
-		setDejaVu(pdf, "", 10.5)
+		setDejaVu(pdf, "", cvFontRole)
 		pdf.SetTextColor(55, 65, 81)
-		pdf.Ln(1)
-		pdf.MultiCell(contentW, 5, role, "", "L", false)
+		pdf.SetX(cvMarginL)
+		pdf.MultiCell(contentW, 4.5, role, "", "L", false)
 	}
 
 	pdf.SetTextColor(0, 0, 0)
-	pdf.Ln(2)
+	pdf.Ln(1)
 	renderPDFContact(pdf, contentW, doc.Contact)
 
-	startY := pdf.GetY() + 4
-	leftY := startY
-	rightY := startY
+	columnStartY := pdf.GetY() + 3
+	leftEndY := renderPDFLeftColumn(pdf, leftX, columnStartY, leftW, doc)
 
-	if doc.Summary != "" {
-		leftY = pdfColumnSection(pdf, leftX, leftY, leftW, "Summary", func() float64 {
-			setDejaVu(pdf, "", 8.5)
-			pdf.SetX(leftX)
-			pdf.MultiCell(leftW, 4.2, strings.TrimSpace(doc.Summary), "", "L", false)
-			return pdf.GetY()
-		})
-	}
+	pdf.SetPage(1)
+	rightEndY := renderPDFRightColumn(pdf, rightX, columnStartY, rightW, doc)
 
-	if len(doc.Education) > 0 {
-		leftY = pdfColumnSection(pdf, leftX, leftY, leftW, "Educations", func() float64 {
-			setDejaVu(pdf, "", 8)
-			for _, e := range doc.Education {
-				pdf.SetX(leftX)
-				setDejaVu(pdf, "B", 8)
-				schoolLine := e.School
-				if e.Period != "" {
-					schoolLine += " (" + e.Period + ")"
-				}
-				pdf.MultiCell(leftW, 4, schoolLine, "", "L", false)
-				if e.Content != "" {
-					setDejaVu(pdf, "", 8)
-					pdf.SetX(leftX)
-					pdf.MultiCell(leftW, 4, e.Content, "", "L", false)
-				}
-				pdf.Ln(1.5)
-			}
-			return pdf.GetY()
-		})
-	}
-
-	if len(doc.SkillGroups) > 0 || len(doc.Skills) > 0 {
-		leftY = pdfColumnSection(pdf, leftX, leftY, leftW, "Skills", func() float64 {
-			setDejaVu(pdf, "", 8)
-			if len(doc.SkillGroups) > 0 {
-				for _, g := range doc.SkillGroups {
-					if len(g.Items) == 0 {
-						continue
-					}
-					pdf.SetX(leftX)
-					setDejaVu(pdf, "B", 8)
-					pdf.MultiCell(leftW, 4, g.Category+":", "", "L", false)
-					setDejaVu(pdf, "", 8)
-					pdf.SetX(leftX)
-					pdf.MultiCell(leftW, 4, strings.Join(g.Items, ", "), "", "L", false)
-					pdf.Ln(1)
-				}
-			} else {
-				pdf.SetX(leftX)
-				pdf.MultiCell(leftW, 4, formatSkillLine(doc.Skills), "", "L", false)
-			}
-			return pdf.GetY()
-		})
-	}
-
-	if len(doc.Achievements) > 0 {
-		leftY = pdfColumnSection(pdf, leftX, leftY, leftW, "Achievements", func() float64 {
-			for _, a := range doc.Achievements {
-				if strings.TrimSpace(a.Content) == "" {
-					continue
-				}
-				setDejaVu(pdf, "", 8)
-				pdf.SetX(leftX + 1.5)
-				pdf.MultiCell(leftW-1.5, 4, "•  "+strings.TrimSpace(a.Content), "", "L", false)
-			}
-			return pdf.GetY()
-		})
-	}
-
-	if len(doc.Certificates) > 0 {
-		leftY = pdfColumnSection(pdf, leftX, leftY, leftW, "Certificates", func() float64 {
-			setDejaVu(pdf, "", 8)
-			for _, c := range doc.Certificates {
-				line := c.Title
-				if c.Issuer != "" {
-					line += " — " + c.Issuer
-				}
-				pdf.SetX(leftX)
-				pdf.MultiCell(leftW, 4, line, "", "L", false)
-				if c.Period != "" {
-					setDejaVu(pdf, "I", 7.5)
-					pdf.SetTextColor(90, 90, 90)
-					pdf.SetX(leftX)
-					pdf.MultiCell(leftW, 3.8, c.Period, "", "L", false)
-					pdf.SetTextColor(0, 0, 0)
-				}
-				pdf.Ln(1)
-			}
-			return pdf.GetY()
-		})
-	}
-
-	if len(doc.Experience) > 0 {
-		rightY = pdfColumnSectionAt(pdf, rightX, rightY, rightW, "Experiences", func() float64 {
-			y := pdf.GetY()
-			grouped := projectsByCompany(doc.Projects)
-			for _, item := range doc.Experience {
-				y = pdfRoleBlockAt(pdf, rightX, y, rightW, item, true)
-				for _, p := range grouped[companyKey(item.Company)] {
-					y = pdfRoleBlockAt(pdf, rightX, y, rightW, p, false)
-				}
-			}
-			for _, p := range grouped["_ungrouped"] {
-				y = pdfRoleBlockAt(pdf, rightX, y, rightW, p, false)
-			}
-			return y
-		})
-	}
-
-	_ = leftY
-	_ = rightY
+	_ = leftEndY
+	_ = rightEndY
+	_ = pageH
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
@@ -171,76 +82,180 @@ func renderPDF(doc CVDocument) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func renderPDFLeftColumn(pdf *gofpdf.Fpdf, x, y, w float64, doc CVDocument) float64 {
+	if doc.Summary != "" {
+		y = pdfSection(pdf, x, y, w, "Summary", func(y float64) float64 {
+			setDejaVu(pdf, "", cvFontBody)
+			return pdfMC(pdf, x, y, w, cvLineBody, strings.TrimSpace(doc.Summary))
+		})
+	}
+
+	if len(doc.Education) > 0 {
+		y = pdfSection(pdf, x, y, w, "Educations", func(y float64) float64 {
+			for _, e := range doc.Education {
+				schoolLine := e.School
+				if e.Period != "" {
+					schoolLine += " (" + e.Period + ")"
+				}
+				setDejaVu(pdf, "B", cvFontBody)
+				y = pdfMC(pdf, x, y, w, cvLineBody, schoolLine)
+				if e.Content != "" {
+					setDejaVu(pdf, "", cvFontSmall)
+					y = pdfMC(pdf, x, y, w, cvLineTight, e.Content)
+				}
+				y += 1
+			}
+			return y
+		})
+	}
+
+	if len(doc.SkillGroups) > 0 || len(doc.Skills) > 0 {
+		y = pdfSection(pdf, x, y, w, "Skills", func(y float64) float64 {
+			if len(doc.SkillGroups) > 0 {
+				for _, g := range doc.SkillGroups {
+					if len(g.Items) == 0 {
+						continue
+					}
+					setDejaVu(pdf, "B", cvFontBody)
+					y = pdfMC(pdf, x, y, w, cvLineTight, g.Category+":")
+					setDejaVu(pdf, "", cvFontSmall)
+					y = pdfMC(pdf, x, y, w, cvLineTight, strings.Join(g.Items, ", "))
+					y += 0.5
+				}
+			} else {
+				setDejaVu(pdf, "", cvFontBody)
+				y = pdfMC(pdf, x, y, w, cvLineBody, formatSkillLine(doc.Skills))
+			}
+			return y
+		})
+	}
+
+	if len(doc.Achievements) > 0 {
+		y = pdfSection(pdf, x, y, w, "Achievements", func(y float64) float64 {
+			for _, a := range doc.Achievements {
+				if strings.TrimSpace(a.Content) == "" {
+					continue
+				}
+				setDejaVu(pdf, "", cvFontBullet)
+				y = pdfMC(pdf, x+1.2, y, w-1.2, cvLineTight, "•  "+strings.TrimSpace(a.Content))
+			}
+			return y
+		})
+	}
+
+	if len(doc.Certificates) > 0 {
+		y = pdfSection(pdf, x, y, w, "Certificates", func(y float64) float64 {
+			for _, c := range doc.Certificates {
+				line := c.Title
+				if c.Issuer != "" {
+					line += " — " + c.Issuer
+				}
+				setDejaVu(pdf, "", cvFontSmall)
+				y = pdfMC(pdf, x, y, w, cvLineTight, line)
+				if c.Period != "" {
+					setDejaVu(pdf, "I", cvFontSmall)
+					pdf.SetTextColor(90, 90, 90)
+					y = pdfMC(pdf, x, y, w, cvLineTight, c.Period)
+					pdf.SetTextColor(0, 0, 0)
+				}
+				y += 0.5
+			}
+			return y
+		})
+	}
+
+	return y
+}
+
+func renderPDFRightColumn(pdf *gofpdf.Fpdf, x, y, w float64, doc CVDocument) float64 {
+	if len(doc.Experience) == 0 {
+		return y
+	}
+
+	return pdfSection(pdf, x, y, w, "Experiences", func(y float64) float64 {
+		grouped := projectsByCompany(doc.Projects)
+		for _, item := range doc.Experience {
+			y = pdfRoleBlock(pdf, x, y, w, item, true)
+			for _, p := range grouped[companyKey(item.Company)] {
+				y = pdfRoleBlock(pdf, x, y, w, p, false)
+			}
+		}
+		for _, p := range grouped["_ungrouped"] {
+			y = pdfRoleBlock(pdf, x, y, w, p, false)
+		}
+		return y
+	})
+}
+
 func renderPDFContact(pdf *gofpdf.Fpdf, contentW float64, c Contact) {
 	parts := filterNonEmpty([]string{c.Email, c.Phone, c.Location, c.LinkedIn, c.GitHub})
 	if len(parts) == 0 {
 		return
 	}
-	setDejaVu(pdf, "", 8)
+	setDejaVu(pdf, "", cvFontContact)
 	pdf.SetTextColor(90, 100, 110)
-	pdf.MultiCell(contentW, 4, strings.Join(parts, "   ·   "), "", "L", false)
+	pdf.SetX(cvMarginL)
+	pdf.MultiCell(contentW, 3.5, strings.Join(parts, "   ·   "), "", "L", false)
 	pdf.SetTextColor(0, 0, 0)
 }
 
-func pdfColumnSection(pdf *gofpdf.Fpdf, x, y, w float64, title string, body func() float64) float64 {
-	return pdfColumnSectionAt(pdf, x, y, w, title, body)
-}
-
-func pdfColumnSectionAt(pdf *gofpdf.Fpdf, x, y, w float64, title string, body func() float64) float64 {
-	pdf.SetXY(x, y)
-	setDejaVu(pdf, "B", 8.5)
+func pdfSection(pdf *gofpdf.Fpdf, x, y, w float64, title string, body func(y float64) float64) float64 {
+	setDejaVu(pdf, "B", cvFontSection)
 	pdf.SetTextColor(17, 24, 39)
-	pdf.Cell(w, 4.5, strings.ToUpper(title))
-	pdf.Ln(5)
+	pdf.SetXY(x, y)
+	pdf.Cell(w, cvLineTitle, strings.ToUpper(title))
+
+	lineY := y + cvLineTitle
 	pdf.SetDrawColor(17, 24, 39)
-	pdf.SetLineWidth(0.35)
-	lineY := pdf.GetY()
+	pdf.SetLineWidth(0.3)
 	pdf.Line(x, lineY, x+w, lineY)
-	pdf.Ln(3)
+
+	bodyY := lineY + 2.2
 	pdf.SetTextColor(0, 0, 0)
-	endY := body()
-	if endY <= lineY {
-		endY = pdf.GetY()
-	}
-	return endY + 4
+	endY := body(bodyY)
+	return endY + cvSectionGap
 }
 
-func pdfRoleBlockAt(pdf *gofpdf.Fpdf, x, y, contentW float64, item BulletItem, showCompany bool) float64 {
-	pdf.SetXY(x, y)
+func pdfRoleBlock(pdf *gofpdf.Fpdf, x, y, w float64, item BulletItem, showCompany bool) float64 {
 	if showCompany && strings.TrimSpace(item.Company) != "" {
-		setDejaVu(pdf, "B", 8.5)
+		setDejaVu(pdf, "B", cvFontBody)
 		pdf.SetTextColor(17, 24, 39)
-		pdf.SetX(x)
-		pdf.MultiCell(contentW, 4.2, strings.ToUpper(strings.TrimSpace(item.Company)), "", "L", false)
+		y = pdfMC(pdf, x, y, w, cvLineBody, strings.ToUpper(strings.TrimSpace(item.Company)))
 		pdf.SetTextColor(0, 0, 0)
 	}
 
 	title := strings.TrimSpace(item.Title)
 	period := strings.TrimSpace(item.Period)
 	if title != "" || period != "" {
-		periodW := 36.0
-		titleW := contentW - periodW
+		periodW := 34.0
+		titleW := w - periodW
 		if period == "" {
-			titleW = contentW
+			titleW = w
 		}
-		setDejaVu(pdf, "B", 8.5)
-		pdf.SetXY(x, pdf.GetY())
-		pdf.Cell(titleW, 4.2, title)
+		setDejaVu(pdf, "B", cvFontBody)
+		pdf.SetXY(x, y)
+		pdf.Cell(titleW, cvLineBody, title)
 		if period != "" {
-			setDejaVu(pdf, "I", 7.5)
+			setDejaVu(pdf, "I", cvFontSmall)
 			pdf.SetTextColor(100, 100, 100)
-			pdf.CellFormat(periodW, 4.2, period, "", 0, "R", false, 0, "")
+			pdf.CellFormat(periodW, cvLineBody, period, "", 0, "R", false, 0, "")
 			pdf.SetTextColor(0, 0, 0)
 		}
-		pdf.Ln(4.5)
+		y += cvLineBody + 0.5
 	}
 
 	for _, bullet := range splitBullets(item.Content) {
-		setDejaVu(pdf, "", 8)
-		pdf.SetX(x + 1.5)
-		pdf.MultiCell(contentW-1.5, 4, "•  "+bullet, "", "L", false)
+		setDejaVu(pdf, "", cvFontBullet)
+		y = pdfMC(pdf, x+1.2, y, w-1.2, cvLineTight, "•  "+bullet)
 	}
-	return pdf.GetY() + 2.5
+	return y + cvBlockGap
+}
+
+// pdfMC writes wrapped text at (x,y) without triggering page breaks.
+func pdfMC(pdf *gofpdf.Fpdf, x, y, w, lineH float64, text string) float64 {
+	pdf.SetXY(x, y)
+	pdf.MultiCell(w, lineH, text, "", "L", false)
+	return pdf.GetY()
 }
 
 func splitHeadline(headline string) (name, role string) {

@@ -37,7 +37,18 @@ h2{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em
 .row .period{font-size:.74rem;color:var(--muted);font-style:italic;white-space:nowrap}
 ul{margin:0;padding:0 0 0 1rem}
 li{margin-bottom:3px;font-size:.78rem;color:#374151}
-@media print{body{margin:0;max-width:none;padding:12mm}.layout{gap:16px}}
+@media print{
+  body{margin:0;max-width:none;padding:8mm}
+  .layout{gap:14px}
+  @page{size:A4;margin:8mm}
+  .section{margin-bottom:10px}
+  h2{font-size:.62rem;margin-bottom:4px;padding-bottom:3px}
+  .summary,.skill-group,.edu-block,.cert-block,.block{font-size:.72rem}
+  li{font-size:.72rem;margin-bottom:2px}
+  .name{font-size:1.45rem}
+  .role{font-size:.88rem}
+  .contact-row{font-size:.72rem}
+}
 </style></head><body>`)
 
 	b.WriteString(`<div class="header">`)
