@@ -217,10 +217,10 @@ struct POSLearningLesson: Decodable {
     let weeks: String?
     let patternOrder: Int
     let whenToUse: String?
-    let recognitionSignals: [String]?
+    let recognitionSignals: [String]
     let practiceStrategy: String?
     let codeTemplate: String?
-    let problems: [String]?
+    let problems: [String]
     let benchmarks: POSDSABenchmarks?
     let modules: [POSLessonModule]?
     let practiceModes: [POSPracticeMode]
@@ -238,8 +238,120 @@ struct POSLearningLesson: Decodable {
         case curriculumWeek = "curriculum_week"
     }
 
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        entityID = try c.decode(String.self, forKey: .entityID)
+        title = try c.decode(String.self, forKey: .title)
+        content = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
+        type = try c.decodeIfPresent(String.self, forKey: .type) ?? "learning_topic"
+        track = try c.decodeIfPresent(String.self, forKey: .track) ?? "dsa"
+        phase = try c.decodeIfPresent(String.self, forKey: .phase)
+        weeks = try c.decodeIfPresent(String.self, forKey: .weeks)
+        patternOrder = try c.decodeIfPresent(Int.self, forKey: .patternOrder) ?? 0
+        whenToUse = try c.decodeIfPresent(String.self, forKey: .whenToUse)
+        recognitionSignals = try c.decodeIfPresent([String].self, forKey: .recognitionSignals) ?? []
+        practiceStrategy = try c.decodeIfPresent(String.self, forKey: .practiceStrategy)
+        codeTemplate = try c.decodeIfPresent(String.self, forKey: .codeTemplate)
+        problems = try c.decodeIfPresent([String].self, forKey: .problems) ?? []
+        benchmarks = try c.decodeIfPresent(POSDSABenchmarks.self, forKey: .benchmarks)
+        modules = try c.decodeIfPresent([POSLessonModule].self, forKey: .modules)
+        practiceModes = try c.decodeIfPresent([POSPracticeMode].self, forKey: .practiceModes) ?? []
+        curriculumWeek = try c.decodeIfPresent(Int.self, forKey: .curriculumWeek) ?? 0
+    }
+
+    init(
+        entityID: String,
+        title: String,
+        content: String,
+        type: String,
+        track: String,
+        phase: String? = nil,
+        weeks: String? = nil,
+        patternOrder: Int = 0,
+        whenToUse: String? = nil,
+        recognitionSignals: [String] = [],
+        practiceStrategy: String? = nil,
+        codeTemplate: String? = nil,
+        problems: [String] = [],
+        benchmarks: POSDSABenchmarks? = nil,
+        modules: [POSLessonModule]? = nil,
+        practiceModes: [POSPracticeMode],
+        curriculumWeek: Int = 0
+    ) {
+        self.entityID = entityID
+        self.title = title
+        self.content = content
+        self.type = type
+        self.track = track
+        self.phase = phase
+        self.weeks = weeks
+        self.patternOrder = patternOrder
+        self.whenToUse = whenToUse
+        self.recognitionSignals = recognitionSignals
+        self.practiceStrategy = practiceStrategy
+        self.codeTemplate = codeTemplate
+        self.problems = problems
+        self.benchmarks = benchmarks
+        self.modules = modules
+        self.practiceModes = practiceModes
+        self.curriculumWeek = curriculumWeek
+    }
+
     var isCourse: Bool { type.contains("course") }
     var isDSA: Bool { track == "dsa" }
+
+    static func from(entity: POSEntity, modules: [POSLessonModule]? = nil) -> POSLearningLesson {
+        let track = entity.metadata?.track ?? (entity.tagList.contains("english") ? "english" : "dsa")
+        let order = entity.metadata?.patternOrder ?? 0
+        let isCourse = entity.type.contains("course")
+        let modes: [POSPracticeMode]
+        if isCourse {
+            modes = track == "english"
+                ? [
+                    POSPracticeMode(id: "vocab_flash", title: "Vocab flash", subtitle: "10 words · definition → sentence", durationMinutes: 5, focus: "toeic vocabulary flash", isAsync: false),
+                    POSPracticeMode(id: "grammar_drill", title: "Grammar drill", subtitle: "Part 5 traps", durationMinutes: 10, focus: "toeic grammar part 5", isAsync: false),
+                ]
+                : [
+                    POSPracticeMode(id: "roadmap_review", title: "Roadmap check-in", subtitle: "10-week plan", durationMinutes: 5, focus: "10-week DSA roadmap progress", isAsync: false),
+                    POSPracticeMode(id: "pattern_pick", title: "Today's pattern", subtitle: "Daily focus", durationMinutes: 25, focus: "daily DSA pattern from program", isAsync: false),
+                ]
+        } else if track == "english" {
+            modes = [
+                POSPracticeMode(id: "recall", title: "Active recall", subtitle: "Explain without notes", durationMinutes: 5, focus: "active recall", isAsync: false),
+                POSPracticeMode(id: "coach", title: "AI drill", subtitle: "Deep practice", durationMinutes: 15, focus: "deep practice", isAsync: true),
+            ]
+        } else {
+            modes = [
+                POSPracticeMode(id: "flash", title: "Metro flash", subtitle: "2 min recall", durationMinutes: 2, focus: "pattern flash recall", isAsync: false),
+                POSPracticeMode(id: "easy", title: "Easy warm-up", subtitle: "One easy problem", durationMinutes: 8, focus: "one easy LeetCode", isAsync: false),
+                POSPracticeMode(id: "medium", title: "Timed medium", subtitle: "20 min cap", durationMinutes: 20, focus: "one medium LeetCode timed", isAsync: false),
+                POSPracticeMode(id: "coach", title: "AI coach deep", subtitle: "Full walkthrough", durationMinutes: 25, focus: "deep coach walkthrough", isAsync: true),
+            ]
+        }
+        return POSLearningLesson(
+            entityID: entity.id,
+            title: entity.title,
+            content: entity.content,
+            type: entity.type,
+            track: track,
+            phase: entity.metadata?.phase,
+            weeks: entity.metadata?.week,
+            patternOrder: order,
+            whenToUse: entity.metadata?.whenToUse,
+            recognitionSignals: entity.metadata?.recognitionSignals ?? [],
+            practiceStrategy: entity.metadata?.practiceStrategy,
+            codeTemplate: entity.metadata?.codeTemplate,
+            problems: entity.metadata?.problems ?? [],
+            benchmarks: POSDSABenchmarks(
+                easyMinutes: entity.metadata?.benchmarkEasyMin ?? 8,
+                mediumMinutes: entity.metadata?.benchmarkMediumMin ?? 20,
+                hardMinutes: entity.metadata?.benchmarkHardMin ?? 35
+            ),
+            modules: modules,
+            practiceModes: modes,
+            curriculumWeek: 0
+        )
+    }
 }
 
 struct POSLessonModule: Identifiable, Decodable {
@@ -253,6 +365,15 @@ struct POSLessonModule: Identifiable, Decodable {
         case id, title, subtitle, phase
         case patternOrder = "pattern_order"
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle)
+        patternOrder = try c.decodeIfPresent(Int.self, forKey: .patternOrder) ?? 0
+        phase = try c.decodeIfPresent(String.self, forKey: .phase)
+    }
 }
 
 struct POSPracticeMode: Identifiable, Decodable {
@@ -261,11 +382,31 @@ struct POSPracticeMode: Identifiable, Decodable {
     let subtitle: String
     let durationMinutes: Int
     let focus: String
-    let async: Bool
+    let isAsync: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, title, subtitle, focus, async
+        case id, title, subtitle, focus
         case durationMinutes = "duration_minutes"
+        case isAsync = "async"
+    }
+
+    init(id: String, title: String, subtitle: String, durationMinutes: Int, focus: String, isAsync: Bool) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.durationMinutes = durationMinutes
+        self.focus = focus
+        self.isAsync = isAsync
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        subtitle = try c.decodeIfPresent(String.self, forKey: .subtitle) ?? ""
+        durationMinutes = try c.decodeIfPresent(Int.self, forKey: .durationMinutes) ?? 5
+        focus = try c.decodeIfPresent(String.self, forKey: .focus) ?? ""
+        isAsync = try c.decodeIfPresent(Bool.self, forKey: .isAsync) ?? false
     }
 }
 
@@ -278,6 +419,19 @@ struct POSDSABenchmarks: Decodable {
         case easyMinutes = "easy_minutes"
         case mediumMinutes = "medium_minutes"
         case hardMinutes = "hard_minutes"
+    }
+
+    init(easyMinutes: Int, mediumMinutes: Int, hardMinutes: Int) {
+        self.easyMinutes = easyMinutes
+        self.mediumMinutes = mediumMinutes
+        self.hardMinutes = hardMinutes
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        easyMinutes = try c.decodeIfPresent(Int.self, forKey: .easyMinutes) ?? 8
+        mediumMinutes = try c.decodeIfPresent(Int.self, forKey: .mediumMinutes) ?? 20
+        hardMinutes = try c.decodeIfPresent(Int.self, forKey: .hardMinutes) ?? 35
     }
 }
 

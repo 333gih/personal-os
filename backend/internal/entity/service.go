@@ -3,7 +3,6 @@ package entity
 import (
 	"encoding/json"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -121,20 +120,12 @@ func (s *Service) Get(userID, id uuid.UUID) (*models.Entity, error) {
 	return s.claimLearningSeedEntity(userID, id)
 }
 
-const learningSeedIDPrefix = "c000000c-0001-4001-8001-"
-
-// claimLearningSeedEntity attaches curriculum seed rows to the requesting user when
+// claimLearningSeedEntity attaches a learning row to the requesting user when
 // Fash JWT user_id differs from the migration admin_id (common 404 on detail).
 func (s *Service) claimLearningSeedEntity(userID, id uuid.UUID) (*models.Entity, error) {
-	if !strings.HasPrefix(id.String(), learningSeedIDPrefix) {
-		return nil, gorm.ErrRecordNotFound
-	}
 	var entity models.Entity
-	if err := entityReads(s.db).Where("id = ?", id).First(&entity).Error; err != nil {
+	if err := entityReads(s.db).Where("id = ? AND domain = ?", id, models.DomainLearning).First(&entity).Error; err != nil {
 		return nil, err
-	}
-	if entity.Domain != models.DomainLearning {
-		return nil, gorm.ErrRecordNotFound
 	}
 	if entity.UserID != userID {
 		if err := s.db.Model(&entity).Updates(map[string]any{

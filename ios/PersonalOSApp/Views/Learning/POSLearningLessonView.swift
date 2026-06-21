@@ -56,8 +56,8 @@ struct POSLearningLessonView: View {
                 if lesson.isDSA, let when = lesson.whenToUse, !when.isEmpty {
                     lessonCard("When to use", icon: "lightbulb.fill", body: when)
                 }
-                if let signals = lesson.recognitionSignals, !signals.isEmpty {
-                    bulletCard("Recognition signals", icon: "eye.fill", items: signals)
+                if !lesson.recognitionSignals.isEmpty {
+                    bulletCard("Recognition signals", icon: "eye.fill", items: lesson.recognitionSignals)
                 }
                 if let strategy = lesson.practiceStrategy, !strategy.isEmpty {
                     lessonCard("Practice strategy", icon: "map.fill", body: strategy)
@@ -65,8 +65,8 @@ struct POSLearningLessonView: View {
                 if let template = lesson.codeTemplate, !template.isEmpty {
                     codeCard(template)
                 }
-                if let problems = lesson.problems, !problems.isEmpty {
-                    problemsCard(problems, benchmarks: lesson.benchmarks)
+                if !lesson.problems.isEmpty {
+                    problemsCard(lesson.problems, benchmarks: lesson.benchmarks)
                 }
                 if let modules = lesson.modules, !modules.isEmpty {
                     modulesSection(modules)
@@ -262,7 +262,7 @@ struct POSLearningLessonView: View {
                                 .padding(.vertical, 4)
                                 .background(POSTheme.focus.opacity(0.15))
                                 .clipShape(Capsule())
-                            Image(systemName: mode.async ? "sparkles" : "bolt.fill")
+                            Image(systemName: mode.isAsync ? "sparkles" : "bolt.fill")
                                 .foregroundStyle(POSTheme.primaryDark)
                         }
                     }
@@ -304,6 +304,13 @@ struct POSLearningLessonView: View {
         defer { isLoading = false }
         do {
             lesson = try await session.api.fetchLearningLesson(id: entityId)
+            return
+        } catch {
+            guard !POSLoadTask.isBenignCancellation(error) else { return }
+        }
+        do {
+            let detail = try await session.api.entityDetail(id: entityId)
+            lesson = POSLearningLesson.from(entity: detail.entity)
         } catch {
             guard !POSLoadTask.isBenignCancellation(error) else { return }
             loadError = error.localizedDescription
@@ -318,7 +325,7 @@ struct POSLearningLessonView: View {
         defer { isPracticing = false }
         let track = lesson.track.isEmpty ? POSLearningTrack.dsa.rawValue : lesson.track
         do {
-            if mode.async {
+            if mode.isAsync {
                 let queued = try await session.api.coachLearningAsync(
                     entityID: lesson.entityID,
                     topic: lesson.title,

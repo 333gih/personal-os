@@ -30,6 +30,10 @@ func NewService(db *gorm.DB, aiSvc *ai.Service, embedSvc *embedding.Service) *Se
 	return &Service{db: db, ai: aiSvc, entity: entity.NewService(db, aiSvc, embedSvc)}
 }
 
+func (s *Service) GetEntity(userID, id uuid.UUID) (*models.Entity, error) {
+	return s.entity.Get(userID, id)
+}
+
 type AddInput struct {
 	Kind      string
 	RawText   string

@@ -1,6 +1,8 @@
 package studylearning
 
 import (
+	"errors"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/personal-os/backend/internal/auth"
@@ -114,7 +116,7 @@ func (h *Handler) GetLesson(c *gin.Context) {
 	}
 	out, err := h.svc.GetLesson(auth.GetUserID(c), id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.NotFound(c, "lesson not found")
 			return
 		}

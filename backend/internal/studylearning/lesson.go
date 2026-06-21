@@ -8,14 +8,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/personal-os/backend/internal/models"
-	"gorm.io/gorm"
 )
 
 type LessonModule struct {
 	ID           string `json:"id"`
 	Title        string `json:"title"`
 	Subtitle     string `json:"subtitle,omitempty"`
-	PatternOrder int    `json:"pattern_order,omitempty"`
+	PatternOrder int    `json:"pattern_order"`
 	Phase        string `json:"phase,omitempty"`
 }
 
@@ -36,20 +35,20 @@ type LearningLesson struct {
 	Track              string         `json:"track"`
 	Phase              string         `json:"phase,omitempty"`
 	Weeks              string         `json:"weeks,omitempty"`
-	PatternOrder       int            `json:"pattern_order,omitempty"`
+	PatternOrder       int            `json:"pattern_order"`
 	WhenToUse          string         `json:"when_to_use,omitempty"`
-	RecognitionSignals []string       `json:"recognition_signals,omitempty"`
+	RecognitionSignals []string       `json:"recognition_signals"`
 	PracticeStrategy   string         `json:"practice_strategy,omitempty"`
 	CodeTemplate       string         `json:"code_template,omitempty"`
-	Problems           []string       `json:"problems,omitempty"`
-	Benchmarks         DSABenchmarks  `json:"benchmarks,omitempty"`
+	Problems           []string       `json:"problems"`
+	Benchmarks         DSABenchmarks  `json:"benchmarks"`
 	Modules            []LessonModule `json:"modules,omitempty"`
 	PracticeModes      []PracticeMode `json:"practice_modes"`
-	CurriculumWeek     int            `json:"curriculum_week,omitempty"`
+	CurriculumWeek     int            `json:"curriculum_week"`
 }
 
 func (s *Service) GetLesson(userID, entityID uuid.UUID) (*LearningLesson, error) {
-	ent, err := s.learningEntity(userID, entityID)
+	ent, err := s.learning.GetEntity(userID, entityID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +79,12 @@ func (s *Service) GetLesson(userID, entityID uuid.UUID) (*LearningLesson, error)
 		},
 		CurriculumWeek: patternCurriculumWeek(metaInt(meta, "pattern_order")),
 	}
+	if lesson.RecognitionSignals == nil {
+		lesson.RecognitionSignals = []string{}
+	}
+	if lesson.Problems == nil {
+		lesson.Problems = []string{}
+	}
 
 	if strings.Contains(ent.Type, "course") {
 		lesson.Modules = s.listModules(userID, track, metaString(meta, "course_slug"))
@@ -92,31 +97,6 @@ func (s *Service) GetLesson(userID, entityID uuid.UUID) (*LearningLesson, error)
 		lesson.Benchmarks = DSABenchmarks{EasyMinutes: 8, MediumMinutes: 20, HardMinutes: 35}
 	}
 	return lesson, nil
-}
-
-func (s *Service) learningEntity(userID, id uuid.UUID) (*models.Entity, error) {
-	var ent models.Entity
-	err := s.db.Omit("embedding").Where("id = ? AND user_id = ?", id, userID).First(&ent).Error
-	if err == nil {
-		return &ent, nil
-	}
-	if err != gorm.ErrRecordNotFound {
-		return nil, err
-	}
-	if !strings.HasPrefix(id.String(), "c000000c-0001-4001-8001-") {
-		return nil, gorm.ErrRecordNotFound
-	}
-	if err := s.db.Omit("embedding").Where("id = ?", id).First(&ent).Error; err != nil {
-		return nil, err
-	}
-	if ent.Domain != models.DomainLearning {
-		return nil, gorm.ErrRecordNotFound
-	}
-	if ent.UserID != userID {
-		s.db.Model(&ent).Update("user_id", userID)
-		ent.UserID = userID
-	}
-	return &ent, nil
 }
 
 func (s *Service) listModules(userID uuid.UUID, track, courseSlug string) []LessonModule {
