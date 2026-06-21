@@ -187,7 +187,7 @@ struct POSLearningLessonView: View {
                         .font(.caption2)
                         .foregroundStyle(POSTheme.muted)
                 }
-                FlowLayout(spacing: 8) {
+                POSChipFlowLayout(spacing: 8) {
                     ForEach(problems, id: \.self) { prob in
                         Text(prob)
                             .font(.caption.weight(.semibold))
@@ -344,7 +344,7 @@ struct POSLearningLessonView: View {
 }
 
 /// Simple horizontal flow for problem chips.
-private struct FlowLayout: Layout {
+private struct POSChipFlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
