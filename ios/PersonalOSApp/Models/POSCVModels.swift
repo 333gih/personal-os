@@ -30,6 +30,7 @@ struct POSCVAchievement: Codable, Hashable, Identifiable {
 }
 
 struct POSCVCertificate: Codable, Hashable, Identifiable {
+    var title: String
     var issuer: String?
     var period: String?
 
