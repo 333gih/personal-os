@@ -1,12 +1,10 @@
 package auth
 
 import (
-	"log"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/personal-os/backend/internal/workseed"
 	"github.com/personal-os/backend/pkg/response"
 )
 
@@ -62,9 +60,7 @@ func fashMiddleware(s *Service) gin.HandlerFunc {
 			return
 		}
 
-		if err := workseed.SyncForUser(s.db, userID, email); err != nil {
-			log.Printf("workseed: sync failed for %s: %v", email, err)
-		}
+		s.SyncCareerForUser(userID, email)
 
 		c.Set(UserIDKey, userID)
 		c.Next()

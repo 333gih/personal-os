@@ -10,14 +10,19 @@ struct LearningView: View {
     @State private var todayPlan: POSTodayStudyPlan?
     @State private var isLoadingToday = true
     @State private var showScheduleSettings = false
+    @State private var loadError: String?
 
     private var dsaCourse: POSEntity? {
         items.first { $0.type.contains("course") && ($0.tagList.contains("dsa") || $0.metadata?.track == "dsa") }
     }
 
     private var dsaPatterns: [POSEntity] {
-        items.filter { $0.type.contains("topic") && ($0.tagList.contains("dsa") || $0.metadata?.track == "dsa") }
-            .sorted { ($0.metadata?.patternOrder ?? 999) < ($1.metadata?.patternOrder ?? 999) }
+        items.filter {
+            $0.type.contains("topic")
+                && ($0.tagList.contains("dsa") || $0.metadata?.track == "dsa")
+                && ($0.metadata?.patternOrder ?? 0) > 0
+        }
+        .sorted { ($0.metadata?.patternOrder ?? 999) < ($1.metadata?.patternOrder ?? 999) }
     }
 
     private var englishCourses: [POSEntity] {
@@ -64,6 +69,12 @@ struct LearningView: View {
                         onEditSchedule: { showScheduleSettings = true }
                     )
                     trackPicker
+                    if let loadError {
+                        Text(loadError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .padding(.vertical, 4)
+                    }
                     metricsRow
                     if selectedTrack == .dsa {
                         dsaRoadmapSection
@@ -283,7 +294,7 @@ struct LearningView: View {
         POSEmptyState(
             systemImage: track.icon,
             title: "Curriculum not seeded",
-            message: "Run migration 020 on server or add entries via Learning menu.",
+            message: "Pull to refresh after signing in. If empty, open Profile once then retry.",
             actionTitle: "Add entry",
             action: { nav.openLearningAdd(track: track) }
         )
@@ -312,6 +323,7 @@ struct LearningView: View {
     private func load() async {
         isLoading = true
         isLoadingToday = true
+        loadError = nil
         defer {
             isLoading = false
             isLoadingToday = false
@@ -321,6 +333,7 @@ struct LearningView: View {
                 items = try await session.api.listEntities(domain: "learning").items
             } catch {
                 items = []
+                loadError = error.localizedDescription
             }
         }()
         async let todayTask: Void = {
@@ -330,8 +343,14 @@ struct LearningView: View {
                 await POSLocalNotificationScheduler.shared.schedule(plan: plan)
             } catch {
                 todayPlan = nil
+                if loadError == nil {
+                    loadError = error.localizedDescription
+                }
             }
         }()
         _ = await (entitiesTask, todayTask)
+        if items.isEmpty, loadError == nil {
+            loadError = "No learning data yet — pull to refresh (server syncs on login)."
+        }
     }
 }
