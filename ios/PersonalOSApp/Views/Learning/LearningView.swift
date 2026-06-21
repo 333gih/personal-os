@@ -7,6 +7,9 @@ struct LearningView: View {
     @State private var items: [POSEntity] = []
     @State private var isLoading = true
     @State private var selectedTrack: POSLearningTrack = .dsa
+    @State private var todayPlan: POSTodayStudyPlan?
+    @State private var isLoadingToday = true
+    @State private var showScheduleSettings = false
 
     private var dsaCourse: POSEntity? {
         items.first { $0.type.contains("course") && ($0.tagList.contains("dsa") || $0.metadata?.track == "dsa") }
@@ -30,6 +33,19 @@ struct LearningView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     header
+                    POSTodayStudySection(
+                        plan: todayPlan,
+                        isLoading: isLoadingToday,
+                        onOpenBlock: { block in
+                            let track: POSLearningTrack = block.track == "english" ? .english : .dsa
+                            if let entityID = block.entityID {
+                                nav.onOpen(.entity(entityID, title: block.title))
+                            } else {
+                                nav.openLearningCoach(track: track, topic: block.title)
+                            }
+                        },
+                        onEditSchedule: { showScheduleSettings = true }
+                    )
                     trackPicker
                     metricsRow
                     if selectedTrack == .dsa {
@@ -60,6 +76,10 @@ struct LearningView: View {
         }
         .task(id: session.accessToken) { await load() }
         .refreshable { await load() }
+        .sheet(isPresented: $showScheduleSettings) {
+            POSLearningScheduleSettingsView()
+                .environmentObject(session)
+        }
     }
 
     private var header: some View {
@@ -67,7 +87,7 @@ struct LearningView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Study desk")
                     .font(.posDisplay(28))
-                Text("DSA mastery + English courses — structured for daily practice.")
+                Text("DSA mastery + TOEIC hardcore — optimized for metro & bus commutes.")
                     .font(.subheadline)
                     .foregroundStyle(POSTheme.muted)
             }
@@ -165,7 +185,7 @@ struct LearningView: View {
     @ViewBuilder
     private var englishCoursesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "English courses", eyebrow: "Interview · Business · IELTS")
+            POSSectionHeader(title: "English / TOEIC", eyebrow: "Hardcore vocab · grammar · listening · reading")
             if isLoading {
                 POSLoadingView()
             } else if englishCourses.isEmpty {
@@ -264,11 +284,27 @@ struct LearningView: View {
 
     private func load() async {
         isLoading = true
-        defer { isLoading = false }
-        do {
-            items = try await session.api.listEntities(domain: "learning").items
-        } catch {
-            items = []
+        isLoadingToday = true
+        defer {
+            isLoading = false
+            isLoadingToday = false
         }
+        async let entitiesTask: Void = {
+            do {
+                items = try await session.api.listEntities(domain: "learning").items
+            } catch {
+                items = []
+            }
+        }()
+        async let todayTask: Void = {
+            do {
+                let plan = try await session.api.fetchLearningToday()
+                todayPlan = plan
+                await POSLocalNotificationScheduler.shared.schedule(plan: plan)
+            } catch {
+                todayPlan = nil
+            }
+        }()
+        _ = await (entitiesTask, todayTask)
     }
 }

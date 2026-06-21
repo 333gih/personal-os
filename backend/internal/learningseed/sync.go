@@ -25,6 +25,6 @@ func SyncForUser(db *gorm.DB, userID uuid.UUID, email string) error {
 		log.Printf("learningseed: owner has %d learning seed entities", count)
 		return nil
 	}
-	log.Printf("learningseed: no learning seed — run migrations/020_learning_dsa_english_interview.sql")
+	log.Printf("learningseed: no learning seed — run migrations/020_learning_dsa_english_interview.sql and 021_learning_schedule_notifications.sql")
 	return nil
 }

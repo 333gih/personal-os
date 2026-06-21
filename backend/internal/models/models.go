@@ -44,15 +44,18 @@ type Relationship struct {
 }
 
 type Reminder struct {
-	ID        uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID    uuid.UUID  `gorm:"type:uuid;index;not null" json:"user_id"`
-	EntityID  uuid.UUID  `gorm:"type:uuid;index;not null" json:"entity_id"`
-	Title     string     `gorm:"not null" json:"title"`
-	DueAt     time.Time  `gorm:"index;not null" json:"due_at"`
-	Status    string     `gorm:"default:'pending'" json:"status"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	ID          uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID      uuid.UUID      `gorm:"type:uuid;index;not null" json:"user_id"`
+	EntityID    uuid.UUID      `gorm:"type:uuid;index;not null" json:"entity_id"`
+	Title       string         `gorm:"not null" json:"title"`
+	DueAt       time.Time      `gorm:"index;not null" json:"due_at"`
+	Status      string         `gorm:"default:'pending'" json:"status"`
+	Kind        string         `gorm:"default:'general'" json:"kind"`
+	NotifiedAt  *time.Time     `json:"notified_at,omitempty"`
+	Metadata    datatypes.JSON `gorm:"type:jsonb;default:'{}'" json:"metadata,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	CompletedAt *time.Time     `json:"completed_at,omitempty"`
 }
 
 type File struct {
@@ -158,3 +161,52 @@ func DomainForType(entityType string) string {
 		return DomainStartup
 	}
 }
+
+type LearningSchedule struct {
+	UserID               uuid.UUID      `gorm:"type:uuid;primaryKey" json:"user_id"`
+	WorkStartHour        int            `gorm:"not null;default:8" json:"work_start_hour"`
+	WorkEndHour          int            `gorm:"not null;default:17" json:"work_end_hour"`
+	WorkDays             datatypes.JSON `gorm:"type:jsonb;not null;default:'[1,2,3,4,5]'" json:"work_days"`
+	CommuteMinutes       int            `gorm:"not null;default:40" json:"commute_minutes"`
+	MorningCommuteTime   string         `gorm:"type:time;not null;default:'07:15'" json:"morning_commute_time"`
+	EveningCommuteTime   string         `gorm:"type:time;not null;default:'17:30'" json:"evening_commute_time"`
+	ToeicSessionTime     string         `gorm:"type:time;not null;default:'20:00'" json:"toeic_session_time"`
+	DsaCommuteMinutes    int            `gorm:"not null;default:25" json:"dsa_commute_minutes"`
+	EnglishCommuteMinutes int           `gorm:"not null;default:20" json:"english_commute_minutes"`
+	ToeicDailyMinutes    int            `gorm:"not null;default:60" json:"toeic_daily_minutes"`
+	Timezone             string         `gorm:"not null;default:'Asia/Ho_Chi_Minh'" json:"timezone"`
+	PushEnabled          bool           `gorm:"not null;default:true" json:"push_enabled"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+}
+
+func (LearningSchedule) TableName() string { return "learning_schedules" }
+
+type StudyJob struct {
+	ID           uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID       uuid.UUID      `gorm:"type:uuid;index;not null" json:"user_id"`
+	Kind         string         `gorm:"not null" json:"kind"`
+	Status       string         `gorm:"not null;default:'pending'" json:"status"`
+	Input        datatypes.JSON `gorm:"type:jsonb;not null;default:'{}'" json:"input"`
+	Result       datatypes.JSON `gorm:"type:jsonb" json:"result,omitempty"`
+	ErrorMessage string         `json:"error_message,omitempty"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+}
+
+func (StudyJob) TableName() string { return "study_jobs" }
+
+type NotificationLog struct {
+	ID             uuid.UUID         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
+	UserID         uuid.UUID         `gorm:"type:uuid;index;not null" json:"user_id"`
+	Channel        string            `gorm:"not null;default:'push'" json:"channel"`
+	Title          string            `gorm:"not null" json:"title"`
+	Body           string            `gorm:"not null" json:"body"`
+	Status         string            `gorm:"not null;default:'queued'" json:"status"`
+	Payload        datatypes.JSONMap `gorm:"type:jsonb;not null;default:'{}'" json:"payload"`
+	IdempotencyKey string            `json:"idempotency_key,omitempty"`
+	ErrorMessage   string            `json:"error_message,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+}
+
+func (NotificationLog) TableName() string { return "notification_logs" }

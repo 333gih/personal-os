@@ -37,6 +37,14 @@
 	<string>Personal OS uses your photo library to import system design diagrams into work projects.</string>
 	<key>PERSONAL_OS_FE_URL</key>
 	<string>https://personal-os-fe.fashandcurious.com/dashboard</string>
+	<key>FASH_AUTH_BASE_URL</key>
+	<string>https://api-auth.fashandcurious.com</string>
+	<key>FASH_AUTH_FCM_REGISTER_PATH</key>
+	<string>api/v1/auth/fcm/register</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

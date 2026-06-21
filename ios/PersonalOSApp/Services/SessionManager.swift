@@ -59,7 +59,10 @@ final class SessionManager: ObservableObject {
         )
         persist(session)
         UserDefaults.standard.removeObject(forKey: Self.legacyTokenKey)
-        Task { await refreshUser() }
+        Task {
+            await refreshUser()
+            await POSPushCoordinator.shared.bootstrapAfterLogin(session: self)
+        }
     }
 
     /// Returns a usable access token, refreshing proactively when near expiry.

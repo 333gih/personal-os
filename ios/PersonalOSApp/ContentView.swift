@@ -19,7 +19,11 @@ struct ContentView: View {
         .environmentObject(session)
         .preferredColorScheme(.light)
         .task {
+            POSPushSessionBridge.shared.session = session
             await session.bootstrap()
+            if session.isAuthenticated {
+                await POSPushCoordinator.shared.bootstrapAfterLogin(session: session)
+            }
             bootstrapping = false
         }
     }

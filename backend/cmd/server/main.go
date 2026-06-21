@@ -13,6 +13,8 @@ import (
 	"github.com/personal-os/backend/internal/cv"
 	"github.com/personal-os/backend/internal/dashboard"
 	"github.com/personal-os/backend/internal/learningimport"
+	"github.com/personal-os/backend/internal/notification"
+	"github.com/personal-os/backend/internal/studylearning"
 	"github.com/personal-os/backend/internal/jobscout"
 	"github.com/personal-os/backend/internal/embedding"
 	"github.com/personal-os/backend/internal/entity"
@@ -172,6 +174,14 @@ func main() {
 	learningImportSvc := learningimport.NewService(db, aiSvc, embedSvc)
 	learningImportHandler := learningimport.NewHandler(learningImportSvc)
 	learningImportHandler.RegisterRoutes(protected.Group("/learning"))
+
+	notifyPub := notification.NewPublisher(cfg.Notification)
+	defer notifyPub.Close()
+	notifySvc := notification.NewService(db, notifyPub, cfg.Notification)
+	studySvc := studylearning.NewService(db, learningImportSvc, notifySvc)
+	studyHandler := studylearning.NewHandler(studySvc, notifySvc)
+	studyHandler.RegisterRoutes(protected.Group("/learning"))
+	go studylearning.NewWorker(studySvc, 2*time.Minute).Start(context.Background())
 
 	addr := ":" + cfg.AppPort
 	log.Printf("personal-os API listening on %s", addr)

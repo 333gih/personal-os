@@ -4,6 +4,8 @@ struct POSLearningHubMenu: View {
     @Environment(\.dismiss) private var dismiss
     let onAddEntry: () -> Void
     let onCoach: () -> Void
+    let onSchedule: () -> Void
+    let onNotificationLog: () -> Void
     let onOpenBoard: () -> Void
     let onCapture: () -> Void
 
@@ -12,15 +14,21 @@ struct POSLearningHubMenu: View {
             POSScreen {
                 ScrollView {
                     VStack(spacing: 10) {
-                        Text("DSA mastery + English courses — AI normalizes notes and generates practice drills.")
+                        Text("DSA + TOEIC hardcore — daily schedule tuned for metro/bus commutes.")
                             .font(.caption)
                             .foregroundStyle(POSTheme.muted)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
+                        menuRow("Today's schedule", icon: "calendar.badge.clock", subtitle: "Work hours, commute blocks, TOEIC evening") {
+                            dismiss(); onSchedule()
+                        }
+                        menuRow("Notification log", icon: "bell.badge.fill", subtitle: "Push history & delivery status") {
+                            dismiss(); onNotificationLog()
+                        }
                         menuRow("Add study entry (AI)", icon: "plus.circle.fill", subtitle: "Course, pattern, vocabulary note") {
                             dismiss(); onAddEntry()
                         }
-                        menuRow("AI study coach", icon: "sparkles", subtitle: "Practice questions & tips for a topic") {
+                        menuRow("AI study coach", icon: "sparkles", subtitle: "Background job — notifies when drill is ready") {
                             dismiss(); onCoach()
                         }
                         menuRow("Open learning board", icon: "books.vertical.fill", subtitle: "Full list in web planner") {
@@ -128,6 +136,7 @@ struct POSLearningCoachView: View {
 
     @State private var focus = ""
     @State private var isLoading = false
+    @State private var jobStatus = ""
     @State private var errorMessage: String?
     @State private var result: POSLearningCoachResult?
 
@@ -136,13 +145,16 @@ struct POSLearningCoachView: View {
             POSScreen {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("AI generates practice questions and study tips based on your curriculum.")
+                        Text("AI runs in the background — you can lock the phone on metro. You'll get a notification when the drill is ready.")
                             .font(.caption).foregroundStyle(POSTheme.muted)
                         TextField("Focus (optional)", text: $focus).textFieldStyle(.roundedBorder)
-                        POSActionButton(title: isLoading ? "Thinking…" : "Generate drill", icon: "wand.and.stars", style: .primary) {
-                            Task { await run() }
+                        POSActionButton(title: isLoading ? "Queued…" : "Start AI coach job", icon: "wand.and.stars", style: .primary) {
+                            Task { await runAsync() }
                         }
                         .disabled(isLoading)
+                        if !jobStatus.isEmpty {
+                            Text(jobStatus).font(.caption).foregroundStyle(POSTheme.primaryDark)
+                        }
                         if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(.red) }
                         if let result {
                             coachSection("Summary", items: [result.summary])
@@ -159,7 +171,7 @@ struct POSLearningCoachView: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
             .task {
                 if entityID != nil || !initialTopic.isEmpty {
-                    await run()
+                    await runAsync()
                 }
             }
         }
@@ -176,20 +188,33 @@ struct POSLearningCoachView: View {
         }
     }
 
-    private func run() async {
+    private func runAsync() async {
         isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
+        jobStatus = "Starting AI coach…"
+        defer {
+            isLoading = false
+            if result != nil { jobStatus = "" }
+        }
         do {
-            result = try await session.api.coachLearning(
+            let queued = try await session.api.coachLearningAsync(
                 entityID: entityID,
                 topic: initialTopic,
                 track: track.rawValue,
                 focus: focus
             )
+            jobStatus = "Job \(queued.id.prefix(8))… running"
+            let done = try await session.api.pollStudyJob(id: queued.id)
+            result = done.result
+            jobStatus = ""
             POSHaptics.light()
         } catch {
-            errorMessage = error.localizedDescription
+            if error.localizedDescription.contains("still running") {
+                jobStatus = "Still running — check Notification log or pull to refresh later."
+            } else {
+                errorMessage = error.localizedDescription
+                jobStatus = ""
+            }
         }
     }
 }

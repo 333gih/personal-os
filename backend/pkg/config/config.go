@@ -33,6 +33,7 @@ type Config struct {
 	DefaultUserPass  string
 	FashAuth         FashAuthConfig
 	AI               AIConfig
+	Notification     NotificationConfig
 }
 
 func Load() *Config {
@@ -79,6 +80,7 @@ func Load() *Config {
 		DefaultUserPass:      getEnv("DEFAULT_USER_PASSWORD", "changeme123"),
 		FashAuth:             loadFashAuthConfig(),
 		AI:                   loadAIConfig(),
+		Notification:         loadNotificationConfig(),
 	}
 }
 

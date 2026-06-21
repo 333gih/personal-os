@@ -285,6 +285,66 @@ final class APIClient: ObservableObject {
         return try decoder.decode(POSLearningCoachResult.self, from: data)
     }
 
+    func fetchLearningSchedule() async throws -> POSLearningSchedule {
+        let data = try await authorizedRequest(path: "learning/schedule")
+        return try POSJSONCoding.makeDecoder().decode(POSLearningSchedule.self, from: data)
+    }
+
+    func saveLearningSchedule(_ schedule: POSLearningSchedule) async throws -> POSLearningSchedule {
+        let payload = try POSJSONCoding.makeEncoder().encode(schedule)
+        let data = try await authorizedRequest(path: "learning/schedule", method: "PUT", body: payload)
+        return try POSJSONCoding.makeDecoder().decode(POSLearningSchedule.self, from: data)
+    }
+
+    func fetchLearningToday() async throws -> POSTodayStudyPlan {
+        let data = try await authorizedRequest(path: "learning/today")
+        return try POSJSONCoding.makeDecoder().decode(POSTodayStudyPlan.self, from: data)
+    }
+
+    func fetchNotificationLog(limit: Int = 50) async throws -> [POSNotificationLogItem] {
+        let data = try await authorizedRequest(path: "learning/notifications/log?limit=\(limit)")
+        return try POSJSONCoding.makeDecoder().decode(POSNotificationLogResponse.self, from: data).items
+    }
+
+    func coachLearningAsync(entityID: String? = nil, topic: String = "", track: String, focus: String = "") async throws -> POSStudyJob {
+        struct Body: Encodable {
+            let entityID: String?
+            let topic: String
+            let track: String
+            let focus: String
+            enum CodingKeys: String, CodingKey {
+                case topic, track, focus
+                case entityID = "entity_id"
+            }
+        }
+        let payload = try JSONEncoder().encode(Body(entityID: entityID, topic: topic, track: track, focus: focus))
+        let data = try await authorizedRequest(path: "learning/coach/async", method: "POST", body: payload)
+        return try decoder.decode(POSStudyJob.self, from: data)
+    }
+
+    func fetchStudyJob(id: String) async throws -> POSStudyJob {
+        let data = try await authorizedRequest(path: "learning/jobs/\(id)")
+        return try decoder.decode(POSStudyJob.self, from: data)
+    }
+
+    func pollStudyJob(id: String, maxAttempts: Int = 90) async throws -> POSStudyJob {
+        for attempt in 0 ..< maxAttempts {
+            if attempt > 0 {
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+            let job = try await fetchStudyJob(id: id)
+            switch job.status {
+            case "done":
+                return job
+            case "failed":
+                throw APIError.http(500, job.errorMessage ?? "AI coach job failed")
+            default:
+                continue
+            }
+        }
+        throw APIError.http(408, "AI coach still running — check notification log shortly.")
+    }
+
     func interviewDrill(entityID: String? = nil, topic: String = "", stack: String = "", level: String = "mid-level") async throws -> POSInterviewDrillResult {
         struct Body: Encodable {
             let entityID: String?

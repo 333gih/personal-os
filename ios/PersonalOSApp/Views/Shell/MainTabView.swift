@@ -112,6 +112,8 @@ struct MainTabView: View {
     @State private var showLearningHub = false
     @State private var showLearningAdd = false
     @State private var showLearningCoach = false
+    @State private var showLearningSchedule = false
+    @State private var showNotificationLog = false
     @State private var showInterviewPrep = false
     @State private var learningTrack: POSLearningTrack = .dsa
     @State private var learningCoachEntityID: String?
@@ -253,6 +255,8 @@ struct MainTabView: View {
             POSLearningHubMenu(
                 onAddEntry: { showLearningAdd = true },
                 onCoach: { showLearningCoach = true },
+                onSchedule: { showLearningSchedule = true },
+                onNotificationLog: { showNotificationLog = true },
                 onOpenBoard: { webSheet = WebSheetRoute.path("/learning", title: "Learning").embedded() },
                 onCapture: { nav.captureNote() }
             )
@@ -266,6 +270,14 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showLearningCoach) {
             POSLearningCoachView(track: learningTrack, entityID: learningCoachEntityID, initialTopic: learningCoachTopic)
+                .environmentObject(session)
+        }
+        .sheet(isPresented: $showLearningSchedule) {
+            POSLearningScheduleSettingsView()
+                .environmentObject(session)
+        }
+        .sheet(isPresented: $showNotificationLog) {
+            POSNotificationLogView()
                 .environmentObject(session)
         }
         .sheet(isPresented: $showInterviewPrep) {

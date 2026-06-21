@@ -30,4 +30,23 @@ enum PersonalOSAppConfig {
         let normalized = path.hasPrefix("/") ? path : "/\(path)"
         return URL(string: base + normalized)!
     }
+
+    /// fash-auth-service — FCM token registration for remote push.
+    static var fashAuthURL: URL {
+        if let raw = Bundle.main.object(forInfoDictionaryKey: "FASH_AUTH_BASE_URL") as? String,
+           let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+           !raw.isEmpty {
+            return url
+        }
+        return URL(string: "https://api-auth.fashandcurious.com")!
+    }
+
+    static var fashFCMRegisterPath: String {
+        if let raw = Bundle.main.object(forInfoDictionaryKey: "FASH_AUTH_FCM_REGISTER_PATH") as? String,
+           !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.hasPrefix("/") ? String(trimmed.dropFirst()) : trimmed
+        }
+        return "api/v1/auth/fcm/register"
+    }
 }
