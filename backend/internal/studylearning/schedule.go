@@ -64,11 +64,12 @@ type TodayBlock struct {
 }
 
 type TodayPlan struct {
-	Date         string       `json:"date"`
-	Timezone     string       `json:"timezone"`
-	IsWorkDay    bool         `json:"is_work_day"`
-	Blocks       []TodayBlock `json:"blocks"`
-	TotalMinutes int          `json:"total_minutes"`
+	Date         string        `json:"date"`
+	Timezone     string        `json:"timezone"`
+	IsWorkDay    bool          `json:"is_work_day"`
+	Blocks       []TodayBlock  `json:"blocks"`
+	TotalMinutes int           `json:"total_minutes"`
+	DSA          *DSADailyFocus `json:"dsa,omitempty"`
 }
 
 func (s *Service) GetSchedule(userID uuid.UUID) (*ScheduleDTO, error) {
@@ -123,6 +124,11 @@ func (s *Service) Today(userID uuid.UUID) (*TodayPlan, error) {
 	loc := loadLocation(sched.Timezone)
 	now := time.Now().In(loc)
 	plan := buildTodayPlan(sched, now)
+	dsa, err := s.DSADailyFocus(userID)
+	if err == nil && dsa != nil {
+		plan.DSA = dsa
+		enrichDSABlocks(plan, dsa)
+	}
 	if err := s.EnsureTodayReminders(userID); err != nil {
 		return plan, err
 	}
@@ -209,6 +215,7 @@ func (s *Service) ensureSchedule(userID uuid.UUID) (*models.LearningSchedule, er
 		ToeicDailyMinutes:  60,
 		Timezone:           "Asia/Ho_Chi_Minh",
 		PushEnabled:        true,
+		DsaProgramStart:    time.Now(),
 	}
 	if err := s.db.Create(&sched).Error; err != nil {
 		return nil, err
@@ -239,6 +246,41 @@ func buildTodayPlan(sched *models.LearningSchedule, now time.Time) *TodayPlan {
 		plan.TotalMinutes += b.DurationMinutes
 	}
 	return plan
+}
+
+func enrichDSABlocks(plan *TodayPlan, dsa *DSADailyFocus) {
+	for i := range plan.Blocks {
+		if plan.Blocks[i].Track != "dsa" {
+			continue
+		}
+		plan.Blocks[i].EntityID = dsa.PatternEntityID
+		if plan.Blocks[i].Kind == blockDSAMorning {
+			plan.Blocks[i].Title = fmt.Sprintf("Week %d · %s", dsa.ProgramWeek, dsa.PatternTitle)
+			plan.Blocks[i].Subtitle = fmt.Sprintf("%s — %d problems today", dsaDayTypeLabel(dsa.DayType), dsa.TargetProblems)
+			if len(dsa.Tasks) > 0 {
+				plan.Blocks[i].CommuteTip = dsa.Tasks[0]
+			}
+		}
+	}
+}
+
+func dsaDayTypeLabel(t string) string {
+	switch t {
+	case "learn":
+		return "Learn day"
+	case "practice":
+		return "Practice day"
+	case "review":
+		return "Review day"
+	case "mock", "weekend_mock", "mock_interview":
+		return "Mock interview"
+	case "timed_pair":
+		return "Timed pair"
+	case "morning_evening":
+		return "Morning + evening"
+	default:
+		return "Study block"
+	}
 }
 
 func weekdayBlocks(sched *models.LearningSchedule, now time.Time) []TodayBlock {

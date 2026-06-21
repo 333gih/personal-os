@@ -1,5 +1,79 @@
 import SwiftUI
 
+struct POSDSADailyFocusCard: View {
+    let focus: POSDSADailyFocus?
+    let onOpenPattern: () -> Void
+    let onCoach: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            POSSectionHeader(
+                title: "DSA daily program",
+                eyebrow: focus.map { "Week \($0.programWeek)/10 · Day \($0.programDay) · \($0.phaseLabel)" } ?? "10-week mastery"
+            )
+
+            if let focus {
+                POSCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("#\(focus.patternOrder) \(focus.patternTitle)")
+                                    .font(.headline)
+                                Text("\(focus.dayTypeLabel) · \(focus.targetProblems) problems · \(focus.cumulativeTarget)+ cumulative target")
+                                    .font(.caption)
+                                    .foregroundStyle(POSTheme.muted)
+                            }
+                            Spacer()
+                            if focus.mockToday {
+                                Text("MOCK")
+                                    .font(.caption2.weight(.bold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(POSTheme.focus.opacity(0.2))
+                                    .foregroundStyle(POSTheme.focus)
+                                    .clipShape(Capsule())
+                            }
+                        }
+
+                        ForEach(focus.tasks.prefix(3), id: \.self) { task in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.caption)
+                                    .foregroundStyle(POSTheme.primaryDark)
+                                Text(task).font(.caption).foregroundStyle(POSTheme.ink)
+                            }
+                        }
+
+                        if let probs = focus.suggestedProblems, !probs.isEmpty {
+                            Text("Suggested: \(probs.joined(separator: ", "))")
+                                .font(.caption2)
+                                .foregroundStyle(POSTheme.muted)
+                        }
+
+                        HStack(spacing: 10) {
+                            Button(action: onOpenPattern) {
+                                Label("Pattern theory", systemImage: "book.fill")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(POSPressButtonStyle())
+                            Button(action: onCoach) {
+                                Label("AI drill", systemImage: "sparkles")
+                                    .font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(POSPressButtonStyle())
+                        }
+                        .foregroundStyle(POSTheme.primaryDark)
+                    }
+                }
+            } else {
+                Text("Pull to refresh after migration 022 on server.")
+                    .font(.caption)
+                    .foregroundStyle(POSTheme.muted)
+            }
+        }
+    }
+}
+
 struct POSTodayStudySection: View {
     let plan: POSTodayStudyPlan?
     let isLoading: Bool

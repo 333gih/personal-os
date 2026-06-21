@@ -114,11 +114,63 @@ struct POSTodayStudyPlan: Decodable {
     let isWorkDay: Bool
     let blocks: [POSTodayStudyBlock]
     let totalMinutes: Int
+    let dsa: POSDSADailyFocus?
 
     enum CodingKeys: String, CodingKey {
-        case date, timezone, blocks
+        case date, timezone, blocks, dsa
         case isWorkDay = "is_work_day"
         case totalMinutes = "total_minutes"
+    }
+}
+
+struct POSDSADailyFocus: Decodable {
+    let programWeek: Int
+    let programDay: Int
+    let weekday: Int
+    let phase: String
+    let dayType: String
+    let patternOrder: Int
+    let patternTitle: String
+    let patternEntityID: String
+    let tasks: [String]
+    let targetProblems: Int
+    let cumulativeTarget: Int
+    let suggestedProblems: [String]?
+    let mockToday: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case weekday, phase, tasks
+        case programWeek = "program_week"
+        case programDay = "program_day"
+        case dayType = "day_type"
+        case patternOrder = "pattern_order"
+        case patternTitle = "pattern_title"
+        case patternEntityID = "pattern_entity_id"
+        case targetProblems = "target_problems"
+        case cumulativeTarget = "cumulative_target"
+        case suggestedProblems = "suggested_problems"
+        case mockToday = "mock_today"
+    }
+
+    var phaseLabel: String {
+        switch phase {
+        case "foundation": return "Foundation"
+        case "core": return "Core patterns"
+        case "advanced": return "Advanced"
+        default: return "Mock mastery"
+        }
+    }
+
+    var dayTypeLabel: String {
+        switch dayType {
+        case "learn": return "Learn"
+        case "practice": return "Practice"
+        case "review": return "Review"
+        case "mock", "weekend_mock", "mock_interview": return "Mock"
+        case "timed_pair": return "Timed pair"
+        case "morning_evening": return "Split session"
+        default: return "Study"
+        }
     }
 }
 

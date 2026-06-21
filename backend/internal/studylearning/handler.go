@@ -22,6 +22,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/schedule", h.GetSchedule)
 	r.PUT("/schedule", h.PutSchedule)
 	r.GET("/today", h.Today)
+	r.GET("/dsa/today", h.DSAToday)
 	r.GET("/notifications/log", h.NotificationLog)
 	r.POST("/coach/async", h.CoachAsync)
 	r.GET("/jobs/:id", h.GetJob)
@@ -52,6 +53,15 @@ func (h *Handler) PutSchedule(c *gin.Context) {
 
 func (h *Handler) Today(c *gin.Context) {
 	out, err := h.svc.Today(auth.GetUserID(c))
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) DSAToday(c *gin.Context) {
+	out, err := h.svc.DSADailyFocus(auth.GetUserID(c))
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

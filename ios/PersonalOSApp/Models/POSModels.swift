@@ -87,6 +87,15 @@ struct POSWorkMetadata: Codable {
     let week: String?
     let courseSlug: String?
     let referenceUrls: [String]?
+    let whenToUse: String?
+    let recognitionSignals: [String]?
+    let practiceStrategy: String?
+    let codeTemplate: String?
+    let problems: [String]?
+    let benchmarkEasyMin: Int?
+    let benchmarkMediumMin: Int?
+    let benchmarkHardMin: Int?
+    let patternSlug: String?
 
     enum CodingKeys: String, CodingKey {
         case kind, company, role, status, location, priority, level, image, track, phase, week
@@ -99,6 +108,15 @@ struct POSWorkMetadata: Codable {
         case patternOrder = "pattern_order"
         case courseSlug = "course_slug"
         case referenceUrls = "reference_urls"
+        case whenToUse = "when_to_use"
+        case recognitionSignals = "recognition_signals"
+        case practiceStrategy = "practice_strategy"
+        case codeTemplate = "code_template"
+        case problems
+        case benchmarkEasyMin = "benchmark_easy_min"
+        case benchmarkMediumMin = "benchmark_medium_min"
+        case benchmarkHardMin = "benchmark_hard_min"
+        case patternSlug = "pattern_slug"
     }
 
     init(from decoder: Decoder) throws {
@@ -123,6 +141,15 @@ struct POSWorkMetadata: Codable {
         week = try? c.decode(String.self, forKey: .week)
         courseSlug = try? c.decode(String.self, forKey: .courseSlug)
         referenceUrls = try? c.decode([String].self, forKey: .referenceUrls)
+        whenToUse = try? c.decode(String.self, forKey: .whenToUse)
+        recognitionSignals = try? c.decode([String].self, forKey: .recognitionSignals)
+        practiceStrategy = try? c.decode(String.self, forKey: .practiceStrategy)
+        codeTemplate = try? c.decode(String.self, forKey: .codeTemplate)
+        problems = try? c.decode([String].self, forKey: .problems)
+        benchmarkEasyMin = try? c.decode(Int.self, forKey: .benchmarkEasyMin)
+        benchmarkMediumMin = try? c.decode(Int.self, forKey: .benchmarkMediumMin)
+        benchmarkHardMin = try? c.decode(Int.self, forKey: .benchmarkHardMin)
+        patternSlug = try? c.decode(String.self, forKey: .patternSlug)
     }
 
     func periodLabel() -> String {

@@ -176,6 +176,7 @@ type LearningSchedule struct {
 	ToeicDailyMinutes    int            `gorm:"not null;default:60" json:"toeic_daily_minutes"`
 	Timezone             string         `gorm:"not null;default:'Asia/Ho_Chi_Minh'" json:"timezone"`
 	PushEnabled          bool           `gorm:"not null;default:true" json:"push_enabled"`
+	DsaProgramStart      time.Time      `gorm:"type:date" json:"dsa_program_start"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 }

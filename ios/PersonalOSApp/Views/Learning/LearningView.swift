@@ -33,6 +33,23 @@ struct LearningView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     header
+                    if selectedTrack == .dsa {
+                        POSDSADailyFocusCard(
+                            focus: todayPlan?.dsa,
+                            onOpenPattern: {
+                                if let id = todayPlan?.dsa?.patternEntityID {
+                                    nav.onOpen(.entity(id, title: todayPlan?.dsa?.patternTitle ?? "Pattern"))
+                                }
+                            },
+                            onCoach: {
+                                nav.openLearningCoach(
+                                    track: .dsa,
+                                    entityID: todayPlan?.dsa?.patternEntityID,
+                                    topic: todayPlan?.dsa?.patternTitle ?? ""
+                                )
+                            }
+                        )
+                    }
                     POSTodayStudySection(
                         plan: todayPlan,
                         isLoading: isLoadingToday,
@@ -234,7 +251,17 @@ struct LearningView: View {
                     .clipShape(Circle())
                 VStack(alignment: .leading, spacing: 4) {
                     Text(pattern.title).font(.subheadline.weight(.medium)).lineLimit(1)
-                    Text(pattern.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(2)
+                    if let when = pattern.metadata?.whenToUse, !when.isEmpty {
+                        Text(when).font(.caption2).foregroundStyle(POSTheme.muted).lineLimit(2)
+                    } else {
+                        Text(pattern.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(2)
+                    }
+                    if let probs = pattern.metadata?.problems, !probs.isEmpty {
+                        Text(probs.prefix(4).joined(separator: " · "))
+                            .font(.caption2)
+                            .foregroundStyle(POSTheme.primaryDark.opacity(0.8))
+                            .lineLimit(1)
+                    }
                 }
                 Spacer()
                 Button {
