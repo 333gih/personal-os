@@ -81,15 +81,24 @@ struct POSWorkMetadata: Codable {
     let designImages: [String]?
     let architectureLayers: [POSArchitectureLayer]?
     let cvStatus: String?
+    let track: String?
+    let phase: String?
+    let patternOrder: Int?
+    let week: String?
+    let courseSlug: String?
+    let referenceUrls: [String]?
 
     enum CodingKeys: String, CodingKey {
-        case kind, company, role, status, location, priority, level, image
+        case kind, company, role, status, location, priority, level, image, track, phase, week
         case startDate = "start_date"
         case endDate = "end_date"
         case workHours = "work_hours"
         case designImages = "design_images"
         case architectureLayers = "architecture_layers"
         case cvStatus = "cv_status"
+        case patternOrder = "pattern_order"
+        case courseSlug = "course_slug"
+        case referenceUrls = "reference_urls"
     }
 
     init(from decoder: Decoder) throws {
@@ -108,6 +117,12 @@ struct POSWorkMetadata: Codable {
         designImages = try? c.decode([String].self, forKey: .designImages)
         architectureLayers = try? c.decode([POSArchitectureLayer].self, forKey: .architectureLayers)
         cvStatus = try? c.decode(String.self, forKey: .cvStatus)
+        track = try? c.decode(String.self, forKey: .track)
+        phase = try? c.decode(String.self, forKey: .phase)
+        patternOrder = try? c.decode(Int.self, forKey: .patternOrder)
+        week = try? c.decode(String.self, forKey: .week)
+        courseSlug = try? c.decode(String.self, forKey: .courseSlug)
+        referenceUrls = try? c.decode([String].self, forKey: .referenceUrls)
     }
 
     func periodLabel() -> String {

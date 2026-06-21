@@ -9,6 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/personal-os/backend/internal/models"
+	"github.com/personal-os/backend/internal/learningseed"
 	"github.com/personal-os/backend/internal/startupseed"
 	"github.com/personal-os/backend/internal/workseed"
 	"golang.org/x/crypto/bcrypt"
@@ -133,6 +134,9 @@ func (s *Service) SyncCareerForUser(userID uuid.UUID, email string) {
 	}
 	if err := startupseed.SyncForUser(s.db, userID, email); err != nil {
 		log.Printf("[auth] startupseed sync email=%s user_id=%s: %v", email, userID, err)
+	}
+	if err := learningseed.SyncForUser(s.db, userID, email); err != nil {
+		log.Printf("[auth] learningseed sync email=%s user_id=%s: %v", email, userID, err)
 	}
 }
 

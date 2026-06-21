@@ -6,230 +6,259 @@ struct LearningView: View {
 
     @State private var items: [POSEntity] = []
     @State private var isLoading = true
+    @State private var selectedTrack: POSLearningTrack = .dsa
 
-    private let weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    private var dsaCourse: POSEntity? {
+        items.first { $0.type.contains("course") && ($0.tagList.contains("dsa") || $0.metadata?.track == "dsa") }
+    }
 
-    private var courses: [POSEntity] { items.filter { $0.type.contains("course") } }
-    private var certs: [POSEntity] { items.filter { $0.type.contains("certificate") } }
-    private var skills: [POSEntity] { items.filter { $0.type.contains("skill") } }
-    private var topics: [POSEntity] { items.filter { $0.type.contains("topic") } }
+    private var dsaPatterns: [POSEntity] {
+        items.filter { $0.type.contains("topic") && ($0.tagList.contains("dsa") || $0.metadata?.track == "dsa") }
+            .sorted { ($0.metadata?.patternOrder ?? 999) < ($1.metadata?.patternOrder ?? 999) }
+    }
+
+    private var englishCourses: [POSEntity] {
+        items.filter { $0.type.contains("course") && ($0.tagList.contains("english") || $0.metadata?.track == "english") }
+    }
+
+    private var englishModules: [POSEntity] {
+        items.filter { $0.type.contains("topic") && ($0.tagList.contains("english") || $0.metadata?.track == "english") }
+    }
 
     var body: some View {
         POSScreen {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Study desk")
-                            .font(.posDisplay(28))
-                        Text("Courses, streaks, and the next milestone on your desk.")
-                            .font(.subheadline)
-                            .foregroundStyle(POSTheme.muted)
+                VStack(alignment: .leading, spacing: 20) {
+                    header
+                    trackPicker
+                    metricsRow
+                    if selectedTrack == .dsa {
+                        dsaRoadmapSection
+                        dsaPatternsSection
+                    } else {
+                        englishCoursesSection
                     }
-
-                    optimizerHeader
-                    scheduleCard
-                    currentLearningSection
-                    rhythmCard
-                    milestonesSection
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
         }
-        .overlay(alignment: .bottomTrailing) {
-            POSFloatingCaptureButton(action: nav.captureNote)
-                .padding(.trailing, 18)
-                .padding(.bottom, 12)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            HStack {
+                Button { nav.openLearningHub() } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 54))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, POSTheme.ink)
+                        .shadow(color: POSTheme.ink.opacity(0.25), radius: 10, y: 4)
+                }
+                .buttonStyle(POSPressButtonStyle(scale: 0.94))
+                Spacer()
+            }
+            .padding(.leading, 16)
+            .padding(.bottom, 4)
         }
         .task(id: session.accessToken) { await load() }
         .refreshable { await load() }
     }
 
-    private var optimizerHeader: some View {
+    private var header: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("This week")
-                    .font(.posDisplay(18))
-                Text("Keep study blocks close to work notes.")
-                    .font(.caption)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Study desk")
+                    .font(.posDisplay(28))
+                Text("DSA mastery + English courses — structured for daily practice.")
+                    .font(.subheadline)
                     .foregroundStyle(POSTheme.muted)
             }
             Spacer()
-            Button {
-                nav.onOpen(.path("/learning", title: "Learning"))
-            } label: {
-                Text("Open planner")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(POSTheme.ink)
-                    .foregroundStyle(POSTheme.background)
-                    .clipShape(Capsule())
+            Button { nav.openLearningHub() } label: {
+                Label("Menu", systemImage: "line.3.horizontal.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(POSTheme.primaryDark)
             }
             .buttonStyle(POSPressButtonStyle())
         }
     }
 
-    private var scheduleCard: some View {
-        POSCard {
-            if items.isEmpty && !isLoading {
-                POSEmptyState(
-                    systemImage: "calendar",
-                    title: "No study blocks yet",
-                    message: "Add a course or topic and your week will take shape here.",
-                    actionTitle: "Log study",
-                    action: nav.captureNote
-                )
-            } else if isLoading {
+    private var trackPicker: some View {
+        Picker("Track", selection: $selectedTrack) {
+            ForEach(POSLearningTrack.allCases) { track in
+                Label(track.title, systemImage: track.icon).tag(track)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private var metricsRow: some View {
+        HStack(spacing: 12) {
+            POSMetricCard(
+                label: selectedTrack == .dsa ? "Patterns" : "Courses",
+                value: isLoading ? "—" : "\(selectedTrack == .dsa ? dsaPatterns.count : englishCourses.count)",
+                hint: selectedTrack == .dsa ? "20-pattern roadmap" : "Structured modules",
+                systemImage: selectedTrack.icon,
+                accent: POSTheme.primaryDark,
+                action: { nav.openLearningCoach(track: selectedTrack) }
+            )
+            POSMetricCard(
+                label: "AI Coach",
+                value: "✦",
+                hint: "Practice drill",
+                systemImage: "sparkles",
+                accent: POSTheme.focus,
+                action: { nav.openLearningCoach(track: selectedTrack) }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var dsaRoadmapSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            POSSectionHeader(title: "DSA Mastery System", eyebrow: "10-week · 150+ problems")
+            if isLoading {
                 POSLoadingView()
-            } else {
-                VStack(alignment: .leading, spacing: 16) {
-                    ForEach(Array(items.prefix(3).enumerated()), id: \.element.id) { index, item in
-                        Button { nav.onOpen(.entity(item.id, title: item.title)) } label: {
-                            HStack(alignment: .top, spacing: 12) {
-                                Circle()
-                                    .stroke(POSTheme.primaryDark, lineWidth: 2)
-                                    .frame(width: 12, height: 12)
-                                    .padding(.top, 5)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Session \(index + 1)")
-                                        .font(.caption)
-                                        .foregroundStyle(POSTheme.muted)
-                                    Text(item.title)
-                                        .font(.body.weight(.medium))
-                                        .foregroundStyle(POSTheme.ink)
-                                    Text(POSFormatting.humanType(item.type))
-                                        .font(.caption)
-                                        .foregroundStyle(POSTheme.muted)
-                                }
+            } else if let course = dsaCourse {
+                Button { nav.onOpen(.entity(course.id, title: course.title)) } label: {
+                    POSCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(course.title).font(.headline)
+                            Text(course.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(3)
+                            HStack {
+                                Label("Mid → Senior", systemImage: "arrow.up.right")
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(POSTheme.muted)
+                                Button {
+                                    nav.openLearningCoach(track: .dsa, entityID: course.id, topic: course.title)
+                                } label: {
+                                    Label("Coach", systemImage: "sparkles").font(.caption.weight(.semibold))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(POSTheme.primaryDark)
+                        }
+                    }
+                }
+                .buttonStyle(POSPressButtonStyle())
+            } else {
+                emptySeedState(track: .dsa)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dsaPatternsSection: some View {
+        if !dsaPatterns.isEmpty {
+            ForEach(["foundation", "intermediate", "advanced", "expert"], id: \.self) { phase in
+                let group = dsaPatterns.filter { ($0.metadata?.phase ?? "").lowercased() == phase }
+                if !group.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        POSSectionHeader(title: phaseLabel(phase), eyebrow: "Weeks \(phaseWeeks(phase))")
+                        ForEach(group) { pattern in
+                            patternRow(pattern)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var englishCoursesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            POSSectionHeader(title: "English courses", eyebrow: "Interview · Business · IELTS")
+            if isLoading {
+                POSLoadingView()
+            } else if englishCourses.isEmpty {
+                emptySeedState(track: .english)
+            } else {
+                ForEach(englishCourses) { course in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button { nav.onOpen(.entity(course.id, title: course.title)) } label: {
+                            POSCard {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(course.title).font(.subheadline.weight(.semibold))
+                                    Text(course.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(2)
+                                }
                             }
                         }
                         .buttonStyle(POSPressButtonStyle())
+
+                        let modules = englishModules.filter { $0.metadata?.courseSlug == course.metadata?.courseSlug }
+                        ForEach(modules) { mod in
+                            Button { nav.onOpen(.entity(mod.id, title: mod.title)) } label: {
+                                POSListRow(
+                                    title: mod.title,
+                                    subtitle: mod.content,
+                                    systemImage: "text.book.closed",
+                                    iconTint: POSTheme.focus
+                                )
+                            }
+                            .buttonStyle(POSPressButtonStyle())
+                        }
                     }
                 }
             }
         }
     }
 
-    private var currentLearningSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "On the desk now")
+    private func patternRow(_ pattern: POSEntity) -> some View {
+        Button {
+            nav.onOpen(.entity(pattern.id, title: pattern.title))
+        } label: {
             HStack(spacing: 12) {
-                POSMetricCard(
-                    label: "Courses",
-                    value: "\(courses.count)",
-                    hint: courses.isEmpty ? "Add one" : "In progress",
-                    systemImage: "graduationcap",
-                    accent: POSTheme.primaryDark,
-                    action: { nav.onOpen(.path("/learning", title: "Learning")) }
-                )
-                POSMetricCard(
-                    label: "Streak",
-                    value: items.isEmpty ? "—" : "\(min(items.count, 30))d",
-                    hint: skills.first?.title ?? "Keep showing up",
-                    systemImage: "flame.fill",
-                    accent: POSTheme.focus,
-                    action: { nav.onSwitchTab(.home) }
-                )
-            }
-            if let course = courses.first {
-                Button { nav.onOpen(.entity(course.id, title: course.title)) } label: {
-                    HStack(spacing: 12) {
-                        Text("C1")
-                            .font(.headline)
-                            .foregroundStyle(POSTheme.focus)
-                            .frame(width: 46, height: 46)
-                            .background(POSTheme.successBg)
-                            .clipShape(Circle())
-                        VStack(alignment: .leading) {
-                            Text(course.title).font(.headline)
-                            Text(course.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(2)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(POSTheme.muted)
-                    }
-                    .padding(14)
-                    .background(POSTheme.card)
-                    .clipShape(RoundedRectangle(cornerRadius: POSTheme.cardRadius))
-                    .overlay(RoundedRectangle(cornerRadius: POSTheme.cardRadius).stroke(POSTheme.border, lineWidth: 1))
+                Text("\(pattern.metadata?.patternOrder ?? 0)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(POSTheme.primaryDark)
+                    .frame(width: 28, height: 28)
+                    .background(POSTheme.primary.opacity(0.12))
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(pattern.title).font(.subheadline.weight(.medium)).lineLimit(1)
+                    Text(pattern.content).font(.caption).foregroundStyle(POSTheme.muted).lineLimit(2)
                 }
-                .buttonStyle(POSPressButtonStyle())
+                Spacer()
+                Button {
+                    nav.openLearningCoach(track: .dsa, entityID: pattern.id, topic: pattern.title)
+                } label: {
+                    Image(systemName: "sparkles").font(.caption).foregroundStyle(POSTheme.focus)
+                }
+                .buttonStyle(.plain)
             }
+            .padding(12)
+            .background(POSTheme.card)
+            .clipShape(RoundedRectangle(cornerRadius: POSTheme.cardRadius))
+            .overlay(RoundedRectangle(cornerRadius: POSTheme.cardRadius).stroke(POSTheme.border, lineWidth: 1))
+        }
+        .buttonStyle(POSPressButtonStyle())
+    }
+
+    private func emptySeedState(track: POSLearningTrack) -> some View {
+        POSEmptyState(
+            systemImage: track.icon,
+            title: "Curriculum not seeded",
+            message: "Run migration 020 on server or add entries via Learning menu.",
+            actionTitle: "Add entry",
+            action: { nav.openLearningAdd(track: track) }
+        )
+    }
+
+    private func phaseLabel(_ phase: String) -> String {
+        switch phase {
+        case "foundation": return "Foundation"
+        case "intermediate": return "Intermediate"
+        case "advanced": return "Advanced"
+        case "expert": return "Expert"
+        default: return phase.capitalized
         }
     }
 
-    private var rhythmCard: some View {
-        let level = items.count >= 10 ? "Steady" : items.count >= 3 ? "Building" : "Starting"
-        let today = Calendar.current.component(.weekday, from: Date())
-        let chartIndex = today == 1 ? 6 : today - 2
-
-        return POSCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Weekly rhythm")
-                            .font(.posDisplay(18))
-                        Text("A quiet view of study momentum")
-                            .font(.caption)
-                            .foregroundStyle(POSTheme.muted)
-                    }
-                    Spacer()
-                    Text(level)
-                        .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(POSTheme.border.opacity(0.5))
-                        .clipShape(Capsule())
-                }
-                HStack(alignment: .bottom, spacing: 6) {
-                    ForEach(weekdays.indices, id: \.self) { i in
-                        VStack(spacing: 6) {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(i == chartIndex ? POSTheme.primaryDark : POSTheme.border.opacity(0.8))
-                                .frame(height: CGFloat(18 + ((i + items.count) % 5) * 8))
-                            Text(weekdays[i])
-                                .font(.system(size: 9))
-                                .foregroundStyle(POSTheme.muted)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-                .frame(height: 88)
-            }
-        }
-    }
-
-    private var milestonesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            POSSectionHeader(title: "Milestones ahead", actionTitle: "Add") {
-                nav.captureNote()
-            }
-            let milestones = certs + topics
-            if milestones.isEmpty && !isLoading {
-                POSEmptyState(
-                    systemImage: "flag",
-                    title: "No milestones pinned",
-                    message: "Certificates and topics with dates will show up here.",
-                    actionTitle: "Add milestone",
-                    action: nav.captureNote
-                )
-            } else {
-                ForEach(milestones.prefix(5)) { item in
-                    Button { nav.onOpen(.entity(item.id, title: item.title)) } label: {
-                        POSListRow(
-                            title: item.title,
-                            subtitle: POSFormatting.humanType(item.type),
-                            systemImage: item.type.contains("certificate") ? "rosette" : "book",
-                            iconTint: POSTheme.primaryDark
-                        )
-                    }
-                    .buttonStyle(POSPressButtonStyle())
-                }
-            }
+    private func phaseWeeks(_ phase: String) -> String {
+        switch phase {
+        case "foundation": return "1–2"
+        case "intermediate": return "3–5"
+        case "advanced": return "6–8"
+        case "expert": return "8–10"
+        default: return "—"
         }
     }
 

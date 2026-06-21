@@ -12,6 +12,7 @@ import (
 	"github.com/personal-os/backend/internal/auth"
 	"github.com/personal-os/backend/internal/cv"
 	"github.com/personal-os/backend/internal/dashboard"
+	"github.com/personal-os/backend/internal/learningimport"
 	"github.com/personal-os/backend/internal/jobscout"
 	"github.com/personal-os/backend/internal/embedding"
 	"github.com/personal-os/backend/internal/entity"
@@ -167,6 +168,10 @@ func main() {
 	startupImportSvc := startupimport.NewService(db, aiSvc, embedSvc)
 	startupImportHandler := startupimport.NewHandler(startupImportSvc)
 	startupImportHandler.RegisterRoutes(protected.Group("/startup"))
+
+	learningImportSvc := learningimport.NewService(db, aiSvc, embedSvc)
+	learningImportHandler := learningimport.NewHandler(learningImportSvc)
+	learningImportHandler.RegisterRoutes(protected.Group("/learning"))
 
 	addr := ":" + cfg.AppPort
 	log.Printf("personal-os API listening on %s", addr)

@@ -109,6 +109,14 @@ struct MainTabView: View {
     @State private var showStartupAdd = false
     @State private var workReloadToken = UUID()
     @State private var startupReloadToken = UUID()
+    @State private var showLearningHub = false
+    @State private var showLearningAdd = false
+    @State private var showLearningCoach = false
+    @State private var showInterviewPrep = false
+    @State private var learningTrack: POSLearningTrack = .dsa
+    @State private var learningCoachEntityID: String?
+    @State private var learningCoachTopic = ""
+    @State private var learningReloadToken = UUID()
 
     private var nav: POSNavigationActions {
         POSNavigationActions(
@@ -122,7 +130,19 @@ struct MainTabView: View {
             onOpenWorkHub: { showWorkHub = true },
             onOpenStartup: { showStartup = true },
             onOpenStartupHub: { showStartupHub = true },
-            onOpenStartupAdd: { showStartupAdd = true }
+            onOpenStartupAdd: { showStartupAdd = true },
+            onOpenLearningHub: { showLearningHub = true },
+            onOpenLearningAdd: { track in
+                learningTrack = track
+                showLearningAdd = true
+            },
+            onOpenLearningCoach: { track, entityID, topic in
+                learningTrack = track
+                learningCoachEntityID = entityID
+                learningCoachTopic = topic
+                showLearningCoach = true
+            },
+            onOpenInterviewPrep: { showInterviewPrep = true }
         )
     }
 
@@ -144,6 +164,7 @@ struct MainTabView: View {
                         .id(workReloadToken)
                 case .learning:
                     LearningView(nav: nav)
+                        .id(learningReloadToken)
                 case .search:
                     SearchView(nav: nav)
                 case .more:
@@ -197,6 +218,7 @@ struct MainTabView: View {
                 onImport: { showWorkImport = true },
                 onCV: { showCVHub = true },
                 onJobScout: { showJobScout = true },
+                onInterviewPrep: { showInterviewPrep = true },
                 onCapture: { nav.captureNote() }
             )
         }
@@ -226,6 +248,29 @@ struct MainTabView: View {
                 entityDetail = POSEntityDetailRoute(id: entityId, title: title)
             }
             .environmentObject(session)
+        }
+        .sheet(isPresented: $showLearningHub) {
+            POSLearningHubMenu(
+                onAddEntry: { showLearningAdd = true },
+                onCoach: { showLearningCoach = true },
+                onOpenBoard: { webSheet = WebSheetRoute.path("/learning", title: "Learning").embedded() },
+                onCapture: { nav.captureNote() }
+            )
+        }
+        .sheet(isPresented: $showLearningAdd) {
+            POSLearningAddView(track: learningTrack) { entityId, title in
+                learningReloadToken = UUID()
+                entityDetail = POSEntityDetailRoute(id: entityId, title: title)
+            }
+            .environmentObject(session)
+        }
+        .sheet(isPresented: $showLearningCoach) {
+            POSLearningCoachView(track: learningTrack, entityID: learningCoachEntityID, initialTopic: learningCoachTopic)
+                .environmentObject(session)
+        }
+        .sheet(isPresented: $showInterviewPrep) {
+            POSInterviewPrepView()
+                .environmentObject(session)
         }
         .task { await session.bootstrap() }
     }

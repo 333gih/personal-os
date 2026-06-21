@@ -44,6 +44,10 @@ struct WorkView: View {
         items.filter { $0.type.contains("cv_entry") && $0.metadata?.cvStatus == "recommended_add" }
     }
 
+    private var interviewTopics: [POSEntity] {
+        items.filter { $0.type.contains("interview") }
+    }
+
     var body: some View {
         POSScreen {
             ScrollView {
@@ -63,6 +67,7 @@ struct WorkView: View {
                     focusCard
                     projectsSection
                     designSection
+                    interviewSection
                     careerToolsSection
                     cvExperienceSection
                     cvShelfSection
@@ -271,6 +276,39 @@ struct WorkView: View {
                         }
                     }
                     .buttonStyle(POSPressButtonStyle())
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var interviewSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            POSSectionHeader(title: "Interview prep", eyebrow: "Notebook for interview")
+            if interviewTopics.isEmpty && !isLoading {
+                POSEmptyState(
+                    systemImage: "person.fill.questionmark",
+                    title: "No interview topics",
+                    message: "Seed migration 020 or open Work menu → Interview prep.",
+                    actionTitle: "Open prep",
+                    action: { nav.openInterviewPrep() }
+                )
+            } else {
+                ForEach(interviewTopics.prefix(5)) { topic in
+                    Button {
+                        nav.onOpen(.entity(topic.id, title: topic.title))
+                    } label: {
+                        POSListRow(
+                            title: topic.title,
+                            subtitle: topic.content,
+                            systemImage: "text.book.closed.fill",
+                            iconTint: POSTheme.focus
+                        )
+                    }
+                    .buttonStyle(POSPressButtonStyle())
+                }
+                POSActionButton(title: "AI interview drill", icon: "sparkles", style: .secondary) {
+                    nav.openInterviewPrep()
                 }
             }
         }

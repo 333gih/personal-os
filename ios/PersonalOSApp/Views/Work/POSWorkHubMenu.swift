@@ -6,6 +6,7 @@ struct POSWorkHubMenu: View {
     let onImport: () -> Void
     let onCV: () -> Void
     let onJobScout: () -> Void
+    var onInterviewPrep: (() -> Void)? = nil
     let onCapture: () -> Void
 
     var body: some View {
@@ -34,6 +35,10 @@ struct POSWorkHubMenu: View {
                         menuRow("Job Scout", icon: "briefcase.fill", subtitle: "Focus stack, years, remote/hybrid") {
                             dismiss()
                             onJobScout()
+                        }
+                        menuRow("Interview prep", icon: "person.fill.questionmark", subtitle: "AI drills — Design Patterns, Kafka, Spring…") {
+                            dismiss()
+                            onInterviewPrep?()
                         }
                         menuRow("Quick capture", icon: "square.and.pencil", subtitle: "Send note to inbox") {
                             dismiss()

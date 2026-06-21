@@ -252,6 +252,55 @@ final class APIClient: ObservableObject {
         return try decoder.decode(POSStartupAddResult.self, from: data)
     }
 
+    func addLearningEntry(kind: String, track: String, rawText: String, titleHint: String = "") async throws -> POSLearningAddResult {
+        struct Body: Encodable {
+            let kind: String
+            let track: String
+            let rawText: String
+            let titleHint: String
+            enum CodingKeys: String, CodingKey {
+                case kind, track
+                case rawText = "raw_text"
+                case titleHint = "title_hint"
+            }
+        }
+        let payload = try JSONEncoder().encode(Body(kind: kind, track: track, rawText: rawText, titleHint: titleHint))
+        let data = try await authorizedRequest(path: "learning/add", method: "POST", body: payload)
+        return try decoder.decode(POSLearningAddResult.self, from: data)
+    }
+
+    func coachLearning(entityID: String? = nil, topic: String = "", track: String, focus: String = "") async throws -> POSLearningCoachResult {
+        struct Body: Encodable {
+            let entityID: String?
+            let topic: String
+            let track: String
+            let focus: String
+            enum CodingKeys: String, CodingKey {
+                case topic, track, focus
+                case entityID = "entity_id"
+            }
+        }
+        let payload = try JSONEncoder().encode(Body(entityID: entityID, topic: topic, track: track, focus: focus))
+        let data = try await authorizedRequest(path: "learning/coach", method: "POST", body: payload)
+        return try decoder.decode(POSLearningCoachResult.self, from: data)
+    }
+
+    func interviewDrill(entityID: String? = nil, topic: String = "", stack: String = "", level: String = "mid-level") async throws -> POSInterviewDrillResult {
+        struct Body: Encodable {
+            let entityID: String?
+            let topic: String
+            let stack: String
+            let level: String
+            enum CodingKeys: String, CodingKey {
+                case topic, stack, level
+                case entityID = "entity_id"
+            }
+        }
+        let payload = try JSONEncoder().encode(Body(entityID: entityID, topic: topic, stack: stack, level: level))
+        let data = try await authorizedRequest(path: "work/interview/drill", method: "POST", body: payload)
+        return try decoder.decode(POSInterviewDrillResult.self, from: data)
+    }
+
     func importWorkProject(title: String, company: String, markdown: String, diagram: Data?) async throws -> POSWorkImportResult {
         let boundary = "Boundary-\(UUID().uuidString)"
         var body = Data()

@@ -23,6 +23,7 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/import", h.Import)
 	r.POST("/add", h.Add)
+	r.POST("/interview/drill", h.InterviewDrill)
 }
 
 type jsonAddRequest struct {
@@ -51,6 +52,36 @@ func (h *Handler) Add(c *gin.Context) {
 		return
 	}
 	response.Created(c, result)
+}
+
+type interviewDrillRequest struct {
+	EntityID string `json:"entity_id"`
+	Topic    string `json:"topic"`
+	Stack    string `json:"stack"`
+	Level    string `json:"level"`
+}
+
+func (h *Handler) InterviewDrill(c *gin.Context) {
+	var req interviewDrillRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	result, err := h.service.InterviewDrill(auth.GetUserID(c), InterviewDrillInput{
+		EntityID: req.EntityID,
+		Topic:    req.Topic,
+		Stack:    req.Stack,
+		Level:    req.Level,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "AI not configured") {
+			response.ServiceUnavailable(c, err.Error())
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.OK(c, result)
 }
 
 type jsonImportRequest struct {

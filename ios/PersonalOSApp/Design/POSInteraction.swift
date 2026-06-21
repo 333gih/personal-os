@@ -38,6 +38,10 @@ struct POSNavigationActions {
     var onOpenStartup: (() -> Void)?
     var onOpenStartupHub: (() -> Void)?
     var onOpenStartupAdd: (() -> Void)?
+    var onOpenLearningHub: (() -> Void)?
+    var onOpenLearningAdd: ((POSLearningTrack) -> Void)?
+    var onOpenLearningCoach: ((POSLearningTrack, String?, String) -> Void)?
+    var onOpenInterviewPrep: (() -> Void)?
 
     func captureNote() {
         POSHaptics.medium()
@@ -87,6 +91,26 @@ struct POSNavigationActions {
     func openStartupAdd() {
         POSHaptics.light()
         onOpenStartupAdd?()
+    }
+
+    func openLearningHub() {
+        POSHaptics.light()
+        onOpenLearningHub?()
+    }
+
+    func openLearningAdd(track: POSLearningTrack) {
+        POSHaptics.light()
+        onOpenLearningAdd?(track)
+    }
+
+    func openLearningCoach(track: POSLearningTrack, entityID: String? = nil, topic: String = "") {
+        POSHaptics.light()
+        onOpenLearningCoach?(track, entityID, topic)
+    }
+
+    func openInterviewPrep() {
+        POSHaptics.light()
+        onOpenInterviewPrep?()
     }
 
     func openStorySync() {
