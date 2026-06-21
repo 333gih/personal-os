@@ -263,6 +263,38 @@ struct POSCVHubView: View {
                         }
                     }
 
+                    if let achievements = cv?.document.achievements, !achievements.isEmpty {
+                        POSCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Achievements").font(.caption.weight(.semibold))
+                                ForEach(Array(achievements.enumerated()), id: \.element.id) { index, item in
+                                    TextField("Achievement", text: bindingAchievement(index: index), axis: .vertical)
+                                        .font(.caption)
+                                        .lineLimit(2...6)
+                                }
+                            }
+                        }
+                    }
+
+                    if let certificates = cv?.document.certificates, !certificates.isEmpty {
+                        POSCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Certificates").font(.caption.weight(.semibold))
+                                ForEach(Array(certificates.enumerated()), id: \.element.id) { index, item in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        TextField("Title", text: bindingCertificate(index: index, keyPath: \.title))
+                                            .font(.subheadline.weight(.medium))
+                                        TextField("Issuer", text: bindingOptionalCertificate(index: index, keyPath: \.issuer))
+                                            .font(.caption)
+                                        TextField("Period", text: bindingOptionalCertificate(index: index, keyPath: \.period))
+                                            .font(.caption2)
+                                    }
+                                    if index < certificates.count - 1 { Divider() }
+                                }
+                            }
+                        }
+                    }
+
                     editableBulletSection(title: "Experience", keyPath: \.experience)
                     editableBulletSection(title: "Projects", keyPath: \.projects)
                 }
@@ -321,6 +353,46 @@ struct POSCVHubView: View {
                     let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                     items[index][keyPath: itemKeyPath] = trimmed.isEmpty ? nil : trimmed
                     doc[keyPath: keyPath] = items
+                }
+            }
+        )
+    }
+
+    private func bindingAchievement(index: Int) -> Binding<String> {
+        Binding(
+            get: { cv?.document.achievements?[safe: index]?.content ?? "" },
+            set: { newValue in
+                updateDocument { doc in
+                    guard var items = doc.achievements, index < items.count else { return }
+                    items[index].content = newValue
+                    doc.achievements = items
+                }
+            }
+        )
+    }
+
+    private func bindingCertificate(index: Int, keyPath: WritableKeyPath<POSCVCertificate, String>) -> Binding<String> {
+        Binding(
+            get: { cv?.document.certificates?[safe: index]?[keyPath: keyPath] ?? "" },
+            set: { newValue in
+                updateDocument { doc in
+                    guard var items = doc.certificates, index < items.count else { return }
+                    items[index][keyPath: keyPath] = newValue
+                    doc.certificates = items
+                }
+            }
+        )
+    }
+
+    private func bindingOptionalCertificate(index: Int, keyPath: WritableKeyPath<POSCVCertificate, String?>) -> Binding<String> {
+        Binding(
+            get: { cv?.document.certificates?[safe: index]?[keyPath: keyPath] ?? "" },
+            set: { newValue in
+                updateDocument { doc in
+                    guard var items = doc.certificates, index < items.count else { return }
+                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    items[index][keyPath: keyPath] = trimmed.isEmpty ? nil : trimmed
+                    doc.certificates = items
                 }
             }
         )

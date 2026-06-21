@@ -54,23 +54,26 @@ li{margin-bottom:3px;font-size:.78rem;color:#374151}
 		b.WriteString(`<div class="section"><h2>Summary</h2>`)
 		b.WriteString(fmt.Sprintf(`<p class="summary">%s</p></div>`, html.EscapeString(doc.Summary)))
 	}
-	b.WriteString(renderSkillGroupsHTML(doc))
 	b.WriteString(renderEducationHTML(doc))
+	b.WriteString(renderSkillGroupsHTML(doc))
+	b.WriteString(renderAchievementsHTML(doc))
 	b.WriteString(renderCertificatesHTML(doc))
 	b.WriteString(`</div>`)
 
 	b.WriteString(`<div class="col-right">`)
 	if len(doc.Experience) > 0 {
 		b.WriteString(`<div class="section"><h2>Experiences</h2>`)
+		grouped := projectsByCompany(doc.Projects)
 		for _, item := range doc.Experience {
 			b.WriteString(renderHTMLBlock(item, true))
+			for _, p := range grouped[companyKey(item.Company)] {
+				b.WriteString(renderHTMLProjectBlock(p))
+			}
 		}
-		b.WriteString(`</div>`)
-	}
-	if len(doc.Projects) > 0 {
-		b.WriteString(`<div class="section"><h2>Projects</h2>`)
-		for _, item := range doc.Projects {
-			b.WriteString(renderHTMLBlock(item, false))
+		if orphans := grouped["_ungrouped"]; len(orphans) > 0 {
+			for _, p := range orphans {
+				b.WriteString(renderHTMLProjectBlock(p))
+			}
 		}
 		b.WriteString(`</div>`)
 	}
@@ -128,28 +131,6 @@ func renderSkillGroupsHTML(doc CVDocument) string {
 	return b.String()
 }
 
-func renderEducationHTML(doc CVDocument) string {
-	if len(doc.Education) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	b.WriteString(`<div class="section"><h2>Educations</h2>`)
-	for _, e := range doc.Education {
-		b.WriteString(`<div class="edu-block">`)
-		b.WriteString(fmt.Sprintf(`<div class="school">%s</div>`, html.EscapeString(e.School)))
-		meta := filterNonEmpty([]string{e.Degree, e.Period})
-		if len(meta) > 0 {
-			b.WriteString(fmt.Sprintf(`<div class="meta">%s</div>`, html.EscapeString(strings.Join(meta, " · "))))
-		}
-		if e.Content != "" {
-			b.WriteString(fmt.Sprintf(`<div>%s</div>`, html.EscapeString(e.Content)))
-		}
-		b.WriteString(`</div>`)
-	}
-	b.WriteString(`</div>`)
-	return b.String()
-}
-
 func renderCertificatesHTML(doc CVDocument) string {
 	if len(doc.Certificates) == 0 {
 		return ""
@@ -167,6 +148,73 @@ func renderCertificatesHTML(doc CVDocument) string {
 			b.WriteString(fmt.Sprintf(`<div class="meta">%s</div>`, html.EscapeString(c.Period)))
 		}
 		b.WriteString(`</div>`)
+	}
+	b.WriteString(`</div>`)
+	return b.String()
+}
+
+func renderEducationHTML(doc CVDocument) string {
+	if len(doc.Education) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(`<div class="section"><h2>Educations</h2>`)
+	for _, e := range doc.Education {
+		b.WriteString(`<div class="edu-block">`)
+		meta := filterNonEmpty([]string{e.Period})
+		title := e.School
+		if e.Degree != "" {
+			title = e.School
+		}
+		b.WriteString(fmt.Sprintf(`<div class="school">%s</div>`, html.EscapeString(title)))
+		if len(meta) > 0 {
+			b.WriteString(fmt.Sprintf(`<div class="meta">%s</div>`, html.EscapeString(strings.Join(meta, " · "))))
+		}
+		if e.Content != "" {
+			b.WriteString(fmt.Sprintf(`<div>%s</div>`, html.EscapeString(e.Content)))
+		}
+		b.WriteString(`</div>`)
+	}
+	b.WriteString(`</div>`)
+	return b.String()
+}
+
+func renderAchievementsHTML(doc CVDocument) string {
+	if len(doc.Achievements) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(`<div class="section"><h2>Achievements</h2><ul>`)
+	for _, a := range doc.Achievements {
+		if strings.TrimSpace(a.Content) == "" {
+			continue
+		}
+		b.WriteString(fmt.Sprintf(`<li>%s</li>`, html.EscapeString(strings.TrimSpace(a.Content))))
+	}
+	b.WriteString(`</ul></div>`)
+	return b.String()
+}
+
+func renderHTMLProjectBlock(item BulletItem) string {
+	var b strings.Builder
+	b.WriteString(`<div class="block">`)
+	title := strings.TrimSpace(item.Title)
+	period := strings.TrimSpace(item.Period)
+	if title != "" || period != "" {
+		b.WriteString(`<div class="row">`)
+		b.WriteString(fmt.Sprintf(`<span class="title">%s</span>`, html.EscapeString(title)))
+		if period != "" {
+			b.WriteString(fmt.Sprintf(`<span class="period">%s</span>`, html.EscapeString(period)))
+		}
+		b.WriteString(`</div>`)
+	}
+	bullets := splitBullets(item.Content)
+	if len(bullets) > 0 {
+		b.WriteString(`<ul>`)
+		for _, line := range bullets {
+			b.WriteString(fmt.Sprintf(`<li>%s</li>`, html.EscapeString(line)))
+		}
+		b.WriteString(`</ul>`)
 	}
 	b.WriteString(`</div>`)
 	return b.String()

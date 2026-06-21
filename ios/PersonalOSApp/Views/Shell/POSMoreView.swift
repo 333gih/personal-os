@@ -89,6 +89,8 @@ struct POSMoreView: View {
                                             nav.openCV()
                                         } else if item.path == "/jobs" {
                                             nav.openJobScout()
+                                        } else if item.path == "/startup" {
+                                            nav.openStartup()
                                         } else {
                                             nav.onOpen(.path(item.path, title: item.sheetTitle))
                                         }

@@ -26,6 +26,11 @@ type CertificateItem struct {
 	Period string `json:"period,omitempty"`
 }
 
+// AchievementItem is a short highlight bullet for the left column (PDF v5 layout).
+type AchievementItem struct {
+	Content string `json:"content"`
+}
+
 type BulletItem struct {
 	ID      string `json:"id,omitempty"`
 	Title   string `json:"title"`
@@ -45,6 +50,7 @@ type CVDocument struct {
 	PrimaryStack    []string          `json:"primary_stack,omitempty"`
 	YearsExperience float32           `json:"years_experience,omitempty"`
 	Education       []EducationItem   `json:"education,omitempty"`
+	Achievements    []AchievementItem `json:"achievements,omitempty"`
 	Certificates    []CertificateItem `json:"certificates,omitempty"`
 	Experience      []BulletItem      `json:"experience"`
 	Projects        []BulletItem      `json:"projects"`

@@ -24,8 +24,12 @@ struct POSCVEducation: Codable, Hashable, Identifiable {
     var id: String { "\(school)-\(period ?? "")" }
 }
 
+struct POSCVAchievement: Codable, Hashable, Identifiable {
+    var content: String
+    var id: String { content }
+}
+
 struct POSCVCertificate: Codable, Hashable, Identifiable {
-    var title: String
     var issuer: String?
     var period: String?
 
@@ -53,6 +57,7 @@ struct POSCVDocument: Codable, Hashable {
     var primaryStack: [String]?
     var yearsExperience: Float?
     var education: [POSCVEducation]?
+    var achievements: [POSCVAchievement]?
     var certificates: [POSCVCertificate]?
     var experience: [POSCVBullet]?
     var projects: [POSCVBullet]?
@@ -60,7 +65,7 @@ struct POSCVDocument: Codable, Hashable {
     var updatedAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case variant, headline, summary, contact, skills, experience, projects, education, certificates
+        case variant, headline, summary, contact, skills, experience, projects, education, achievements, certificates
         case skillGroups = "skill_groups"
         case primaryStack = "primary_stack"
         case yearsExperience = "years_experience"

@@ -86,6 +86,18 @@ struct POSJobSearchPreferences: Codable, Hashable {
     )
 }
 
+struct POSStartupAddResult: Decodable {
+    let entityID: String
+    let type: String
+    let title: String
+    let content: String
+
+    enum CodingKeys: String, CodingKey {
+        case entityID = "entity_id"
+        case type, title, content
+    }
+}
+
 struct POSWorkAddResult: Decodable {
     let entityID: String
     let type: String

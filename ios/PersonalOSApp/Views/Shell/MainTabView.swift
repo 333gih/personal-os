@@ -104,7 +104,11 @@ struct MainTabView: View {
     @State private var showWorkImport = false
     @State private var showWorkAdd = false
     @State private var showWorkHub = false
+    @State private var showStartup = false
+    @State private var showStartupHub = false
+    @State private var showStartupAdd = false
     @State private var workReloadToken = UUID()
+    @State private var startupReloadToken = UUID()
 
     private var nav: POSNavigationActions {
         POSNavigationActions(
@@ -115,7 +119,10 @@ struct MainTabView: View {
             onOpenJobScout: { showJobScout = true },
             onOpenWorkImport: { showWorkImport = true },
             onOpenWorkAdd: { showWorkAdd = true },
-            onOpenWorkHub: { showWorkHub = true }
+            onOpenWorkHub: { showWorkHub = true },
+            onOpenStartup: { showStartup = true },
+            onOpenStartupHub: { showStartupHub = true },
+            onOpenStartupAdd: { showStartupAdd = true }
         )
     }
 
@@ -192,6 +199,33 @@ struct MainTabView: View {
                 onJobScout: { showJobScout = true },
                 onCapture: { nav.captureNote() }
             )
+        }
+        .sheet(isPresented: $showStartup) {
+            NavigationStack {
+                StartupView(nav: nav)
+                    .environmentObject(session)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { showStartup = false }
+                        }
+                    }
+            }
+            .id(startupReloadToken)
+        }
+        .sheet(isPresented: $showStartupHub) {
+            POSStartupHubMenu(
+                onAddEntry: { showStartupAdd = true },
+                onOpenBoard: { showStartup = true },
+                onCapture: { nav.captureNote() }
+            )
+        }
+        .sheet(isPresented: $showStartupAdd) {
+            POSStartupAddView { entityId, title in
+                startupReloadToken = UUID()
+                showStartup = true
+                entityDetail = POSEntityDetailRoute(id: entityId, title: title)
+            }
+            .environmentObject(session)
         }
         .task { await session.bootstrap() }
     }

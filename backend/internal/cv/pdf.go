@@ -61,6 +61,28 @@ func renderPDF(doc CVDocument) ([]byte, error) {
 		})
 	}
 
+	if len(doc.Education) > 0 {
+		leftY = pdfColumnSection(pdf, leftX, leftY, leftW, "Educations", func() float64 {
+			setDejaVu(pdf, "", 8)
+			for _, e := range doc.Education {
+				pdf.SetX(leftX)
+				setDejaVu(pdf, "B", 8)
+				schoolLine := e.School
+				if e.Period != "" {
+					schoolLine += " (" + e.Period + ")"
+				}
+				pdf.MultiCell(leftW, 4, schoolLine, "", "L", false)
+				if e.Content != "" {
+					setDejaVu(pdf, "", 8)
+					pdf.SetX(leftX)
+					pdf.MultiCell(leftW, 4, e.Content, "", "L", false)
+				}
+				pdf.Ln(1.5)
+			}
+			return pdf.GetY()
+		})
+	}
+
 	if len(doc.SkillGroups) > 0 || len(doc.Skills) > 0 {
 		leftY = pdfColumnSection(pdf, leftX, leftY, leftW, "Skills", func() float64 {
 			setDejaVu(pdf, "", 8)
@@ -85,27 +107,15 @@ func renderPDF(doc CVDocument) ([]byte, error) {
 		})
 	}
 
-	if len(doc.Education) > 0 {
-		leftY = pdfColumnSection(pdf, leftX, leftY, leftW, "Educations", func() float64 {
-			setDejaVu(pdf, "", 8)
-			for _, e := range doc.Education {
-				pdf.SetX(leftX)
-				setDejaVu(pdf, "B", 8)
-				pdf.MultiCell(leftW, 4, e.School, "", "L", false)
-				meta := filterNonEmpty([]string{e.Degree, e.Period})
-				if len(meta) > 0 {
-					setDejaVu(pdf, "I", 7.5)
-					pdf.SetTextColor(90, 90, 90)
-					pdf.SetX(leftX)
-					pdf.MultiCell(leftW, 3.8, strings.Join(meta, " · "), "", "L", false)
-					pdf.SetTextColor(0, 0, 0)
+	if len(doc.Achievements) > 0 {
+		leftY = pdfColumnSection(pdf, leftX, leftY, leftW, "Achievements", func() float64 {
+			for _, a := range doc.Achievements {
+				if strings.TrimSpace(a.Content) == "" {
+					continue
 				}
-				if e.Content != "" {
-					setDejaVu(pdf, "", 8)
-					pdf.SetX(leftX)
-					pdf.MultiCell(leftW, 4, e.Content, "", "L", false)
-				}
-				pdf.Ln(1.5)
+				setDejaVu(pdf, "", 8)
+				pdf.SetX(leftX + 1.5)
+				pdf.MultiCell(leftW-1.5, 4, "•  "+strings.TrimSpace(a.Content), "", "L", false)
 			}
 			return pdf.GetY()
 		})
@@ -137,18 +147,15 @@ func renderPDF(doc CVDocument) ([]byte, error) {
 	if len(doc.Experience) > 0 {
 		rightY = pdfColumnSectionAt(pdf, rightX, rightY, rightW, "Experiences", func() float64 {
 			y := pdf.GetY()
+			grouped := projectsByCompany(doc.Projects)
 			for _, item := range doc.Experience {
 				y = pdfRoleBlockAt(pdf, rightX, y, rightW, item, true)
+				for _, p := range grouped[companyKey(item.Company)] {
+					y = pdfRoleBlockAt(pdf, rightX, y, rightW, p, false)
+				}
 			}
-			return y
-		})
-	}
-
-	if len(doc.Projects) > 0 {
-		rightY = pdfColumnSectionAt(pdf, rightX, rightY, rightW, "Projects", func() float64 {
-			y := pdf.GetY()
-			for _, item := range doc.Projects {
-				y = pdfRoleBlockAt(pdf, rightX, y, rightW, item, false)
+			for _, p := range grouped["_ungrouped"] {
+				y = pdfRoleBlockAt(pdf, rightX, y, rightW, p, false)
 			}
 			return y
 		})

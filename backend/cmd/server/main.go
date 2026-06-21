@@ -19,6 +19,7 @@ import (
 	"github.com/personal-os/backend/internal/relation"
 	"github.com/personal-os/backend/internal/readingprogress"
 	"github.com/personal-os/backend/internal/reminder"
+	"github.com/personal-os/backend/internal/startupimport"
 	"github.com/personal-os/backend/internal/workimport"
 	"github.com/personal-os/backend/internal/search"
 	"github.com/personal-os/backend/internal/storage"
@@ -162,6 +163,10 @@ func main() {
 	workImportSvc := workimport.NewService(db, aiSvc, storageSvc, embedSvc, cvSvc)
 	workImportHandler := workimport.NewHandler(workImportSvc)
 	workImportHandler.RegisterRoutes(protected.Group("/work"))
+
+	startupImportSvc := startupimport.NewService(db, aiSvc, embedSvc)
+	startupImportHandler := startupimport.NewHandler(startupImportSvc)
+	startupImportHandler.RegisterRoutes(protected.Group("/startup"))
 
 	addr := ":" + cfg.AppPort
 	log.Printf("personal-os API listening on %s", addr)

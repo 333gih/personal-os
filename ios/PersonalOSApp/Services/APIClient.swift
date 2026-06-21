@@ -236,6 +236,22 @@ final class APIClient: ObservableObject {
         return try decoder.decode(POSWorkAddResult.self, from: data)
     }
 
+    func addStartupEntry(kind: String, rawText: String, titleHint: String = "") async throws -> POSStartupAddResult {
+        struct Body: Encodable {
+            let kind: String
+            let rawText: String
+            let titleHint: String
+            enum CodingKeys: String, CodingKey {
+                case kind
+                case rawText = "raw_text"
+                case titleHint = "title_hint"
+            }
+        }
+        let payload = try JSONEncoder().encode(Body(kind: kind, rawText: rawText, titleHint: titleHint))
+        let data = try await authorizedRequest(path: "startup/add", method: "POST", body: payload)
+        return try decoder.decode(POSStartupAddResult.self, from: data)
+    }
+
     func importWorkProject(title: String, company: String, markdown: String, diagram: Data?) async throws -> POSWorkImportResult {
         let boundary = "Boundary-\(UUID().uuidString)"
         var body = Data()

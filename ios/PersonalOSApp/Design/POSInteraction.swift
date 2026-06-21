@@ -35,6 +35,9 @@ struct POSNavigationActions {
     var onOpenWorkImport: (() -> Void)?
     var onOpenWorkAdd: (() -> Void)?
     var onOpenWorkHub: (() -> Void)?
+    var onOpenStartup: (() -> Void)?
+    var onOpenStartupHub: (() -> Void)?
+    var onOpenStartupAdd: (() -> Void)?
 
     func captureNote() {
         POSHaptics.medium()
@@ -69,6 +72,21 @@ struct POSNavigationActions {
     func openWorkHub() {
         POSHaptics.light()
         onOpenWorkHub?()
+    }
+
+    func openStartup() {
+        POSHaptics.light()
+        onOpenStartup?()
+    }
+
+    func openStartupHub() {
+        POSHaptics.light()
+        onOpenStartupHub?()
+    }
+
+    func openStartupAdd() {
+        POSHaptics.light()
+        onOpenStartupAdd?()
     }
 
     func openStorySync() {
