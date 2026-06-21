@@ -102,7 +102,7 @@ struct LearningView: View {
             .padding(.leading, 16)
             .padding(.bottom, 4)
         }
-        .task(id: session.accessToken) { await load() }
+        .task(id: session.user?.id) { await load() }
         .refreshable { await load() }
         .sheet(isPresented: $showScheduleSettings) {
             POSLearningScheduleSettingsView()
@@ -321,6 +321,7 @@ struct LearningView: View {
     }
 
     private func load() async {
+        guard !Task.isCancelled else { return }
         isLoading = true
         isLoadingToday = true
         loadError = nil
@@ -328,29 +329,22 @@ struct LearningView: View {
             isLoading = false
             isLoadingToday = false
         }
-        async let entitiesTask: Void = {
-            do {
-                items = try await session.api.listEntities(domain: "learning").items
-            } catch {
-                items = []
-                loadError = error.localizedDescription
+        do {
+            async let entitiesResponse = session.api.listEntities(domain: "learning")
+            async let planResponse = session.api.fetchLearningToday()
+            let (entities, plan) = try await (entitiesResponse, planResponse)
+            guard !Task.isCancelled else { return }
+            items = entities.items
+            todayPlan = plan
+            Task { await POSLocalNotificationScheduler.shared.schedule(plan: plan) }
+            if items.isEmpty {
+                loadError = "No learning data yet — pull to refresh (server syncs on login)."
             }
-        }()
-        async let todayTask: Void = {
-            do {
-                let plan = try await session.api.fetchLearningToday()
-                todayPlan = plan
-                await POSLocalNotificationScheduler.shared.schedule(plan: plan)
-            } catch {
-                todayPlan = nil
-                if loadError == nil {
-                    loadError = error.localizedDescription
-                }
-            }
-        }()
-        _ = await (entitiesTask, todayTask)
-        if items.isEmpty, loadError == nil {
-            loadError = "No learning data yet — pull to refresh (server syncs on login)."
+        } catch {
+            guard !POSLoadTask.isBenignCancellation(error) else { return }
+            items = []
+            todayPlan = nil
+            loadError = error.localizedDescription
         }
     }
 }

@@ -70,3 +70,13 @@ enum POSFormatting {
         return formatter.string(from: date)
     }
 }
+
+enum POSLoadTask {
+    /// SwiftUI `.task(id: accessToken)` and URLSession cancel in-flight loads when the token refreshes.
+    static func isBenignCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let url = error as? URLError, url.code == .cancelled { return true }
+        let ns = error as NSError
+        return ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled
+    }
+}
