@@ -3,6 +3,7 @@ package studylearning
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,8 +22,8 @@ const (
 	blockEnglishEvening = "english_commute"
 	blockTOEICEvening  = "toeic_evening"
 
-	dsaCourseID    = "c000000c-0001-4001-8001-000000000001"
-	toeicCourseID  = "c000000c-0001-4001-8001-000000000005"
+	dsaCourseID     = "c000000c-0001-4001-8001-000000000001"
+	englishCourseID = "c000000c-0001-4001-8001-000000000023"
 )
 
 type Service struct {
@@ -110,9 +111,7 @@ func (s *Service) PutSchedule(userID uuid.UUID, in ScheduleDTO) (*ScheduleDTO, e
 	if err := s.db.Save(sched).Error; err != nil {
 		return nil, err
 	}
-	if err := s.EnsureTodayReminders(userID); err != nil {
-		return scheduleToDTO(sched), err
-	}
+	s.EnsureTodayReminders(userID)
 	return scheduleToDTO(sched), nil
 }
 
@@ -129,23 +128,41 @@ func (s *Service) Today(userID uuid.UUID) (*TodayPlan, error) {
 		plan.DSA = dsa
 		enrichDSABlocks(plan, dsa)
 	}
-	if err := s.EnsureTodayReminders(userID); err != nil {
-		return plan, err
+	s.EnsureTodayReminders(userID)
+	return plan, nil
+}
+
+func (s *Service) EnsureTodayReminders(userID uuid.UUID) {
+	plan, err := s.buildEnrichedTodayPlan(userID)
+	if err != nil {
+		log.Printf("studylearning: ensure today reminders: %v", err)
+		return
+	}
+	s.ensureRemindersFromPlan(userID, plan)
+}
+
+func (s *Service) buildEnrichedTodayPlan(userID uuid.UUID) (*TodayPlan, error) {
+	sched, err := s.ensureSchedule(userID)
+	if err != nil {
+		return nil, err
+	}
+	loc := loadLocation(sched.Timezone)
+	now := time.Now().In(loc)
+	plan := buildTodayPlan(sched, now)
+	dsa, err := s.DSADailyFocus(userID)
+	if err == nil && dsa != nil {
+		plan.DSA = dsa
+		enrichDSABlocks(plan, dsa)
 	}
 	return plan, nil
 }
 
-func (s *Service) EnsureTodayReminders(userID uuid.UUID) error {
-	plan, err := s.TodayBlocksOnly(userID)
-	if err != nil {
-		return err
-	}
+func (s *Service) ensureRemindersFromPlan(userID uuid.UUID, plan *TodayPlan) {
 	for _, b := range plan.Blocks {
 		if err := s.upsertStudyReminder(userID, b); err != nil {
-			return err
+			log.Printf("studylearning: skip reminder block=%s: %v", b.Kind, err)
 		}
 	}
-	return nil
 }
 
 func (s *Service) TodayBlocksOnly(userID uuid.UUID) (*TodayPlan, error) {
@@ -158,9 +175,12 @@ func (s *Service) TodayBlocksOnly(userID uuid.UUID) (*TodayPlan, error) {
 }
 
 func (s *Service) upsertStudyReminder(userID uuid.UUID, b TodayBlock) error {
-	entityID, err := uuid.Parse(b.EntityID)
+	entityID, err := s.resolveReminderEntityID(userID, b)
 	if err != nil {
 		return err
+	}
+	if entityID == uuid.Nil {
+		return fmt.Errorf("no learning entity for track=%s", b.Track)
 	}
 	dateKey := b.StartAt.Format("2006-01-02")
 	idem := fmt.Sprintf("study:%s:%s:%s", userID, dateKey, b.Kind)
@@ -189,6 +209,38 @@ func (s *Service) upsertStudyReminder(userID uuid.UUID, b TodayBlock) error {
 		Metadata: datatypes.JSON(meta),
 	}
 	return s.db.Create(&rem).Error
+}
+
+func (s *Service) resolveReminderEntityID(userID uuid.UUID, b TodayBlock) (uuid.UUID, error) {
+	if b.EntityID != "" {
+		if id, err := uuid.Parse(b.EntityID); err == nil && s.learningEntityExists(userID, id) {
+			return id, nil
+		}
+	}
+	return s.lookupLearningEntityID(userID, b.Track)
+}
+
+func (s *Service) learningEntityExists(userID, id uuid.UUID) bool {
+	var n int64
+	s.db.Model(&models.Entity{}).
+		Where("id = ? AND user_id = ? AND domain = ? AND status = 'active'", id, userID, models.DomainLearning).
+		Count(&n)
+	return n > 0
+}
+
+func (s *Service) lookupLearningEntityID(userID uuid.UUID, track string) (uuid.UUID, error) {
+	var ent models.Entity
+	q := s.db.Where("user_id = ? AND domain = ? AND status = 'active'", userID, models.DomainLearning)
+	switch track {
+	case "english":
+		q = q.Where("type = ? AND tags @> ?", "learning_course", `["english"]`)
+	default:
+		q = q.Where("type IN ?", []string{"learning_course", "learning_topic", "learning_pattern"})
+	}
+	if err := q.Order("updated_at DESC").First(&ent).Error; err != nil {
+		return uuid.Nil, nil
+	}
+	return ent.ID, nil
 }
 
 func (s *Service) ensureSchedule(userID uuid.UUID) (*models.LearningSchedule, error) {
@@ -310,7 +362,7 @@ func weekdayBlocks(sched *models.LearningSchedule, now time.Time) []TodayBlock {
 			StartAt:         evening,
 			DurationMinutes: sched.EnglishCommuteMinutes,
 			Mode:            "vocab",
-			EntityID:        toeicCourseID,
+			EntityID:        englishCourseID,
 			CommuteTip:      "10 words: definition → example sentence → antonym. No scrolling feeds.",
 		},
 		{
@@ -322,7 +374,7 @@ func weekdayBlocks(sched *models.LearningSchedule, now time.Time) []TodayBlock {
 			StartAt:         toeic,
 			DurationMinutes: sched.ToeicDailyMinutes,
 			Mode:            "deep",
-			EntityID:        toeicCourseID,
+			EntityID:        englishCourseID,
 			CommuteTip:      "Rotate: Part 5 grammar → Part 3 listening → Part 7 inference.",
 		},
 	}
@@ -340,7 +392,7 @@ func weekendBlocks(sched *models.LearningSchedule, now time.Time) []TodayBlock {
 		{
 			ID: blockTOEICEvening, Kind: blockTOEICEvening, Track: "english",
 			Title: "Weekend TOEIC marathon", Subtitle: "Full skill rotation",
-			StartAt: afternoon, DurationMinutes: sched.ToeicDailyMinutes, Mode: "deep", EntityID: toeicCourseID,
+			StartAt: afternoon, DurationMinutes: sched.ToeicDailyMinutes, Mode: "deep", EntityID: englishCourseID,
 		},
 	}
 }

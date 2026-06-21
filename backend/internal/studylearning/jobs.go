@@ -202,7 +202,7 @@ func (s *Service) EnsureAllUsersTodayReminders() error {
 		return err
 	}
 	for _, id := range userIDs {
-		_ = s.EnsureTodayReminders(id)
+		s.EnsureTodayReminders(id)
 	}
 	return nil
 }
