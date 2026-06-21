@@ -48,6 +48,7 @@ struct WorkView: View {
         POSScreen {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    workToolbar
                     profileHero
                     if let loadError, !isLoading {
                         POSEmptyState(
@@ -74,10 +75,19 @@ struct WorkView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             HStack {
+                Button {
+                    nav.openWorkHub()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 54))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, POSTheme.ink)
+                        .shadow(color: POSTheme.ink.opacity(0.25), radius: 10, y: 4)
+                }
+                .buttonStyle(POSPressButtonStyle(scale: 0.94))
                 Spacer()
-                POSFloatingCaptureButton(action: nav.captureNote)
             }
-            .padding(.trailing, 16)
+            .padding(.leading, 16)
             .padding(.bottom, 4)
             .background(
                 LinearGradient(
@@ -91,6 +101,21 @@ struct WorkView: View {
         }
         .task(id: session.accessToken) { await load() }
         .refreshable { await load() }
+    }
+
+    private var workToolbar: some View {
+        HStack {
+            Spacer()
+            Button {
+                nav.openWorkHub()
+            } label: {
+                Label("Menu", systemImage: "line.3.horizontal.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(POSTheme.primaryDark)
+            }
+            .buttonStyle(POSPressButtonStyle())
+        }
+        .padding(.horizontal, 2)
     }
 
     @ViewBuilder
@@ -255,13 +280,13 @@ struct WorkView: View {
     private var careerToolsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             POSSectionHeader(title: "Career tools", eyebrow: "CV & opportunities")
-            POSActionButton(title: "Import project (AI)", icon: "square.and.arrow.down", style: .primary) {
-                nav.openWorkImport()
+            POSActionButton(title: "Work menu", icon: "square.grid.2x2", style: .primary) {
+                nav.openWorkHub()
             }
-            POSActionButton(title: "Open CV Transfer", icon: "doc.richtext", style: .secondary) {
-                nav.openCV()
+            POSActionButton(title: "Add entry (AI normalize)", icon: "plus.circle", style: .secondary) {
+                nav.openWorkAdd()
             }
-            POSActionButton(title: "Job Scout — AI matches (≥50%)", icon: "briefcase", style: .secondary) {
+            POSActionButton(title: "Job Scout", icon: "briefcase", style: .secondary) {
                 nav.openJobScout()
             }
         }

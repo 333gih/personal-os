@@ -22,6 +22,35 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/import", h.Import)
+	r.POST("/add", h.Add)
+}
+
+type jsonAddRequest struct {
+	Kind      string `json:"kind"`
+	RawText   string `json:"raw_text"`
+	TitleHint string `json:"title_hint"`
+}
+
+func (h *Handler) Add(c *gin.Context) {
+	var req jsonAddRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	result, err := h.service.AddNormalized(auth.GetUserID(c), AddInput{
+		Kind:      req.Kind,
+		RawText:   req.RawText,
+		TitleHint: req.TitleHint,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "AI not configured") {
+			response.ServiceUnavailable(c, err.Error())
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Created(c, result)
 }
 
 type jsonImportRequest struct {

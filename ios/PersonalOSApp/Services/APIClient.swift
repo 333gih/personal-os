@@ -209,6 +209,33 @@ final class APIClient: ObservableObject {
         _ = try await authorizedRequest(path: "jobs/\(id)/status", method: "PATCH", body: payload)
     }
 
+    func fetchJobPreferences() async throws -> POSJobSearchPreferences {
+        let data = try await authorizedRequest(path: "jobs/preferences")
+        return try decoder.decode(POSJobSearchPreferences.self, from: data)
+    }
+
+    func saveJobPreferences(_ prefs: POSJobSearchPreferences) async throws -> POSJobSearchPreferences {
+        let payload = try JSONEncoder().encode(prefs)
+        let data = try await authorizedRequest(path: "jobs/preferences", method: "PUT", body: payload)
+        return try decoder.decode(POSJobSearchPreferences.self, from: data)
+    }
+
+    func addWorkEntry(kind: String, rawText: String, titleHint: String = "") async throws -> POSWorkAddResult {
+        struct Body: Encodable {
+            let kind: String
+            let rawText: String
+            let titleHint: String
+            enum CodingKeys: String, CodingKey {
+                case kind
+                case rawText = "raw_text"
+                case titleHint = "title_hint"
+            }
+        }
+        let payload = try JSONEncoder().encode(Body(kind: kind, rawText: rawText, titleHint: titleHint))
+        let data = try await authorizedRequest(path: "work/add", method: "POST", body: payload)
+        return try decoder.decode(POSWorkAddResult.self, from: data)
+    }
+
     func importWorkProject(title: String, company: String, markdown: String, diagram: Data?) async throws -> POSWorkImportResult {
         let boundary = "Boundary-\(UUID().uuidString)"
         var body = Data()

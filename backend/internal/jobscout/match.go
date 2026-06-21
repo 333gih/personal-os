@@ -218,20 +218,15 @@ func (s *Service) aiScoreBatch(userID uuid.UUID, profile cv.StackProfile, jobs [
 	}
 	jobsJSON, _ := json.Marshal(briefs)
 
-	system := fmt.Sprintf(`You are a job matching engine. Compare each job to the candidate's PRIMARY STACK (not every skill they know).
+	system := fmt.Sprintf(`You are a job matching engine. Compare each job to the candidate's MAIN FOCUS skills (user-selected, highest priority).
 Respond with JSON only:
 {"matches":[{"external_id":"id","score":0-100,"reason":"one sentence","matched_skills":["skill1"]}]}
 Rules:
-- Candidate has ~%.1f years experience as %s.
-- PRIMARY STACK (most important): %s
-- Jobs clearly requiring the primary stack should score 90-100.
-- Related backend/full-stack roles with partial overlap: 50-85.
-- Unrelated stacks (no primary overlap): below 35 — omit from matches.
-- Include jobs with score >= 35 in the matches array.
-- matched_skills lists candidate skills that align with the job.`,
-		profile.YearsExperience,
-		profile.RoleTitle,
-		strings.Join(profile.PrimaryStack, ", "))
+- Candidate profile below includes years, role, focus stack, and work preferences.
+- Jobs requiring MAIN FOCUS skills should score 92-100 when title/description align.
+- Partial focus overlap: 55-85. Unrelated stack: below 35 — omit.
+- Include jobs with score >= 35 in matches array.
+- matched_skills lists candidate skills that align with the job.`)
 
 	prompt := fmt.Sprintf("Candidate profile:\n%s\n\nAll CV skills: %s\n\nJobs JSON:\n%s",
 		profile.ProfileText, strings.Join(profile.AllSkills, ", "), string(jobsJSON))

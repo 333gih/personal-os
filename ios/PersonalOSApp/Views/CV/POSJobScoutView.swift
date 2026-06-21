@@ -5,9 +5,7 @@ struct POSJobSafariView: UIViewControllerRepresentable {
     let url: URL
     let onFinish: () -> Void
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onFinish: onFinish)
-    }
+    func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
 
     func makeUIViewController(context: Context) -> SFSafariViewController {
         let vc = SFSafariViewController(url: url)
@@ -20,14 +18,8 @@ struct POSJobSafariView: UIViewControllerRepresentable {
 
     final class Coordinator: NSObject, SFSafariViewControllerDelegate {
         let onFinish: () -> Void
-
-        init(onFinish: @escaping () -> Void) {
-            self.onFinish = onFinish
-        }
-
-        func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
-            onFinish()
-        }
+        init(onFinish: @escaping () -> Void) { self.onFinish = onFinish }
+        func safariViewControllerDidFinish(_ controller: SFSafariViewController) { onFinish() }
     }
 }
 
@@ -38,15 +30,29 @@ struct POSJobScoutView: View {
     @State private var tab: POSJobTab = .open
     @State private var openJobs: [POSJobOpportunity] = []
     @State private var appliedJobs: [POSJobOpportunity] = []
+    @State private var prefs = POSJobSearchPreferences.defaultRemote
+    @State private var customSkill = ""
     @State private var isLoading = true
     @State private var isScanning = false
+    @State private var isSavingPrefs = false
     @State private var errorMessage: String?
     @State private var scanSummary: String?
     @State private var applyJob: POSJobOpportunity?
     @State private var confirmApplyJob: POSJobOpportunity?
+    @State private var showPrefs = true
 
     private var visibleJobs: [POSJobOpportunity] {
         tab == .open ? openJobs : appliedJobs
+    }
+
+    private var skillPool: [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for s in (prefs.availableSkills ?? []) + prefs.focusSkills {
+            let key = s.lowercased()
+            if seen.insert(key).inserted { out.append(s) }
+        }
+        return out.sorted()
     }
 
     var body: some View {
@@ -55,22 +61,20 @@ struct POSJobScoutView: View {
                 Group {
                     if isLoading {
                         POSLoadingView()
-                    } else if let errorMessage, visibleJobs.isEmpty && tab == .open {
-                        POSEmptyState(
-                            systemImage: "briefcase",
-                            title: "No matches yet",
-                            message: errorMessage,
-                            actionTitle: "Scan now",
-                            action: { Task { await scan() } }
-                        )
                     } else {
                         ScrollView {
-                            VStack(alignment: .leading, spacing: 12) {
-                                headerCopy
+                            VStack(alignment: .leading, spacing: 14) {
+                                preferencesSection
                                 if let scanSummary {
                                     Text(scanSummary)
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(POSTheme.success)
+                                        .padding(.horizontal, 16)
+                                }
+                                if let errorMessage {
+                                    Text(errorMessage)
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
                                         .padding(.horizontal, 16)
                                 }
                                 tabPicker
@@ -98,15 +102,12 @@ struct POSJobScoutView: View {
                         Task { await scan() }
                     } label: {
                         if isScanning {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                Text("Scanning…")
-                            }
+                            ProgressView()
                         } else {
                             Text("Scan")
                         }
                     }
-                    .disabled(isScanning)
+                    .disabled(isScanning || isSavingPrefs)
                 }
             }
             .task { await load() }
@@ -128,22 +129,159 @@ struct POSJobScoutView: View {
                     }
                     confirmApplyJob = nil
                 }
-                Button("Not yet", role: .cancel) {
-                    confirmApplyJob = nil
-                }
+                Button("Not yet", role: .cancel) { confirmApplyJob = nil }
             } message: {
                 if let job = confirmApplyJob {
-                    Text("Mark \"\(job.title)\" as applied so it moves to your Applied list.")
+                    Text("Mark \"\(job.title)\" as applied?")
                 }
             }
         }
     }
 
-    private var headerCopy: some View {
-        Text("AI matches jobs to your primary stack from CV (Java/Spring Boot/AEM or whatever you use). Primary-stack roles score ~100%. Tap Scan, then Apply in Safari.")
-            .font(.caption)
-            .foregroundStyle(POSTheme.muted)
-            .padding(.horizontal, 16)
+    private var preferencesSection: some View {
+        POSCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Button {
+                    withAnimation { showPrefs.toggle() }
+                } label: {
+                    HStack {
+                        Label("Job search preferences", systemImage: "slider.horizontal.3")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(POSTheme.primaryDark)
+                        Spacer()
+                        Image(systemName: showPrefs ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(POSTheme.muted)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if showPrefs {
+                    Text("Like LinkedIn — set main focus, experience, and work style before scanning.")
+                        .font(.caption2)
+                        .foregroundStyle(POSTheme.muted)
+
+                    TextField("Target role (e.g. Software Engineer)", text: $prefs.targetRole)
+                        .font(.subheadline)
+                        .textFieldStyle(.roundedBorder)
+
+                    HStack {
+                        Text("Years experience")
+                            .font(.caption.weight(.semibold))
+                        Spacer()
+                        Stepper(String(format: "%.1f yrs", prefs.yearsExperience), value: $prefs.yearsExperience, in: 0...25, step: 0.5)
+                            .font(.caption)
+                    }
+
+                    Text("Main focus (stack)").font(.caption.weight(.semibold))
+                    FlowLayout(spacing: 8) {
+                        ForEach(skillPool, id: \.self) { skill in
+                            skillChip(skill)
+                        }
+                    }
+                    HStack {
+                        TextField("Add custom skill", text: $customSkill)
+                            .font(.caption)
+                            .textFieldStyle(.roundedBorder)
+                        Button("Add") { addCustomSkill() }
+                            .font(.caption.weight(.semibold))
+                            .disabled(customSkill.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+
+                    Text("Work location").font(.caption.weight(.semibold))
+                    toggleRow(options: [
+                        ("remote", "Remote"),
+                        ("hybrid", "Hybrid"),
+                        ("onsite", "On-site"),
+                        ("anywhere", "Anywhere")
+                    ], selection: $prefs.workLocationTypes)
+
+                    Text("Employment type").font(.caption.weight(.semibold))
+                    toggleRow(options: [
+                        ("full_time", "Full-time"),
+                        ("contract", "Contract"),
+                        ("part_time", "Part-time"),
+                        ("internship", "Internship")
+                    ], selection: $prefs.employmentTypes)
+
+                    POSActionButton(title: isSavingPrefs ? "Saving…" : "Save preferences", icon: "checkmark.circle", style: .primary) {
+                        Task { await savePreferences() }
+                    }
+                    .disabled(isSavingPrefs)
+                } else {
+                    Text(focusSummary)
+                        .font(.caption)
+                        .foregroundStyle(POSTheme.ink)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var focusSummary: String {
+        let focus = prefs.focusSkills.isEmpty ? "—" : prefs.focusSkills.joined(separator: " · ")
+        let loc = prefs.workLocationTypes.map { $0.replacingOccurrences(of: "_", with: " ") }.joined(separator: ", ")
+        return "\(prefs.targetRole) · \(String(format: "%.1f", prefs.yearsExperience)) yrs · Focus: \(focus) · \(loc)"
+    }
+
+    private func skillChip(_ skill: String) -> some View {
+        let selected = prefs.focusSkills.contains(where: { $0.caseInsensitiveCompare(skill) == .orderedSame })
+        return Button {
+            toggleFocus(skill)
+        } label: {
+            Text(selected ? "✓ \(skill)" : skill)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(selected ? POSTheme.primaryDark.opacity(0.15) : POSTheme.border.opacity(0.35))
+                .foregroundStyle(selected ? POSTheme.primaryDark : POSTheme.ink)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func toggleRow(options: [(String, String)], selection: Binding<[String]>) -> some View {
+        FlowLayout(spacing: 8) {
+            ForEach(options, id: \.0) { value, label in
+                let on = selection.wrappedValue.contains(value)
+                Button {
+                    if on {
+                        selection.wrappedValue.removeAll { $0 == value }
+                    } else {
+                        selection.wrappedValue.append(value)
+                    }
+                } label: {
+                    Text(on ? "✓ \(label)" : label)
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(on ? POSTheme.primaryDark.opacity(0.15) : POSTheme.border.opacity(0.35))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func toggleFocus(_ skill: String) {
+        if let idx = prefs.focusSkills.firstIndex(where: { $0.caseInsensitiveCompare(skill) == .orderedSame }) {
+            prefs.focusSkills.remove(at: idx)
+        } else {
+            prefs.focusSkills.append(skill)
+        }
+    }
+
+    private func addCustomSkill() {
+        let s = customSkill.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { return }
+        if prefs.availableSkills == nil { prefs.availableSkills = [] }
+        if !(prefs.availableSkills ?? []).contains(where: { $0.caseInsensitiveCompare(s) == .orderedSame }) {
+            prefs.availableSkills?.append(s)
+        }
+        if !prefs.focusSkills.contains(where: { $0.caseInsensitiveCompare(s) == .orderedSame }) {
+            prefs.focusSkills.append(s)
+        }
+        customSkill = ""
     }
 
     private var tabPicker: some View {
@@ -154,9 +292,7 @@ struct POSJobScoutView: View {
         }
         .pickerStyle(.segmented)
         .padding(.horizontal, 16)
-        .onChange(of: tab) { _ in
-            Task { await load() }
-        }
+        .onChange(of: tab) { _ in Task { await loadJobsOnly() } }
     }
 
     @ViewBuilder
@@ -165,8 +301,8 @@ struct POSJobScoutView: View {
             systemImage: tab == .open ? "sparkles" : "checkmark.seal",
             title: tab == .open ? "No matching jobs yet" : "No applied jobs",
             message: tab == .open
-                ? "Tap Scan to crawl listings and match against your CV primary stack."
-                : "Jobs you mark as applied after submitting will appear here.",
+                ? "Save preferences, then Scan. Jobs matching your main focus score highest."
+                : "Jobs you mark applied appear here.",
             actionTitle: tab == .open ? "Scan now" : nil,
             action: tab == .open ? { Task { await scan() } } : nil
         )
@@ -177,51 +313,33 @@ struct POSJobScoutView: View {
         POSCard {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
-                    Text(job.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(POSTheme.ink)
+                    Text(job.title).font(.subheadline.weight(.semibold))
                     Spacer()
                     Text("\(Int(job.matchScore * 100))%")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(POSTheme.primaryDark)
                 }
                 if let company = job.company, !company.isEmpty {
-                    Text(company)
-                        .font(.caption)
-                        .foregroundStyle(POSTheme.muted)
+                    Text(company).font(.caption).foregroundStyle(POSTheme.muted)
                 }
                 if let location = job.location, !location.isEmpty {
-                    Text(location)
-                        .font(.caption2)
-                        .foregroundStyle(POSTheme.muted)
+                    Text(location).font(.caption2).foregroundStyle(POSTheme.muted)
                 }
                 if let reason = job.matchReason, !reason.isEmpty {
-                    Text(reason)
-                        .font(.caption2)
-                        .foregroundStyle(POSTheme.ink.opacity(0.85))
+                    Text(reason).font(.caption2).foregroundStyle(POSTheme.ink.opacity(0.85))
                 }
-                HStack(spacing: 8) {
-                    Label(sourceLabel(job.source), systemImage: sourceIcon(job.source))
-                        .font(.caption2)
-                        .foregroundStyle(POSTheme.muted)
+                HStack {
                     Spacer()
                     if tab == .open {
-                        Button("Dismiss") {
-                            Task { await updateStatus(job, status: "dismissed") }
-                        }
-                        .font(.caption)
-                        .foregroundStyle(POSTheme.muted)
-                        Button("Apply") {
-                            applyJob = job
-                        }
-                        .font(.caption.weight(.semibold))
-                        .buttonStyle(.borderedProminent)
-                        .tint(POSTheme.primaryDark)
+                        Button("Dismiss") { Task { await updateStatus(job, status: "dismissed") } }
+                            .font(.caption)
+                        Button("Apply") { applyJob = job }
+                            .font(.caption.weight(.semibold))
+                            .buttonStyle(.borderedProminent)
+                            .tint(POSTheme.primaryDark)
                     } else {
-                        Button("Reopen") {
-                            Task { await updateStatus(job, status: "open") }
-                        }
-                        .font(.caption)
+                        Button("Reopen") { Task { await updateStatus(job, status: "open") } }
+                            .font(.caption)
                     }
                 }
             }
@@ -229,34 +347,35 @@ struct POSJobScoutView: View {
         .padding(.horizontal, 16)
     }
 
-    private func sourceLabel(_ source: String) -> String {
-        switch source {
-        case "remoteok": return "RemoteOK"
-        case "remotive": return "Remotive"
-        case "github": return "GitHub"
-        default: return source.capitalized
-        }
-    }
-
-    private func sourceIcon(_ source: String) -> String {
-        switch source {
-        case "github": return "chevron.left.forwardslash.chevron.right"
-        default: return "globe"
-        }
-    }
-
     private func load() async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
         do {
+            prefs = try await session.api.fetchJobPreferences()
+            await loadJobsOnly()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func loadJobsOnly() async {
+        do {
             async let open = session.api.fetchJobs(status: "open")
             async let applied = session.api.fetchJobs(status: "applied")
             openJobs = try await open
             appliedJobs = try await applied
-            if openJobs.isEmpty && tab == .open {
-                errorMessage = "No listings matched yet. Tap Scan — needs OPENROUTER_API_KEY on server for AI scoring."
-            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func savePreferences() async {
+        isSavingPrefs = true
+        defer { isSavingPrefs = false }
+        do {
+            prefs = try await session.api.saveJobPreferences(prefs)
+            POSHaptics.light()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -265,13 +384,13 @@ struct POSJobScoutView: View {
     private func scan() async {
         isScanning = true
         scanSummary = nil
-        errorMessage = nil
         defer { isScanning = false }
         do {
+            _ = try await session.api.saveJobPreferences(prefs)
             let result = try await session.api.scanJobs()
-            let pct = Int((result.minScore ?? 0.5) * 100)
-            scanSummary = "Scanned \(result.found) listings · \(result.matched) matched ≥\(pct)% · \(result.stored) new"
-            await load()
+            let pct = Int((result.minScore ?? 0.35) * 100)
+            scanSummary = "Scanned \(result.found) · \(result.matched) matched ≥\(pct)% · \(result.stored) new"
+            await loadJobsOnly()
             POSHaptics.light()
         } catch {
             errorMessage = error.localizedDescription
@@ -286,7 +405,7 @@ struct POSJobScoutView: View {
     private func updateStatus(_ job: POSJobOpportunity, status: String) async {
         do {
             try await session.api.updateJobStatus(id: job.id, status: status)
-            await load()
+            await loadJobsOnly()
         } catch {
             errorMessage = error.localizedDescription
         }

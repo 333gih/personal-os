@@ -87,6 +87,11 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 	defer cancel()
 
 	skills, profile := s.loadCandidateProfile(userID)
+	prefs, _ := s.GetPreferences(userID)
+	if prefs == nil {
+		def := defaultPreferences()
+		prefs = &def
+	}
 	var all []rawJob
 
 	remotive, err := fetchRemotive(ctx)
@@ -134,6 +139,9 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 	}
 	candidates := make([]candidate, 0, len(all))
 	for _, j := range all {
+		if !jobMatchesPreferences(j, *prefs) {
+			continue
+		}
 		pre, hits, primary := preScoreJob(profile, j)
 		if pre >= preFilterMinScore || primary || j.Source == "github" {
 			candidates = append(candidates, candidate{job: j, preScore: pre, preHits: hits, primaryMatch: primary})
@@ -163,6 +171,12 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 			aiMatch = &copy
 		}
 		score, reason := finalizeScore(c.preScore, c.preHits, c.primaryMatch, aiMatch)
+		if bonus := preferenceLocationBonus(c.job, *prefs); bonus > 0 && score > 0 {
+			score += bonus
+			if score > 1 {
+				score = 1
+			}
+		}
 		if score < MinMatchScore {
 			continue
 		}
@@ -236,21 +250,7 @@ func (s *Service) ScanStatus(userID uuid.UUID) userScanState {
 }
 
 func (s *Service) loadCandidateProfile(userID uuid.UUID) ([]string, cv.StackProfile) {
-	fallbackSkills := defaultSkills()
-	profile := cv.StackProfile{
-		PrimaryStack:    []string{"Java", "Spring Boot", "AEM"},
-		AllSkills:       fallbackSkills,
-		YearsExperience: 3,
-		ProfileText:     "Software Engineer specializing in enterprise backend.",
-		RoleTitle:       "Software Engineer",
-	}
-
-	if s.cv != nil {
-		doc, err := s.cv.Get(userID)
-		if err == nil {
-			profile = cv.BuildStackProfile(doc.Document)
-		}
-	}
+	profile := s.buildMatchProfile(userID)
 	return profile.AllSkills, profile
 }
 

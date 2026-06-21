@@ -20,6 +20,8 @@ func NewHandler(service *Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
+	r.GET("/preferences", h.GetPreferences)
+	r.PUT("/preferences", h.SavePreferences)
 	r.GET("/scan/status", h.ScanStatus)
 	r.POST("/scan", h.Scan)
 	r.GET("", h.List)
@@ -79,4 +81,27 @@ func (h *Handler) UpdateStatus(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"status": req.Status})
+}
+
+func (h *Handler) GetPreferences(c *gin.Context) {
+	prefs, err := h.service.GetPreferences(auth.GetUserID(c))
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.OK(c, prefs)
+}
+
+func (h *Handler) SavePreferences(c *gin.Context) {
+	var req SearchPreferences
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	prefs, err := h.service.SavePreferences(auth.GetUserID(c), req)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.OK(c, prefs)
 }

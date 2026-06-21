@@ -102,6 +102,9 @@ struct MainTabView: View {
     @State private var showCVHub = false
     @State private var showJobScout = false
     @State private var showWorkImport = false
+    @State private var showWorkAdd = false
+    @State private var showWorkHub = false
+    @State private var workReloadToken = UUID()
 
     private var nav: POSNavigationActions {
         POSNavigationActions(
@@ -110,7 +113,9 @@ struct MainTabView: View {
             onLegacyScreen: { webSheet = $0.embedded() },
             onOpenCV: { showCVHub = true },
             onOpenJobScout: { showJobScout = true },
-            onOpenWorkImport: { showWorkImport = true }
+            onOpenWorkImport: { showWorkImport = true },
+            onOpenWorkAdd: { showWorkAdd = true },
+            onOpenWorkHub: { showWorkHub = true }
         )
     }
 
@@ -129,6 +134,7 @@ struct MainTabView: View {
                     HomeView(nav: nav)
                 case .work:
                     WorkView(nav: nav)
+                        .id(workReloadToken)
                 case .learning:
                     LearningView(nav: nav)
                 case .search:
@@ -166,9 +172,26 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showWorkImport) {
             POSWorkImportView { projectId, title in
+                workReloadToken = UUID()
                 entityDetail = POSEntityDetailRoute(id: projectId, title: title, initialSection: .architecture)
             }
             .environmentObject(session)
+        }
+        .sheet(isPresented: $showWorkAdd) {
+            POSWorkAddView { entityId, title in
+                workReloadToken = UUID()
+                entityDetail = POSEntityDetailRoute(id: entityId, title: title)
+            }
+            .environmentObject(session)
+        }
+        .sheet(isPresented: $showWorkHub) {
+            POSWorkHubMenu(
+                onAddEntry: { showWorkAdd = true },
+                onImport: { showWorkImport = true },
+                onCV: { showCVHub = true },
+                onJobScout: { showJobScout = true },
+                onCapture: { nav.captureNote() }
+            )
         }
         .task { await session.bootstrap() }
     }
