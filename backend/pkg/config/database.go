@@ -9,11 +9,8 @@ import (
 )
 
 func loadDatabaseURL() string {
-	// Prefer discrete POSTGRES_* vars when a password is configured — Jenkins and
-	// core-service env files often carry a stale DATABASE_URL after password rotation.
-	if postgresPasswordFromEnv() != "" {
-		return buildDatabaseURLFromPostgresEnv()
-	}
+	// Jenkins injects a verified DATABASE_URL (URL-encoded, safe for $ in password).
+	// Fall back to POSTGRES_* for local dev when DATABASE_URL is unset.
 	if v := trimEnvQuotes(strings.TrimSpace(os.Getenv("DATABASE_URL"))); v != "" {
 		return v
 	}

@@ -7,7 +7,8 @@
 # Values with spaces or $ MUST use double quotes, e.g. POSTGRES_DATABASE_PASSWORD="$332003Phuc"
 # (Avoid single quotes — Jenkins/docker env-file can mis-parse $ inside large env files.)
 # Jenkins deploy reads POSTGRES_* via grep (does not shell-source the file).
-# Do NOT set DATABASE_URL — Jenkins builds it and injects via docker -e.
+# Do NOT set DATABASE_URL — Jenkins builds a URL-encoded DATABASE_URL and injects it at deploy.
+# API connects via DATABASE_URL only; Postgres sidecar password is synced from POSTGRES_* below.
 # Accepted keys: POSTGRES_DATABASE_USER | POSTGRES_USER, etc.
 # Used by Jenkinsfile for:
 #   • personal-os-api-app-{env}  (--env-file)

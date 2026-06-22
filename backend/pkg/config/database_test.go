@@ -6,13 +6,9 @@ import (
 	"testing"
 )
 
-func TestLoadDatabaseURL_prefersPostgresOverStaleDatabaseURL(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://personalos:wrongpass@personal-os-pg:5432/personalos?sslmode=disable")
-	t.Setenv("POSTGRES_DATABASE_HOST", "personal-os-pg")
-	t.Setenv("POSTGRES_DATABASE_PORT", "5432")
-	t.Setenv("POSTGRES_DATABASE_NAME", "personalos")
-	t.Setenv("POSTGRES_DATABASE_USER", "personalos")
-	t.Setenv("POSTGRES_DATABASE_PASSWORD", "correct-pass")
+func TestLoadDatabaseURL_prefersDatabaseURLWhenSet(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://personalos:correct-pass@personal-os-pg:5432/personalos?sslmode=disable")
+	t.Setenv("POSTGRES_DATABASE_PASSWORD", "wrong-pass")
 
 	got := loadDatabaseURL()
 	parsed, err := url.Parse(got)
