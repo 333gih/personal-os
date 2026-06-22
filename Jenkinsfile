@@ -358,8 +358,8 @@ pipeline {
                                 echo '[ERROR] PostgreSQL TCP auth failed for API credentials.'
                                 echo '[HINT] PG password is set only on first volume init. Either:'
                                 echo '       1) Set POSTGRES_DATABASE_PASSWORD in env-personal-os-api-prod to the ORIGINAL password, or'
-                                echo '       2) Reset volume (DATA LOSS): docker rm -f ${pgContainer} && docker volume rm ${pgVolume}'
-                                echo '[HINT] Passwords with $ must be quoted in the env file: POSTGRES_DATABASE_PASSWORD="\$yourpass"'
+                                echo "       2) Reset volume (DATA LOSS): docker rm -f ${pgContainer} && docker volume rm ${pgVolume}"
+                                echo '[HINT] Passwords with \$ must be quoted in the env file: POSTGRES_DATABASE_PASSWORD="\$yourpass"'
                                 exit 1
                             fi
                             echo "[INFO] PostgreSQL TCP auth OK for API user ✅"
