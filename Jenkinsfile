@@ -250,8 +250,9 @@ pipeline {
                         sh """#!/usr/bin/env bash
                             set -eo pipefail
                             API_ENV_LF="${env.WORKSPACE}/.jenkins.api.${env.BUILD_NUMBER}.env"
+                            API_ENV_DEPLOY="${env.WORKSPACE}/.jenkins.api.deploy.${env.BUILD_NUMBER}.env"
                             FE_ENV_LF="${env.WORKSPACE}/.jenkins.fe.${env.BUILD_NUMBER}.env"
-                            cleanup() { rm -f "\${API_ENV_LF}" "\${FE_ENV_LF}" || true; }
+                            cleanup() { rm -f "\${API_ENV_LF}" "\${API_ENV_DEPLOY}" "\${FE_ENV_LF}" || true; }
                             trap cleanup EXIT
                             # Strip BOM/CRLF (Windows-edited Jenkins secrets break shell source and docker --env-file).
                             LC_ALL=C sed '1s/^\\xEF\\xBB\\xBF//' "\${API_ENV_FILE}" | tr -d '\\r' > "\${API_ENV_LF}"
@@ -296,6 +297,20 @@ pipeline {
                                     printf '%s' "\$POSTGRES_DATABASE_PASSWORD"
                                     printf '\$%s\$;\\n' "\$tag"
                                 } | docker exec -i ${pgContainer} psql -U "\$POSTGRES_DATABASE_USER" -d "\$POSTGRES_DATABASE_NAME" -v ON_ERROR_STOP=1
+                            }
+
+                            # API must not use a stale DATABASE_URL from the secret file — build canonical POSTGRES_* block.
+                            prepare_api_deploy_env() {
+                                local src="\$1" dest="\$2"
+                                grep -Ev '^(DATABASE_URL|POSTGRES_DATABASE_HOST|POSTGRES_DATABASE_PORT|POSTGRES_DATABASE_NAME|POSTGRES_DATABASE_USER|POSTGRES_DATABASE_PASSWORD|POSTGRES_HOST|POSTGRES_PORT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD)=' "\$src" > "\$dest"
+                                {
+                                    printf 'POSTGRES_DATABASE_HOST=personal-os-pg\\n'
+                                    printf 'POSTGRES_DATABASE_PORT=5432\\n'
+                                    printf 'POSTGRES_DATABASE_NAME=%s\\n' "\$POSTGRES_DATABASE_NAME"
+                                    printf 'POSTGRES_DATABASE_USER=%s\\n' "\$POSTGRES_DATABASE_USER"
+                                    printf 'POSTGRES_DATABASE_PASSWORD=%s\\n' "\$POSTGRES_DATABASE_PASSWORD"
+                                } >> "\$dest"
+                                chmod 600 "\$dest"
                             }
 
                             # Kong upstream network — often iot-public-net-dev while ENVIRONMENT=prod
@@ -393,6 +408,9 @@ pipeline {
                                 echo "[INFO] PostgreSQL TCP auth OK for API user ✅"
                             fi
 
+                            prepare_api_deploy_env "\${API_ENV_LF}" "\${API_ENV_DEPLOY}"
+                            echo "[INFO] API deploy env prepared (DATABASE_URL stripped; POSTGRES_* canonical) ✅"
+
                             # Idempotent SQL migrations (safe on every deploy).
                             # Skip 010_work_career_all.sql — meta wrapper with \\ir includes; not valid via stdin pipe.
                             for mig in 003_storage_key_prefix.sql 004_fix_users_email_constraint.sql 005_reading_progress.sql 006_reading_progress_latest_per_story.sql 007_ai_schema.sql 008_work_career_data.sql 009_work_design_cv.sql 011_work_career_assign_user.sql 012_career_owner_functions.sql 013_fpt_architecture_layers.sql 014_cv_system.sql 015_job_opportunities.sql 016_cv_template_v2.sql 017_job_search_preferences.sql 018_cv_pdf_v5.sql 019_fash_startup_seed.sql 020_learning_dsa_english_interview.sql 021_learning_schedule_notifications.sql 022_dsa_mastery_daily_program.sql 023_cv_horserace_v6.sql 024_cv_column_balance.sql 025_cv_right_column_expanded.sql 026_cv_left_java_backend.sql; do
@@ -411,7 +429,7 @@ pipeline {
                                 --network ${appNetwork} \\
                                 --network-alias personal-os-api \\
                                 --restart unless-stopped \\
-                                --env-file "\${API_ENV_LF}" \\
+                                --env-file "\${API_ENV_DEPLOY}" \\
                                 --expose 8080 \\
                                 --label service=personal-os-api \\
                                 --label environment=${params.ENVIRONMENT} \\

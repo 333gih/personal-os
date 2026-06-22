@@ -9,10 +9,25 @@ import (
 )
 
 func loadDatabaseURL() string {
+	// Prefer discrete POSTGRES_* vars when a password is configured — Jenkins and
+	// core-service env files often carry a stale DATABASE_URL after password rotation.
+	if postgresPasswordFromEnv() != "" {
+		return buildDatabaseURLFromPostgresEnv()
+	}
 	if v := trimEnvQuotes(strings.TrimSpace(os.Getenv("DATABASE_URL"))); v != "" {
 		return v
 	}
+	return buildDatabaseURLFromPostgresEnv()
+}
 
+func postgresPasswordFromEnv() string {
+	return trimEnvQuotes(firstNonEmpty(
+		os.Getenv("POSTGRES_DATABASE_PASSWORD"),
+		os.Getenv("POSTGRES_PASSWORD"),
+	))
+}
+
+func buildDatabaseURLFromPostgresEnv() string {
 	host := trimEnvQuotes(firstNonEmpty(
 		os.Getenv("POSTGRES_DATABASE_HOST"),
 		os.Getenv("POSTGRES_HOST"),
@@ -33,11 +48,10 @@ func loadDatabaseURL() string {
 		os.Getenv("POSTGRES_USER"),
 		"personalos",
 	))
-	pass := trimEnvQuotes(firstNonEmpty(
-		os.Getenv("POSTGRES_DATABASE_PASSWORD"),
-		os.Getenv("POSTGRES_PASSWORD"),
-		"personalos",
-	))
+	pass := postgresPasswordFromEnv()
+	if pass == "" {
+		pass = "personalos"
+	}
 	sslMode := trimEnvQuotes(firstNonEmpty(os.Getenv("POSTGRES_SSL_MODE"), "disable"))
 
 	u := &url.URL{

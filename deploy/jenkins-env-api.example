@@ -6,6 +6,7 @@
 #
 # Values with spaces or $ MUST be quoted, e.g. POSTGRES_DATABASE_PASSWORD="your$pass"
 # Jenkins deploy reads POSTGRES_* via grep (does not shell-source the file).
+# Do NOT set DATABASE_URL — Jenkins strips it and the API builds the URL from POSTGRES_*.
 # Accepted keys: POSTGRES_DATABASE_USER | POSTGRES_USER, etc.
 # Used by Jenkinsfile for:
 #   • personal-os-api-app-{env}  (--env-file)
