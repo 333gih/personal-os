@@ -19,8 +19,9 @@ body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;max-width:920px;m
 .role{font-size:.95rem;color:#374151;margin:4px 0 0;font-weight:500}
 .contact-row{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.78rem;color:var(--muted);margin:10px 0 0}
 .contact-row span{white-space:nowrap}
-.layout{display:grid;grid-template-columns:32% 68%;gap:22px;margin-top:8px}
-.col-left,.col-right{min-width:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.layout{display:grid;grid-template-columns:32% 68%;gap:22px;margin-top:8px;align-items:stretch}
+.col-left,.col-right{min-width:0;min-height:100%}
 h2{font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#111;margin:0 0 6px;padding-bottom:5px;border-bottom:2px solid var(--line)}
 .section{margin-bottom:16px}
 .summary{font-size:.82rem;margin:0;color:#1f2937}
@@ -57,6 +58,11 @@ li{margin-bottom:3px;font-size:.78rem;color:#374151}
 		b.WriteString(fmt.Sprintf(`<p class="role">%s</p>`, html.EscapeString(role)))
 	}
 	b.WriteString(renderContactRow(doc.Contact))
+	if line := atsKeywordLine(doc); line != "" {
+		b.WriteString(`<p class="sr-only" aria-hidden="false">`)
+		b.WriteString(html.EscapeString(line))
+		b.WriteString(`</p>`)
+	}
 	b.WriteString(`</div>`)
 
 	b.WriteString(`<div class="layout">`)
@@ -67,7 +73,6 @@ li{margin-bottom:3px;font-size:.78rem;color:#374151}
 	}
 	b.WriteString(renderEducationHTML(doc))
 	b.WriteString(renderSkillGroupsHTML(doc))
-	b.WriteString(renderAchievementsHTML(doc))
 	b.WriteString(renderCertificatesHTML(doc))
 	b.WriteString(`</div>`)
 
@@ -88,6 +93,8 @@ li{margin-bottom:3px;font-size:.78rem;color:#374151}
 		}
 		b.WriteString(`</div>`)
 	}
+	b.WriteString(renderAchievementsHTML(doc))
+	b.WriteString(renderATSKeywordsHTML(doc))
 	b.WriteString(`</div></div>`)
 
 	b.WriteString(`</body></html>`)
@@ -195,7 +202,7 @@ func renderAchievementsHTML(doc CVDocument) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString(`<div class="section"><h2>Achievements</h2><ul>`)
+	b.WriteString(`<div class="section"><h2>Key Achievements</h2><ul>`)
 	for _, a := range doc.Achievements {
 		if strings.TrimSpace(a.Content) == "" {
 			continue
@@ -203,6 +210,19 @@ func renderAchievementsHTML(doc CVDocument) string {
 		b.WriteString(fmt.Sprintf(`<li>%s</li>`, html.EscapeString(strings.TrimSpace(a.Content))))
 	}
 	b.WriteString(`</ul></div>`)
+	return b.String()
+}
+
+func renderATSKeywordsHTML(doc CVDocument) string {
+	var b strings.Builder
+	if line := atsRoleKeywords(doc); line != "" {
+		b.WriteString(`<div class="section"><h2>Role &amp; Stack</h2>`)
+		b.WriteString(fmt.Sprintf(`<p class="summary">%s</p></div>`, html.EscapeString(line)))
+	}
+	if line := atsKeywordLine(doc); line != "" {
+		b.WriteString(`<div class="section"><h2>Core Technologies</h2>`)
+		b.WriteString(fmt.Sprintf(`<p class="summary">%s</p></div>`, html.EscapeString(line)))
+	}
 	return b.String()
 }
 

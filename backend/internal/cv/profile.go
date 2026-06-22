@@ -125,6 +125,19 @@ func BuildStackProfile(doc CVDocument) StackProfile {
 			parts = append(parts, exp.Content)
 		}
 	}
+	for _, proj := range doc.Projects {
+		if proj.Title != "" {
+			parts = append(parts, proj.Title)
+		}
+		if proj.Content != "" {
+			parts = append(parts, proj.Content)
+		}
+	}
+	for _, a := range doc.Achievements {
+		if strings.TrimSpace(a.Content) != "" {
+			parts = append(parts, a.Content)
+		}
+	}
 
 	role := splitHeadlineRole(doc.Headline)
 	years := doc.YearsExperience
@@ -147,7 +160,7 @@ func inferPrimaryStack(doc CVDocument) []string {
 	}
 
 	scores := map[string]int{}
-	text := strings.ToLower(doc.Headline + " " + doc.Summary + " " + joinExperienceText(doc))
+	text := strings.ToLower(doc.Headline + " " + doc.Summary + " " + joinExperienceText(doc) + " " + joinProjectsText(doc))
 
 	for family, keywords := range stackFamilyKeywords {
 		for _, kw := range keywords {
@@ -283,6 +296,19 @@ func joinExperienceText(doc CVDocument) string {
 		b.WriteString(exp.Period)
 		b.WriteString(" ")
 		b.WriteString(exp.Content)
+		b.WriteString(" ")
+	}
+	return b.String()
+}
+
+func joinProjectsText(doc CVDocument) string {
+	var b strings.Builder
+	for _, p := range doc.Projects {
+		b.WriteString(p.Title)
+		b.WriteString(" ")
+		b.WriteString(p.Period)
+		b.WriteString(" ")
+		b.WriteString(p.Content)
 		b.WriteString(" ")
 	}
 	return b.String()

@@ -71,9 +71,8 @@ func renderPDF(doc CVDocument) ([]byte, error) {
 	pdf.SetPage(1)
 	rightEndY := renderPDFRightColumn(pdf, rightX, columnStartY, rightW, doc)
 
-	_ = leftEndY
-	_ = rightEndY
-	_ = pageH
+	pdf.SetPage(1)
+	pdfBalanceColumns(pdf, leftX, rightX, leftW, rightW, leftEndY, rightEndY, pageH, doc)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
@@ -130,19 +129,6 @@ func renderPDFLeftColumn(pdf *gofpdf.Fpdf, x, y, w float64, doc CVDocument) floa
 		})
 	}
 
-	if len(doc.Achievements) > 0 {
-		y = pdfSection(pdf, x, y, w, "Achievements", func(y float64) float64 {
-			for _, a := range doc.Achievements {
-				if strings.TrimSpace(a.Content) == "" {
-					continue
-				}
-				setDejaVu(pdf, "", cvFontBullet)
-				y = pdfMC(pdf, x+1.2, y, w-1.2, cvLineTight, "•  "+strings.TrimSpace(a.Content))
-			}
-			return y
-		})
-	}
-
 	if len(doc.Certificates) > 0 {
 		y = pdfSection(pdf, x, y, w, "Certificates", func(y float64) float64 {
 			for _, c := range doc.Certificates {
@@ -172,7 +158,7 @@ func renderPDFRightColumn(pdf *gofpdf.Fpdf, x, y, w float64, doc CVDocument) flo
 		return y
 	}
 
-	return pdfSection(pdf, x, y, w, "Experiences", func(y float64) float64 {
+	y = pdfSection(pdf, x, y, w, "Experiences", func(y float64) float64 {
 		grouped := projectsByCompany(doc.Projects)
 		for _, item := range doc.Experience {
 			y = pdfRoleBlock(pdf, x, y, w, item, true)
@@ -185,6 +171,21 @@ func renderPDFRightColumn(pdf *gofpdf.Fpdf, x, y, w float64, doc CVDocument) flo
 		}
 		return y
 	})
+
+	if len(doc.Achievements) > 0 {
+		y = pdfSection(pdf, x, y, w, "Key Achievements", func(y float64) float64 {
+			for _, a := range doc.Achievements {
+				if strings.TrimSpace(a.Content) == "" {
+					continue
+				}
+				setDejaVu(pdf, "", cvFontBullet)
+				y = pdfMC(pdf, x+1.2, y, w-1.2, cvLineTight, "•  "+strings.TrimSpace(a.Content))
+			}
+			return y
+		})
+	}
+
+	return y
 }
 
 func renderPDFContact(pdf *gofpdf.Fpdf, contentW float64, c Contact) {
