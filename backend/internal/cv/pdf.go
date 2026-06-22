@@ -66,13 +66,14 @@ func renderPDF(doc CVDocument) ([]byte, error) {
 	renderPDFContact(pdf, contentW, doc.Contact)
 
 	columnStartY := pdf.GetY() + 3
+	resetPDFRightSpacing()
 	leftEndY := renderPDFLeftColumn(pdf, leftX, columnStartY, leftW, doc)
 
 	pdf.SetPage(1)
 	rightEndY := renderPDFRightColumn(pdf, rightX, columnStartY, rightW, doc)
 
 	pdf.SetPage(1)
-	pdfBalanceColumns(pdf, leftX, rightX, leftW, rightW, leftEndY, rightEndY, pageH, doc)
+	rightEndY = pdfBalanceColumns(pdf, rightX, columnStartY, rightW, leftEndY, rightEndY, pageH, doc)
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
@@ -129,6 +130,19 @@ func renderPDFLeftColumn(pdf *gofpdf.Fpdf, x, y, w float64, doc CVDocument) floa
 		})
 	}
 
+	if len(doc.Achievements) > 0 {
+		y = pdfSection(pdf, x, y, w, "Achievements", func(y float64) float64 {
+			for _, a := range doc.Achievements {
+				if strings.TrimSpace(a.Content) == "" {
+					continue
+				}
+				setDejaVu(pdf, "", cvFontBullet)
+				y = pdfMC(pdf, x+1.2, y, w-1.2, cvLineTight, "•  "+strings.TrimSpace(a.Content))
+			}
+			return y
+		})
+	}
+
 	if len(doc.Certificates) > 0 {
 		y = pdfSection(pdf, x, y, w, "Certificates", func(y float64) float64 {
 			for _, c := range doc.Certificates {
@@ -171,19 +185,6 @@ func renderPDFRightColumn(pdf *gofpdf.Fpdf, x, y, w float64, doc CVDocument) flo
 		}
 		return y
 	})
-
-	if len(doc.Achievements) > 0 {
-		y = pdfSection(pdf, x, y, w, "Key Achievements", func(y float64) float64 {
-			for _, a := range doc.Achievements {
-				if strings.TrimSpace(a.Content) == "" {
-					continue
-				}
-				setDejaVu(pdf, "", cvFontBullet)
-				y = pdfMC(pdf, x+1.2, y, w-1.2, cvLineTight, "•  "+strings.TrimSpace(a.Content))
-			}
-			return y
-		})
-	}
 
 	return y
 }
@@ -247,9 +248,9 @@ func pdfRoleBlock(pdf *gofpdf.Fpdf, x, y, w float64, item BulletItem, showCompan
 
 	for _, bullet := range splitBullets(item.Content) {
 		setDejaVu(pdf, "", cvFontBullet)
-		y = pdfMC(pdf, x+1.2, y, w-1.2, cvLineTight, "•  "+bullet)
+		y = pdfMC(pdf, x+1.2, y, w-1.2, pdfRoleLineHeight(), "•  "+bullet)
 	}
-	return y + cvBlockGap
+	return y + pdfRoleBlockGap()
 }
 
 // pdfMC writes wrapped text at (x,y) without triggering page breaks.

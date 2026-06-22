@@ -1,82 +1,76 @@
 package cv
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/jung-kurt/gofpdf"
 )
 
-const cvColumnFillMinGap = 4.0 // mm — fill when shorter column trails by this much
+const cvColumnFillMinGap = 3.0 // mm
+
+type pdfRightSpacing struct {
+	blockExtra float64
+	lineExtra  float64
+}
+
+var pdfRightLayout pdfRightSpacing
+
+func resetPDFRightSpacing() {
+	pdfRightLayout = pdfRightSpacing{}
+}
+
+func setPDFRightSpacing(blockExtra, lineExtra float64) {
+	pdfRightLayout.blockExtra = blockExtra
+	pdfRightLayout.lineExtra = lineExtra
+}
+
+func pdfRoleBlockGap() float64 {
+	return cvBlockGap + pdfRightLayout.blockExtra
+}
+
+func pdfRoleLineHeight() float64 {
+	return cvLineTight + pdfRightLayout.lineExtra
+}
 
 func pdfColumnTargetY(pageH float64) float64 {
 	return pageH - cvMarginB - 2
 }
 
-func pdfBalanceColumns(pdf *gofpdf.Fpdf, leftX, rightX, leftW, rightW, leftEndY, rightEndY, pageH float64, doc CVDocument) {
-	targetY := pdfColumnTargetY(pageH)
-	columnBottom := leftEndY
-	if rightEndY > columnBottom {
-		columnBottom = rightEndY
+func countRightBlocks(doc CVDocument) int {
+	n := len(doc.Experience)
+	grouped := projectsByCompany(doc.Projects)
+	for _, exp := range doc.Experience {
+		n += len(grouped[companyKey(exp.Company)])
 	}
-	if columnBottom < targetY {
-		columnBottom = targetY
+	n += len(grouped["_ungrouped"])
+	if n == 0 {
+		return 1
 	}
-
-	if rightEndY < columnBottom-cvColumnFillMinGap {
-		rightEndY = pdfFillRightColumn(pdf, rightX, rightEndY, columnBottom, rightW, doc)
-	}
-	if leftEndY < columnBottom-cvColumnFillMinGap {
-		pdfFillLeftColumn(pdf, leftX, leftEndY, columnBottom, leftW, doc)
-	}
-	_ = rightEndY
+	return n
 }
 
-func pdfFillRightColumn(pdf *gofpdf.Fpdf, x, y, targetY, w float64, doc CVDocument) float64 {
-	if line := atsRoleKeywords(doc); line != "" && y < targetY-cvColumnFillMinGap {
-		y = pdfSection(pdf, x, y, w, "Role & Stack", func(y float64) float64 {
-			setDejaVu(pdf, "", cvFontSmall)
-			return pdfMC(pdf, x, y, w, cvLineTight, line)
-		})
+// pdfBalanceColumns re-renders the right column with extra spacing when it is shorter than the left.
+func pdfBalanceColumns(pdf *gofpdf.Fpdf, rightX, columnStartY, rightW, leftEndY, rightEndY, pageH float64, doc CVDocument) float64 {
+	targetY := leftEndY
+	pageTarget := pdfColumnTargetY(pageH)
+	if pageTarget > targetY {
+		targetY = pageTarget
 	}
-	if line := atsKeywordLine(doc); line != "" && y < targetY-cvColumnFillMinGap {
-		y = pdfSection(pdf, x, y, w, "Core Technologies", func(y float64) float64 {
-			setDejaVu(pdf, "", cvFontSmall)
-			return pdfMC(pdf, x, y, w, cvLineTight, line)
-		})
-	}
-	if y < targetY-cvColumnFillMinGap {
-		y = pdfSection(pdf, x, y, w, "Methodologies", func(y float64) float64 {
-			setDejaVu(pdf, "", cvFontSmall)
-			text := "Agile/Scrum · RESTful API design · BFF pattern · Microservices · CI/CD · Unit testing · Code review · SOLID · Design patterns · System design documentation"
-			return pdfMC(pdf, x, y, w, cvLineTight, text)
-		})
-	}
-	return y
-}
 
-func pdfFillLeftColumn(pdf *gofpdf.Fpdf, x, y, targetY, w float64, doc CVDocument) float64 {
-	if doc.YearsExperience > 0 && y < targetY-cvColumnFillMinGap {
-		y = pdfSection(pdf, x, y, w, "Experience Level", func(y float64) float64 {
-			setDejaVu(pdf, "", cvFontBody)
-			return pdfMC(pdf, x, y, w, cvLineBody, formatYearsExperience(doc.YearsExperience))
-		})
+	if rightEndY >= targetY-cvColumnFillMinGap {
+		return rightEndY
 	}
-	if len(doc.PrimaryStack) > 0 && y < targetY-cvColumnFillMinGap {
-		y = pdfSection(pdf, x, y, w, "Primary Stack", func(y float64) float64 {
-			setDejaVu(pdf, "", cvFontSmall)
-			return pdfMC(pdf, x, y, w, cvLineTight, strings.Join(doc.PrimaryStack, " · "))
-		})
-	}
-	return y
-}
 
-func formatYearsExperience(years float32) string {
-	if years <= 0 {
-		return ""
+	blocks := countRightBlocks(doc)
+	gap := targetY - rightEndY
+	blockExtra := (gap * 0.55) / float64(blocks)
+	lineExtra := 0.15
+	if blockExtra > 2.5 {
+		blockExtra = 2.5
 	}
-	if years == float32(int(years)) {
-		return fmt.Sprintf("%d+ years professional software engineering", int(years))
-	}
-	return fmt.Sprintf("%.1f years professional software engineering", years)
+
+	pdf.SetFillColor(255, 255, 255)
+	pdf.Rect(rightX, columnStartY, rightW, pageH-columnStartY-cvMarginB, "F")
+	pdf.SetFillColor(0, 0, 0)
+
+	setPDFRightSpacing(blockExtra, lineExtra)
+	return renderPDFRightColumn(pdf, rightX, columnStartY, rightW, doc)
 }

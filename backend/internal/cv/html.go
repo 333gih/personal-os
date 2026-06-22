@@ -73,6 +73,7 @@ li{margin-bottom:3px;font-size:.78rem;color:#374151}
 	}
 	b.WriteString(renderEducationHTML(doc))
 	b.WriteString(renderSkillGroupsHTML(doc))
+	b.WriteString(renderAchievementsHTML(doc))
 	b.WriteString(renderCertificatesHTML(doc))
 	b.WriteString(`</div>`)
 
@@ -93,8 +94,6 @@ li{margin-bottom:3px;font-size:.78rem;color:#374151}
 		}
 		b.WriteString(`</div>`)
 	}
-	b.WriteString(renderAchievementsHTML(doc))
-	b.WriteString(renderATSKeywordsHTML(doc))
 	b.WriteString(`</div></div>`)
 
 	b.WriteString(`</body></html>`)
@@ -202,7 +201,7 @@ func renderAchievementsHTML(doc CVDocument) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString(`<div class="section"><h2>Key Achievements</h2><ul>`)
+	b.WriteString(`<div class="section"><h2>Achievements</h2><ul>`)
 	for _, a := range doc.Achievements {
 		if strings.TrimSpace(a.Content) == "" {
 			continue
@@ -210,19 +209,6 @@ func renderAchievementsHTML(doc CVDocument) string {
 		b.WriteString(fmt.Sprintf(`<li>%s</li>`, html.EscapeString(strings.TrimSpace(a.Content))))
 	}
 	b.WriteString(`</ul></div>`)
-	return b.String()
-}
-
-func renderATSKeywordsHTML(doc CVDocument) string {
-	var b strings.Builder
-	if line := atsRoleKeywords(doc); line != "" {
-		b.WriteString(`<div class="section"><h2>Role &amp; Stack</h2>`)
-		b.WriteString(fmt.Sprintf(`<p class="summary">%s</p></div>`, html.EscapeString(line)))
-	}
-	if line := atsKeywordLine(doc); line != "" {
-		b.WriteString(`<div class="section"><h2>Core Technologies</h2>`)
-		b.WriteString(fmt.Sprintf(`<p class="summary">%s</p></div>`, html.EscapeString(line)))
-	}
 	return b.String()
 }
 
