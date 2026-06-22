@@ -290,11 +290,11 @@ pipeline {
                             }
 
                             sync_pg_password_from_env() {
-                                local tag="jpwd_${env.BUILD_NUMBER}"
+                                local tag="jpwd_\${BUILD_NUMBER}"
                                 {
                                     printf 'ALTER USER "%s" WITH PASSWORD \$%s\$' "\$POSTGRES_DATABASE_USER" "\$tag"
                                     printf '%s' "\$POSTGRES_DATABASE_PASSWORD"
-                                    printf '\\$%s\\$;\\n' "\$tag"
+                                    printf '\$%s\$;\\n' "\$tag"
                                 } | docker exec -i ${pgContainer} psql -U "\$POSTGRES_DATABASE_USER" -d "\$POSTGRES_DATABASE_NAME" -v ON_ERROR_STOP=1
                             }
 
