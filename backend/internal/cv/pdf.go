@@ -68,14 +68,14 @@ func renderPDF(doc CVDocument) ([]byte, error) {
 	columnStartY := pdf.GetY() + 3
 	resetPDFRightSpacing()
 	resetPDFLeftSpacing()
-	leftEndY := renderPDFLeftColumn(pdf, leftX, columnStartY, leftW, doc)
+	resetPDFCompressScale()
 
-	pdf.SetPage(1)
-	rightEndY := renderPDFRightColumn(pdf, rightX, columnStartY, rightW, doc)
+	leftEndY, rightEndY := pdfFitColumnsToPage(pdf, leftX, rightX, columnStartY, leftW, rightW, pageH, doc)
 
 	pdf.SetPage(1)
 	leftEndY, rightEndY = pdfBalanceColumns(pdf, leftX, rightX, columnStartY, leftW, rightW, leftEndY, rightEndY, pageH, doc)
 	_ = leftEndY
+	_ = rightEndY
 
 	var buf bytes.Buffer
 	if err := pdf.Output(&buf); err != nil {
