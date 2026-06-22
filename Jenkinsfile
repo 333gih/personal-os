@@ -394,7 +394,8 @@ pipeline {
                             fi
 
                             # Idempotent SQL migrations (safe on every deploy).
-                            for mig in 003_storage_key_prefix.sql 004_fix_users_email_constraint.sql 005_reading_progress.sql 006_reading_progress_latest_per_story.sql 007_ai_schema.sql 008_work_career_data.sql 009_work_design_cv.sql 010_work_career_all.sql 011_work_career_assign_user.sql 012_career_owner_functions.sql 013_fpt_architecture_layers.sql 014_cv_system.sql 015_job_opportunities.sql 016_cv_template_v2.sql 017_job_search_preferences.sql 018_cv_pdf_v5.sql 019_fash_startup_seed.sql 020_learning_dsa_english_interview.sql 021_learning_schedule_notifications.sql 022_dsa_mastery_daily_program.sql 023_cv_horserace_v6.sql 024_cv_column_balance.sql 025_cv_right_column_expanded.sql 026_cv_left_java_backend.sql; do
+                            # Skip 010_work_career_all.sql — meta wrapper with \\ir includes; not valid via stdin pipe.
+                            for mig in 003_storage_key_prefix.sql 004_fix_users_email_constraint.sql 005_reading_progress.sql 006_reading_progress_latest_per_story.sql 007_ai_schema.sql 008_work_career_data.sql 009_work_design_cv.sql 011_work_career_assign_user.sql 012_career_owner_functions.sql 013_fpt_architecture_layers.sql 014_cv_system.sql 015_job_opportunities.sql 016_cv_template_v2.sql 017_job_search_preferences.sql 018_cv_pdf_v5.sql 019_fash_startup_seed.sql 020_learning_dsa_english_interview.sql 021_learning_schedule_notifications.sql 022_dsa_mastery_daily_program.sql 023_cv_horserace_v6.sql 024_cv_column_balance.sql 025_cv_right_column_expanded.sql 026_cv_left_java_backend.sql; do
                                 if [ -f "backend/migrations/\${mig}" ]; then
                                     echo "[INFO] Applying migration \${mig}..."
                                     cat "backend/migrations/\${mig}" | docker exec -i ${pgContainer} \\
