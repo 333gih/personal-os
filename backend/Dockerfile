@@ -6,6 +6,8 @@ RUN apk add --no-cache git ca-certificates
 COPY go.mod go.sum ./
 RUN go mod download
 
+ARG CACHEBUST=1
+RUN echo "cachebust=${CACHEBUST}" >/dev/null
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /server ./cmd/server
 

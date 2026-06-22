@@ -178,6 +178,7 @@ pipeline {
                         echo "=== [1/2] Building API: ${env.API_FULL_IMAGE} ==="
                         docker build \\
                             --file backend/Dockerfile \\
+                            --build-arg CACHEBUST=${env.BUILD_NUMBER} \\
                             --tag ${env.API_FULL_IMAGE} \\
                             --tag ${env.API_LATEST_IMAGE} \\
                             --label git.commit=${env.SHORT_COMMIT} \\
@@ -262,12 +263,27 @@ pipeline {
                             # break bash; docker --env-file handles them correctly.
                             env_get() {
                                 local key="\$1" file="\$2" val=""
-                                val=\$(grep -E "^\${key}=" "\$file" 2>/dev/null | head -1 | cut -d= -f2- || true)
+                                val=\$(grep -E "^\${key}=" "\$file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\\r' || true)
                                 case "\$val" in
                                     \"*\") val="\${val#\\"}"; val="\${val%\\"}" ;;
                                     \'*\') val="\${val#\\'}"; val="\${val%\\'}" ;;
                                 esac
                                 printf '%s' "\$val"
+                            }
+
+                            build_api_database_url() {
+                                API_DATABASE_URL="\$(POSTGRES_DATABASE_USER="\$POSTGRES_DATABASE_USER" \\
+                                    POSTGRES_DATABASE_PASSWORD="\$POSTGRES_DATABASE_PASSWORD" \\
+                                    POSTGRES_DATABASE_NAME="\$POSTGRES_DATABASE_NAME" \\
+                                    python3 -c "import os, urllib.parse; u=os.environ['POSTGRES_DATABASE_USER']; p=os.environ['POSTGRES_DATABASE_PASSWORD']; d=os.environ['POSTGRES_DATABASE_NAME']; print('postgres://'+urllib.parse.quote(u,safe='')+':'+urllib.parse.quote(p,safe='')+'@personal-os-pg:5432/'+urllib.parse.quote(d,safe='')+'?sslmode=disable')")
+                            }
+
+                            verify_api_db_from_env() {
+                                build_api_database_url
+                                docker run --rm --network ${appNetwork} \\
+                                    -e "DATABASE_URL=\${API_DATABASE_URL}" \\
+                                    pgvector/pgvector:pg17 \\
+                                    psql "\${API_DATABASE_URL}" -c 'SELECT 1' >/dev/null 2>&1
                             }
 
                             pg_write_env_file() {
@@ -299,17 +315,11 @@ pipeline {
                                 } | docker exec -i ${pgContainer} psql -U "\$POSTGRES_DATABASE_USER" -d "\$POSTGRES_DATABASE_NAME" -v ON_ERROR_STOP=1
                             }
 
-                            # API must not use a stale DATABASE_URL from the secret file — build canonical POSTGRES_* block.
+                            # API must not use a stale DATABASE_URL from the secret file — strip DB keys from env-file.
+                            # Postgres credentials are injected via docker -e (avoids env-file \$ parsing bugs).
                             prepare_api_deploy_env() {
                                 local src="\$1" dest="\$2"
-                                grep -Ev '^(DATABASE_URL|POSTGRES_DATABASE_HOST|POSTGRES_DATABASE_PORT|POSTGRES_DATABASE_NAME|POSTGRES_DATABASE_USER|POSTGRES_DATABASE_PASSWORD|POSTGRES_HOST|POSTGRES_PORT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD)=' "\$src" > "\$dest"
-                                {
-                                    printf 'POSTGRES_DATABASE_HOST=personal-os-pg\\n'
-                                    printf 'POSTGRES_DATABASE_PORT=5432\\n'
-                                    printf 'POSTGRES_DATABASE_NAME=%s\\n' "\$POSTGRES_DATABASE_NAME"
-                                    printf 'POSTGRES_DATABASE_USER=%s\\n' "\$POSTGRES_DATABASE_USER"
-                                    printf 'POSTGRES_DATABASE_PASSWORD=%s\\n' "\$POSTGRES_DATABASE_PASSWORD"
-                                } >> "\$dest"
+                                grep -Ev '^(export[[:space:]]+)?(DATABASE_URL|POSTGRES_DATABASE_HOST|POSTGRES_DATABASE_PORT|POSTGRES_DATABASE_NAME|POSTGRES_DATABASE_USER|POSTGRES_DATABASE_PASSWORD|POSTGRES_HOST|POSTGRES_PORT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD)=' "\$src" > "\$dest"
                                 chmod 600 "\$dest"
                             }
 
@@ -391,25 +401,27 @@ pipeline {
                                 echo "[INFO] PostgreSQL already running: ${pgContainer}"
                             fi
 
+                            echo "[INFO] Ensuring PostgreSQL password matches Jenkins env..."
+                            sync_pg_password_from_env
+
                             if ! verify_pg_tcp_auth; then
-                                echo "[WARN] PostgreSQL TCP auth failed — syncing password from Jenkins env (local socket)..."
-                                echo "[INFO] DB user=\${POSTGRES_DATABASE_USER} db=\${POSTGRES_DATABASE_NAME} pass_len=\${#POSTGRES_DATABASE_PASSWORD}"
-                                if sync_pg_password_from_env && verify_pg_tcp_auth; then
-                                    echo "[INFO] PostgreSQL password synced; TCP auth OK ✅"
-                                else
-                                    echo '[ERROR] PostgreSQL TCP auth failed for API credentials.'
-                                    echo '[HINT] PG password is set only on first volume init. Either:'
-                                    echo '       1) Set POSTGRES_DATABASE_PASSWORD in env-personal-os-api-prod to the ORIGINAL password, or'
-                                    echo "       2) Reset volume (DATA LOSS): docker rm -f ${pgContainer} && docker volume rm ${pgVolume}"
-                                    echo '[HINT] Passwords with \$ must be quoted in the env file: POSTGRES_DATABASE_PASSWORD="\$yourpass"'
-                                    exit 1
-                                fi
-                            else
-                                echo "[INFO] PostgreSQL TCP auth OK for API user ✅"
+                                echo '[ERROR] PostgreSQL TCP auth failed for API credentials.'
+                                echo '[HINT] PG password is set only on first volume init. Either:'
+                                echo '       1) Set POSTGRES_DATABASE_PASSWORD in env-personal-os-api-prod to the ORIGINAL password, or'
+                                echo "       2) Reset volume (DATA LOSS): docker rm -f ${pgContainer} && docker volume rm ${pgVolume}"
+                                echo '[HINT] Passwords with \$ must be quoted in the env file: POSTGRES_DATABASE_PASSWORD="\$yourpass"'
+                                exit 1
                             fi
+                            echo "[INFO] PostgreSQL TCP auth OK for API user ✅"
 
                             prepare_api_deploy_env "\${API_ENV_LF}" "\${API_ENV_DEPLOY}"
-                            echo "[INFO] API deploy env prepared (DATABASE_URL stripped; POSTGRES_* canonical) ✅"
+                            build_api_database_url
+                            if ! verify_api_db_from_env; then
+                                echo '[ERROR] API DATABASE_URL probe failed (built from Jenkins POSTGRES_* credentials).'
+                                echo "[INFO] DB user=\${POSTGRES_DATABASE_USER} db=\${POSTGRES_DATABASE_NAME} pass_len=\${#POSTGRES_DATABASE_PASSWORD}"
+                                exit 1
+                            fi
+                            echo "[INFO] API DATABASE_URL probe OK ✅"
 
                             # Idempotent SQL migrations (safe on every deploy).
                             # Skip 010_work_career_all.sql — meta wrapper with \\ir includes; not valid via stdin pipe.
@@ -430,6 +442,12 @@ pipeline {
                                 --network-alias personal-os-api \\
                                 --restart unless-stopped \\
                                 --env-file "\${API_ENV_DEPLOY}" \\
+                                -e POSTGRES_DATABASE_HOST=personal-os-pg \\
+                                -e POSTGRES_DATABASE_PORT=5432 \\
+                                -e POSTGRES_DATABASE_NAME="\${POSTGRES_DATABASE_NAME}" \\
+                                -e POSTGRES_DATABASE_USER="\${POSTGRES_DATABASE_USER}" \\
+                                -e POSTGRES_DATABASE_PASSWORD="\${POSTGRES_DATABASE_PASSWORD}" \\
+                                -e DATABASE_URL="\${API_DATABASE_URL}" \\
                                 --expose 8080 \\
                                 --label service=personal-os-api \\
                                 --label environment=${params.ENVIRONMENT} \\

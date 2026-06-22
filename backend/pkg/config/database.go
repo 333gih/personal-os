@@ -67,6 +67,9 @@ func buildDatabaseURLFromPostgresEnv() string {
 }
 
 func trimEnvQuotes(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "\ufeff")
+	s = strings.TrimSuffix(s, "\r")
 	return strings.Trim(s, "\"'")
 }
 

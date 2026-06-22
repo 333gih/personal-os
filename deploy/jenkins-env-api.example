@@ -4,9 +4,10 @@
 #
 # Canonical template: backend/.env.prod (copy that file, replace CHANGE_ME_* secrets)
 #
-# Values with spaces or $ MUST be quoted, e.g. POSTGRES_DATABASE_PASSWORD="your$pass"
+# Values with spaces or $ MUST use double quotes, e.g. POSTGRES_DATABASE_PASSWORD="$332003Phuc"
+# (Avoid single quotes — Jenkins/docker env-file can mis-parse $ inside large env files.)
 # Jenkins deploy reads POSTGRES_* via grep (does not shell-source the file).
-# Do NOT set DATABASE_URL — Jenkins strips it and the API builds the URL from POSTGRES_*.
+# Do NOT set DATABASE_URL — Jenkins builds it and injects via docker -e.
 # Accepted keys: POSTGRES_DATABASE_USER | POSTGRES_USER, etc.
 # Used by Jenkinsfile for:
 #   • personal-os-api-app-{env}  (--env-file)

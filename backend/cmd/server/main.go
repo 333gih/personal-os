@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +33,10 @@ import (
 )
 
 func main() {
-	_ = godotenv.Load()
+	// Production uses docker --env-file; avoid loading a stray .env that could inject DATABASE_URL.
+	if strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) != "production" {
+		_ = godotenv.Load()
+	}
 
 	cfg := config.Load()
 	if cfg.AppEnv == "production" {
