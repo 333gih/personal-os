@@ -272,10 +272,7 @@ pipeline {
                             }
 
                             build_api_database_url() {
-                                API_DATABASE_URL="\$(POSTGRES_DATABASE_USER="\$POSTGRES_DATABASE_USER" \\
-                                    POSTGRES_DATABASE_PASSWORD="\$POSTGRES_DATABASE_PASSWORD" \\
-                                    POSTGRES_DATABASE_NAME="\$POSTGRES_DATABASE_NAME" \\
-                                    python3 -c "import os, urllib.parse; u=os.environ['POSTGRES_DATABASE_USER']; p=os.environ['POSTGRES_DATABASE_PASSWORD']; d=os.environ['POSTGRES_DATABASE_NAME']; print('postgres://'+urllib.parse.quote(u,safe='')+':'+urllib.parse.quote(p,safe='')+'@personal-os-pg:5432/'+urllib.parse.quote(d,safe='')+'?sslmode=disable')")
+                                API_DATABASE_URL="\$(POSTGRES_DATABASE_USER="\$POSTGRES_DATABASE_USER" POSTGRES_DATABASE_PASSWORD="\$POSTGRES_DATABASE_PASSWORD" POSTGRES_DATABASE_NAME="\$POSTGRES_DATABASE_NAME" python3 -c 'import os,urllib.parse as up; user=os.environ["POSTGRES_DATABASE_USER"]; pw=os.environ["POSTGRES_DATABASE_PASSWORD"]; db=os.environ["POSTGRES_DATABASE_NAME"]; print("postgres://"+up.quote(user,safe="")+":"+up.quote(pw,safe="")+"@personal-os-pg:5432/"+up.quote(db,safe="")+"?sslmode=disable")')"
                             }
 
                             verify_api_db_from_env() {
@@ -319,7 +316,19 @@ pipeline {
                             # Postgres credentials are injected via docker -e (avoids env-file \$ parsing bugs).
                             prepare_api_deploy_env() {
                                 local src="\$1" dest="\$2"
-                                grep -Ev '^(export[[:space:]]+)?(DATABASE_URL|POSTGRES_DATABASE_HOST|POSTGRES_DATABASE_PORT|POSTGRES_DATABASE_NAME|POSTGRES_DATABASE_USER|POSTGRES_DATABASE_PASSWORD|POSTGRES_HOST|POSTGRES_PORT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD)=' "\$src" > "\$dest"
+                                grep -Ev '^DATABASE_URL=' "\$src" | \\
+                                    grep -Ev '^export[[:space:]]+DATABASE_URL=' | \\
+                                    grep -Ev '^POSTGRES_DATABASE_HOST=' | \\
+                                    grep -Ev '^export[[:space:]]+POSTGRES_DATABASE_HOST=' | \\
+                                    grep -Ev '^POSTGRES_DATABASE_PORT=' | \\
+                                    grep -Ev '^POSTGRES_DATABASE_NAME=' | \\
+                                    grep -Ev '^POSTGRES_DATABASE_USER=' | \\
+                                    grep -Ev '^POSTGRES_DATABASE_PASSWORD=' | \\
+                                    grep -Ev '^POSTGRES_HOST=' | \\
+                                    grep -Ev '^POSTGRES_PORT=' | \\
+                                    grep -Ev '^POSTGRES_DB=' | \\
+                                    grep -Ev '^POSTGRES_USER=' | \\
+                                    grep -Ev '^POSTGRES_PASSWORD=' > "\$dest"
                                 chmod 600 "\$dest"
                             }
 
