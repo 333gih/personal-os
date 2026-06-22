@@ -42,7 +42,7 @@ struct LearningView: View {
                         POSDSADailyFocusCard(
                             focus: todayPlan?.dsa,
                             onOpenPattern: {
-                                if let id = todayPlan?.dsa?.patternEntityID {
+                                if let id = todayPlan?.dsa?.patternEntityID, !id.isEmpty {
                                     nav.openLearningLesson(id: id, title: todayPlan?.dsa?.patternTitle ?? "Pattern")
                                 }
                             },
@@ -59,7 +59,7 @@ struct LearningView: View {
                         plan: todayPlan,
                         isLoading: isLoadingToday,
                         onOpenBlock: { block in
-                            if let entityID = block.entityID {
+                            if let entityID = block.entityID, !entityID.isEmpty {
                                 nav.openLearningLesson(id: entityID, title: block.title)
                             } else {
                                 let track: POSLearningTrack = block.track == "english" ? .english : .dsa

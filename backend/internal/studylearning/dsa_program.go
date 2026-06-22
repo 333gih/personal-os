@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/personal-os/backend/internal/models"
 )
 
 type DSADailyFocus struct {
@@ -66,6 +65,7 @@ var weekPatternOrders = map[int][]int{
 }
 
 func (s *Service) DSADailyFocus(userID uuid.UUID) (*DSADailyFocus, error) {
+	s.ensureCurriculum(userID)
 	sched, err := s.ensureSchedule(userID)
 	if err != nil {
 		return nil, err
@@ -123,12 +123,12 @@ func (s *Service) DSADailyFocus(userID uuid.UUID) (*DSADailyFocus, error) {
 }
 
 func (s *Service) patternInfo(userID uuid.UUID, entityID string) (string, []string) {
-	var ent models.Entity
 	eid, err := uuid.Parse(entityID)
 	if err != nil {
 		return "DSA Pattern", nil
 	}
-	if err := s.db.Where("id = ? AND user_id = ?", eid, userID).First(&ent).Error; err != nil {
+	ent, err := s.learning.GetEntity(userID, eid)
+	if err != nil {
 		return "DSA Pattern", nil
 	}
 	var probs []string

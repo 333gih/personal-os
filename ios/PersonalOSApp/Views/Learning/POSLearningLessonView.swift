@@ -299,21 +299,38 @@ struct POSLearningLessonView: View {
 
     private func load() async {
         guard !Task.isCancelled else { return }
+        let id = entityId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else {
+            loadError = "No lesson linked to this block yet."
+            isLoading = false
+            return
+        }
         isLoading = true
         loadError = nil
         defer { isLoading = false }
         do {
-            lesson = try await session.api.fetchLearningLesson(id: entityId)
+            lesson = try await session.api.fetchLearningLesson(id: id)
             return
-        } catch {
-            guard !POSLoadTask.isBenignCancellation(error) else { return }
+        } catch let lessonErr {
+            guard !POSLoadTask.isBenignCancellation(lessonErr) else { return }
+            if case APIError.http(let code, _) = lessonErr, code == 404 {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                if let retry = try? await session.api.fetchLearningLesson(id: id) {
+                    lesson = retry
+                    return
+                }
+            }
         }
         do {
-            let detail = try await session.api.entityDetail(id: entityId)
+            let detail = try await session.api.entityDetail(id: id)
             lesson = POSLearningLesson.from(entity: detail.entity)
         } catch {
             guard !POSLoadTask.isBenignCancellation(error) else { return }
-            loadError = error.localizedDescription
+            if case APIError.http(404, let msg) = error, msg.localizedCaseInsensitiveContains("not found") {
+                loadError = "Lesson not in your library yet. Pull to refresh Learning or reopen the app after sync."
+            } else {
+                loadError = error.localizedDescription
+            }
         }
     }
 

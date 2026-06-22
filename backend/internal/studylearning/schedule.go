@@ -116,6 +116,7 @@ func (s *Service) PutSchedule(userID uuid.UUID, in ScheduleDTO) (*ScheduleDTO, e
 }
 
 func (s *Service) Today(userID uuid.UUID) (*TodayPlan, error) {
+	s.ensureCurriculum(userID)
 	sched, err := s.ensureSchedule(userID)
 	if err != nil {
 		return nil, err

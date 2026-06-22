@@ -3,10 +3,12 @@ package studylearning
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/personal-os/backend/internal/learningseed"
 	"github.com/personal-os/backend/internal/models"
 )
 
@@ -47,7 +49,16 @@ type LearningLesson struct {
 	CurriculumWeek     int            `json:"curriculum_week"`
 }
 
+func (s *Service) ensureCurriculum(userID uuid.UUID) {
+	if err := learningseed.EnsureForUser(s.db, userID); err != nil {
+		log.Printf("studylearning: ensure curriculum user=%s: %v", userID, err)
+	}
+}
+
 func (s *Service) GetLesson(userID, entityID uuid.UUID) (*LearningLesson, error) {
+	if learningseed.IsSeedEntityID(entityID) {
+		s.ensureCurriculum(userID)
+	}
 	ent, err := s.learning.GetEntity(userID, entityID)
 	if err != nil {
 		return nil, err

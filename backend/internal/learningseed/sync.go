@@ -25,48 +25,18 @@ func SyncForUser(db *gorm.DB, userID uuid.UUID, email string) error {
 }
 
 func ensureOwnerLearning(db *gorm.DB, userID uuid.UUID) error {
-	if err := reassignLearningSeed(db, userID); err != nil {
-		return err
-	}
-
-	var count int64
-	if err := db.Model(&models.Entity{}).
-		Where("user_id = ? AND domain = ? AND status = ?", userID, models.DomainLearning, "active").
-		Count(&count).Error; err != nil {
-		return err
-	}
-	if count >= 20 {
-		log.Printf("learningseed: owner %s has %d learning entities", userID, count)
+	if HasSeedCurriculum(db, userID) {
+		log.Printf("learningseed: owner %s curriculum OK", userID)
 		return nil
 	}
-
-	var globalSeed int64
-	if err := db.Model(&models.Entity{}).
-		Where("source IN ? OR id::text LIKE ?", []string{"learning_seed", "interview_seed"}, "c000000c-0001-4001-8001-%").
-		Count(&globalSeed).Error; err != nil {
-		return err
-	}
-
-	if globalSeed > 0 {
-		_ = reassignLearningSeed(db, userID)
-		db.Model(&models.Entity{}).
-			Where("user_id = ? AND domain = ? AND status = ?", userID, models.DomainLearning, "active").
-			Count(&count)
-		if count >= 20 {
-			return nil
-		}
-	}
-
 	log.Printf("learningseed: bootstrapping learning curriculum for owner %s", userID)
-	if err := RunBootstrapSQL(db, userID); err != nil {
+	if err := EnsureForUser(db, userID); err != nil {
 		return fmt.Errorf("learningseed bootstrap: %w", err)
 	}
-
-	if err := db.Model(&models.Entity{}).
+	var count int64
+	_ = db.Model(&models.Entity{}).
 		Where("user_id = ? AND domain = ? AND status = ?", userID, models.DomainLearning, "active").
-		Count(&count).Error; err != nil {
-		return err
-	}
+		Count(&count)
 	log.Printf("learningseed: after bootstrap owner has %d learning entities", count)
 	return nil
 }
