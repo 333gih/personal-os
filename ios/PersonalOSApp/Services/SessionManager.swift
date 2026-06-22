@@ -10,9 +10,12 @@ final class SessionManager: ObservableObject {
     private static let accessRefreshLead: TimeInterval = 5 * 60
     private static let refreshSkew: TimeInterval = 60
     private static let legacyTokenKey = "com.personalos.access_token"
+    private static let defaultRefreshTTL: TimeInterval = 7 * 24 * 3600
 
     private var storedSession: StoredAuthSession?
     private var refreshTask: Task<String?, Never>?
+    private var refreshTimer: Timer?
+    private var hasLegacyAccessOnly = false
 
     let api = APIClient()
 
@@ -20,7 +23,7 @@ final class SessionManager: ObservableObject {
         api.session = self
         storedSession = AuthKeychain.load()
         if storedSession == nil, let legacy = UserDefaults.standard.string(forKey: Self.legacyTokenKey), !legacy.isEmpty {
-            // Legacy installs only saved access token — user must sign in once for refresh bundle.
+            hasLegacyAccessOnly = true
             accessToken = legacy
             isAuthenticated = !JWTHelpers.isExpired(legacy)
         } else if let session = storedSession, isRefreshTokenValid(session) {
@@ -32,23 +35,55 @@ final class SessionManager: ObservableObject {
     }
 
     func bootstrap() async {
-        guard isAuthenticated else { return }
-        if storedSession != nil {
-            _ = await validAccessToken()
+        await refreshSessionIfNeeded(force: false)
+        if isAuthenticated {
+            scheduleProactiveRefresh()
         }
+    }
+
+    /// Called on launch, foreground, and before API calls — mirrors web portal refresh-on-401 / renew flow.
+    func refreshSessionIfNeeded(force: Bool = false) async {
+        if hasLegacyAccessOnly {
+            if let token = accessToken, !JWTHelpers.isExpired(token) {
+                await refreshUser()
+                return
+            }
+            signOut()
+            return
+        }
+
+        guard isAuthenticated else { return }
+        guard let session = storedSession else {
+            if let token = accessToken, !JWTHelpers.isExpired(token) { return }
+            signOut()
+            return
+        }
+
+        if !isRefreshTokenValid(session) {
+            signOut()
+            return
+        }
+
+        let needsRefresh = force
+            || shouldRefreshAccessToken(session)
+            || JWTHelpers.isExpired(session.accessToken)
+
+        if needsRefresh {
+            _ = await refreshAccessToken(force: force || JWTHelpers.isExpired(session.accessToken))
+        }
+
+        guard isAuthenticated else { return }
         await refreshUser()
     }
 
     func saveHandoff(_ handoff: POSMobileAuthHandoff) {
-        let now = Date()
-        var accessExpiry = now.addingTimeInterval(TimeInterval(max(60, handoff.expiresIn)))
-        if let jwtExp = JWTHelpers.expirationDate(for: handoff.accessToken) {
-            accessExpiry = jwtExp
-        }
-        var refreshExpiry = now.addingTimeInterval(TimeInterval(max(3600, handoff.refreshExpiresIn)))
-        if let jwtRefreshExp = JWTHelpers.expirationDate(for: handoff.refreshToken) {
-            refreshExpiry = jwtRefreshExp
-        }
+        hasLegacyAccessOnly = false
+        let (accessExpiry, refreshExpiry) = Self.sessionExpiry(
+            accessToken: handoff.accessToken,
+            refreshToken: handoff.refreshToken,
+            expiresIn: handoff.expiresIn,
+            refreshExpiresIn: handoff.refreshExpiresIn
+        )
 
         let session = StoredAuthSession(
             accessToken: handoff.accessToken,
@@ -59,6 +94,7 @@ final class SessionManager: ObservableObject {
         )
         persist(session)
         UserDefaults.standard.removeObject(forKey: Self.legacyTokenKey)
+        scheduleProactiveRefresh()
         Task {
             await refreshUser()
             await POSPushCoordinator.shared.bootstrapAfterLogin(session: self)
@@ -67,10 +103,15 @@ final class SessionManager: ObservableObject {
 
     /// Returns a usable access token, refreshing proactively when near expiry.
     func validAccessToken() async -> String? {
-        guard let session = storedSession else {
+        if hasLegacyAccessOnly {
             if let token = accessToken, !JWTHelpers.isExpired(token) {
                 return token
             }
+            signOut()
+            return nil
+        }
+
+        guard let session = storedSession else {
             signOut()
             return nil
         }
@@ -88,7 +129,7 @@ final class SessionManager: ObservableObject {
         return await refreshAccessToken(force: false)
     }
 
-    /// Refresh tokens; signs out only when refresh token is rejected.
+    /// Refresh tokens; signs out only when refresh token is rejected or expired.
     @discardableResult
     func refreshAccessToken(force: Bool) async -> String? {
         if let refreshTask {
@@ -105,7 +146,13 @@ final class SessionManager: ObservableObject {
     }
 
     func signOut() {
+        let refreshToken = storedSession?.refreshToken
+        refreshTimer?.invalidate()
+        refreshTimer = nil
         clearLocalSession()
+        if let refreshToken {
+            Task { await Self.revokeRefreshToken(refreshToken) }
+        }
     }
 
     func refreshUser() async {
@@ -135,6 +182,29 @@ final class SessionManager: ObservableObject {
         return name.split(separator: " ").first.map(String.init) ?? name
     }
 
+    func scheduleProactiveRefresh() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+        guard isAuthenticated, let session = storedSession, isRefreshTokenValid(session) else { return }
+
+        let fireDate = session.expiresAt.addingTimeInterval(-Self.accessRefreshLead)
+        let delay = fireDate.timeIntervalSinceNow
+        if delay <= 0 {
+            Task { [weak self] in
+                await self?.refreshSessionIfNeeded(force: true)
+                self?.scheduleProactiveRefresh()
+            }
+            return
+        }
+
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.refreshSessionIfNeeded(force: true)
+                self?.scheduleProactiveRefresh()
+            }
+        }
+    }
+
     private func performRefresh(force: Bool) async -> String? {
         guard var session = storedSession else { return accessToken }
 
@@ -150,15 +220,12 @@ final class SessionManager: ObservableObject {
 
         do {
             let refreshed = try await refreshTokens(refreshToken: session.refreshToken)
-            let now = Date()
-            var accessExpiry = now.addingTimeInterval(TimeInterval(max(60, refreshed.expiresIn)))
-            if let jwtExp = JWTHelpers.expirationDate(for: refreshed.accessToken) {
-                accessExpiry = jwtExp
-            }
-            var refreshExpiry = now.addingTimeInterval(TimeInterval(max(3600, refreshed.refreshExpiresIn)))
-            if let jwtRefreshExp = JWTHelpers.expirationDate(for: refreshed.refreshToken) {
-                refreshExpiry = jwtRefreshExp
-            }
+            let (accessExpiry, refreshExpiry) = Self.sessionExpiry(
+                accessToken: refreshed.accessToken,
+                refreshToken: refreshed.refreshToken,
+                expiresIn: refreshed.expiresIn,
+                refreshExpiresIn: refreshed.refreshExpiresIn
+            )
 
             session = StoredAuthSession(
                 accessToken: refreshed.accessToken,
@@ -168,6 +235,7 @@ final class SessionManager: ObservableObject {
                 applicationId: session.applicationId
             )
             persist(session)
+            scheduleProactiveRefresh()
             return session.accessToken
         } catch let error as APIError {
             if case .unauthorized = error {
@@ -215,6 +283,35 @@ final class SessionManager: ObservableObject {
         return try JSONDecoder().decode(POSMobileTokenRefreshResponse.self, from: data)
     }
 
+    private static func revokeRefreshToken(_ refreshToken: String) async {
+        let url = PersonalOSAppConfig.frontendPath("/api/auth/mobile/logout")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["refresh_token": refreshToken])
+        _ = try? await URLSession.shared.data(for: request)
+    }
+
+    private static func sessionExpiry(
+        accessToken: String,
+        refreshToken: String,
+        expiresIn: Int,
+        refreshExpiresIn: Int
+    ) -> (access: Date, refresh: Date) {
+        let now = Date()
+        var accessExpiry = now.addingTimeInterval(TimeInterval(max(60, expiresIn)))
+        if let jwtExp = JWTHelpers.expirationDate(for: accessToken) {
+            accessExpiry = jwtExp
+        }
+
+        let refreshSeconds = max(300, refreshExpiresIn)
+        var refreshExpiry = now.addingTimeInterval(TimeInterval(refreshSeconds > 0 ? refreshSeconds : Int(defaultRefreshTTL)))
+        if let jwtRefreshExp = JWTHelpers.expirationDate(for: refreshToken) {
+            refreshExpiry = jwtRefreshExp
+        }
+        return (accessExpiry, refreshExpiry)
+    }
+
     private func persist(_ session: StoredAuthSession) {
         storedSession = session
         accessToken = session.accessToken
@@ -223,12 +320,15 @@ final class SessionManager: ObservableObject {
     }
 
     private func clearLocalSession() {
+        hasLegacyAccessOnly = false
         storedSession = nil
         accessToken = nil
         user = nil
         isAuthenticated = false
         refreshTask?.cancel()
         refreshTask = nil
+        refreshTimer?.invalidate()
+        refreshTimer = nil
         AuthKeychain.clear()
         UserDefaults.standard.removeObject(forKey: Self.legacyTokenKey)
     }

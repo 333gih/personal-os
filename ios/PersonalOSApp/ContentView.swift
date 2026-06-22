@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var session = SessionManager()
     @State private var bootstrapping = true
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -25,6 +26,15 @@ struct ContentView: View {
                 await POSPushCoordinator.shared.bootstrapAfterLogin(session: session)
             }
             bootstrapping = false
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, !bootstrapping else { return }
+            Task {
+                await session.refreshSessionIfNeeded(force: false)
+                if session.isAuthenticated {
+                    session.scheduleProactiveRefresh()
+                }
+            }
         }
     }
 }

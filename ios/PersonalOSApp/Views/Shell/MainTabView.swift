@@ -101,6 +101,7 @@ struct POSLearningLessonRoute: Identifiable, Equatable {
 
 struct MainTabView: View {
     @EnvironmentObject private var session: SessionManager
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab: POSTab = .home
     @State private var webSheet: WebSheetRoute?
     @State private var entityDetail: POSEntityDetailRoute?
@@ -303,7 +304,12 @@ struct MainTabView: View {
             POSInterviewPrepView()
                 .environmentObject(session)
         }
-        .task { await session.bootstrap() }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task {
+                await session.refreshSessionIfNeeded(force: false)
+            }
+        }
     }
 
     private func openRoute(_ route: WebSheetRoute) {
