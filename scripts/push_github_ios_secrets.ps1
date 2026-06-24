@@ -2,7 +2,7 @@
 # Usage: .\scripts\push_github_ios_secrets.ps1 [-EnvFile secrets\ios-release.env] [-Repo owner/repo]
 param(
     [string]$EnvFile = "secrets/ios-release.env",
-    [string]$Repo = ""
+    [string]$Repo = "333gih/personal-os"
 )
 
 $ErrorActionPreference = "Stop"

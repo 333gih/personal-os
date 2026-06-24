@@ -33,9 +33,14 @@ ios/*.xcworkspace
 ios/DerivedData/
 ios/build/
 secrets/ios-release.env
+secrets/android-release.env
 secrets/*.p12
 secrets/*.mobileprovision
 secrets/*.p8
+secrets/*.keystore
+secrets/play-service-account.json
+android/local.properties
+android/ci-upload.keystore
 
 
 # Go

@@ -1,12 +1,12 @@
-# GitLab CI — mirror story-tracker subtree → GitHub (build iOS on Actions, no local Xcode).
+# GitLab CI — mirror monorepo → GitHub (Android Play + iOS TestFlight via Actions).
 #
-# GitLab Settings → CI/CD → Variables (masked):
-#   GITHUB_MIRROR_URL   = https://github.com/fashandcurious14052026-dotcom/story-tracker.git
-#   GITHUB_MIRROR_TOKEN = fine-grained PAT (Contents read/write on that repo)
+# GitLab Settings → CI/CD → Variables:
+#   GITHUB_MIRROR_URL   = https://github.com/333gih/personal-os.git
+#   GITHUB_MIRROR_TOKEN = fine-grained PAT (Contents read/write)
 #
-# GitHub: create empty repo story-tracker (no README).
-# After mirror: push iOS secrets to GitHub repo (not GitLab):
-#   cd story-tracker && ./scripts/push_github_ios_secrets.sh owner/story-tracker
+# After mirror, push secrets to GitHub (not GitLab):
+#   .\scripts\push_github_android_secrets.ps1 -Repo 333gih/personal-os
+#   .\scripts\push_github_ios_secrets.ps1 -Repo 333gih/personal-os
 
 stages:
   - mirror
@@ -31,3 +31,29 @@ mirror-story-tracker-github:
   variables:
     GIT_DEPTH: "0"
     GIT_STRATEGY: clone
+
+mirror-monorepo-github:
+  stage: mirror
+  image: alpine/git:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^releases\//
+      changes:
+        - android/**/*
+        - ios/**/*
+        - story-tracker/**/*
+        - .github/workflows/**
+        - docs/CI-ANDROID.md
+        - docs/CI-IOS.md
+        - scripts/mirror-monorepo-to-github.sh
+        - scripts/push_github_android_secrets.*
+        - scripts/push_github_ios_secrets.*
+  before_script:
+    - apk add --no-cache bash
+    - git config user.email "ci@personal-os"
+    - git config user.name "personal-os CI"
+  script:
+    - bash scripts/mirror-monorepo-to-github.sh
+  variables:
+    GIT_DEPTH: "0"
+    GIT_STRATEGY: clone
+    GITHUB_MIRROR_BRANCH: $CI_COMMIT_REF_NAME

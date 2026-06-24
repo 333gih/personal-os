@@ -1,0 +1,108 @@
+# Dev APK — compile check on develop / PR. Prod AAB: Android Release workflow.
+name: Android Build
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - "android/**"
+      - ".github/workflows/android-build.yml"
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - "android/**"
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: Product flavor
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
+
+concurrency:
+  group: android-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: android
+
+jobs:
+  build:
+    name: Build ${{ inputs.flavor || 'dev' }} release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Verify env secrets
+        env:
+          DEV_ENV: ${{ secrets.ANDROID_DEV_ENV }}
+          PROD_ENV: ${{ secrets.ANDROID_PROD_ENV }}
+        run: |
+          set -euo pipefail
+          test -n "${DEV_ENV:-}" || { echo "::error::Missing ANDROID_DEV_ENV"; exit 1; }
+          test -n "${PROD_ENV:-}" || { echo "::error::Missing ANDROID_PROD_ENV"; exit 1; }
+
+      - name: Write env files
+        env:
+          DEV_ENV: ${{ secrets.ANDROID_DEV_ENV }}
+          PROD_ENV: ${{ secrets.ANDROID_PROD_ENV }}
+        run: |
+          set -euo pipefail
+          mkdir -p env
+          printf '%s\n' "${DEV_ENV}" > env/dev.env
+          printf '%s\n' "${PROD_ENV}" > env/prod.env
+
+      - name: Prepare release signing (prod optional)
+        if: inputs.flavor == 'prod'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PW: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${KEYSTORE_B64:-}" && -n "${STORE_PW:-}" && -n "${KEY_ALIAS:-}" && -n "${KEY_PW:-}" ]]; then
+            bash scripts/ci_prepare_release_signing.sh
+          else
+            echo "Keystore secrets not set — prodRelease uses debug signing (compile check only)."
+          fi
+
+      - name: Gradle assembleRelease
+        env:
+          FLAVOR: ${{ inputs.flavor || 'dev' }}
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          case "${FLAVOR}" in
+            dev)  TASK=":app:assembleDevRelease" ;;
+            prod) TASK=":app:assembleProdRelease" ;;
+            *) echo "Unknown flavor"; exit 1 ;;
+          esac
+          ./gradlew "${TASK}" --stacktrace | tee gradle-build.log
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-os-android-${{ inputs.flavor || 'dev' }}-release-${{ github.run_number }}
+          path: android/app/build/outputs/apk/${{ inputs.flavor || 'dev' }}/release/*.apk
+          retention-days: 14
+          if-no-files-found: error

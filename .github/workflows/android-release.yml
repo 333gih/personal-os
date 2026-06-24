@@ -1,0 +1,224 @@
+# Prod AAB + Google Play upload for Personal OS Android.
+#
+# Branch → Play track (push):
+#   releases/**, release/**  → closed testing (POS-closed or internal)
+#   main, master             → production
+#   tag android/v*           → production
+#
+# Monorepo: all Gradle steps run in android/
+name: Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_play:
+        description: Upload AAB to Google Play (prod)
+        required: false
+        default: true
+        type: boolean
+      play_track:
+        description: Play track (create POS-closed in Play Console for closed testing)
+        required: true
+        default: POS-closed
+        type: choice
+        options:
+          - POS-closed
+          - internal
+          - alpha
+          - beta
+          - production
+  push:
+    branches:
+      - main
+      - master
+      - "release/**"
+      - "releases/**"
+    tags:
+      - "android/v*"
+    paths:
+      - "android/**"
+      - ".github/workflows/android-release.yml"
+
+concurrency:
+  group: android-release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: android
+
+jobs:
+  release:
+    name: Bundle & upload AAB
+    runs-on: ubuntu-latest
+    env:
+      UPLOAD_PLAY: >-
+        ${{
+          (github.event_name == 'workflow_dispatch' && inputs.upload_play) ||
+          (github.event_name == 'push' && (
+            startsWith(github.ref, 'refs/heads/releases/') ||
+            startsWith(github.ref, 'refs/heads/release/') ||
+            github.ref == 'refs/heads/main' ||
+            github.ref == 'refs/heads/master' ||
+            startsWith(github.ref, 'refs/tags/android/v')
+          ))
+        }}
+      PLAY_TRACK: >-
+        ${{
+          github.event_name == 'workflow_dispatch' && inputs.play_track ||
+          (github.event_name == 'push' && (
+            github.ref == 'refs/heads/main' ||
+            github.ref == 'refs/heads/master' ||
+            startsWith(github.ref, 'refs/tags/android/v')
+          ) && 'production') ||
+          (github.event_name == 'push' && (
+            startsWith(github.ref, 'refs/heads/releases/') ||
+            startsWith(github.ref, 'refs/heads/release/')
+          ) && 'POS-closed') ||
+          'POS-closed'
+        }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Verify release secrets
+        env:
+          DEV_ENV: ${{ secrets.ANDROID_DEV_ENV }}
+          PROD_ENV: ${{ secrets.ANDROID_PROD_ENV }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PW: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in DEV_ENV PROD_ENV KEYSTORE_B64 STORE_PW KEY_ALIAS KEY_PW; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing GitHub secret for ${name}. See docs/CI-ANDROID.md"
+              missing=1
+            fi
+          done
+          exit "${missing}"
+
+      - name: Verify Google Play secrets
+        if: env.UPLOAD_PLAY == 'true'
+        env:
+          PLAY_SA: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${PLAY_SA:-}" ]]; then
+            echo "::error::Missing GOOGLE_PLAY_SERVICE_ACCOUNT_JSON. See docs/CI-ANDROID.md"
+            exit 1
+          fi
+
+      - name: Write env files
+        env:
+          DEV_ENV: ${{ secrets.ANDROID_DEV_ENV }}
+          PROD_ENV: ${{ secrets.ANDROID_PROD_ENV }}
+        run: |
+          set -euo pipefail
+          mkdir -p env
+          printf '%s\n' "${DEV_ENV}" > env/dev.env
+          printf '%s\n' "${PROD_ENV}" > env/prod.env
+
+      - name: Prepare release signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PW: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: bash scripts/ci_prepare_release_signing.sh
+
+      - name: Read app version
+        id: app_version
+        run: |
+          set -euo pipefail
+          VC="$(grep 'versionCode' app/build.gradle.kts | head -1 | sed -E 's/.*= ([0-9]+).*/\1/')"
+          VN="$(grep 'versionName' app/build.gradle.kts | head -1 | sed -E 's/.*= "([^"]+)".*/\1/')"
+          echo "version_code=${VC}" >> "${GITHUB_OUTPUT}"
+          echo "version_name=${VN}" >> "${GITHUB_OUTPUT}"
+          echo "Release target: ${VN} (${VC})"
+
+      - name: Bundle prodRelease AAB
+        id: bundle
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew :app:bundleProdRelease --stacktrace | tee gradle-bundle.log
+
+      - name: Locate AAB and mapping
+        id: artifacts
+        run: |
+          set -euo pipefail
+          AAB="$(find app/build/outputs/bundle/prodRelease -name '*.aab' | head -1)"
+          test -n "${AAB}" && test -f "${AAB}"
+          echo "aab_path=${AAB}" >> "${GITHUB_OUTPUT}"
+          ls -la "${AAB}"
+          MAPPING="app/build/outputs/mapping/prodRelease/mapping.txt"
+          if [[ -f "${MAPPING}" ]]; then
+            echo "mapping_path=${MAPPING}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Verify AAB upload certificate (SHA-1)
+        if: env.UPLOAD_PLAY == 'true'
+        env:
+          PLAY_EXPECTED_UPLOAD_SHA1: ${{ secrets.PLAY_EXPECTED_UPLOAD_SHA1 }}
+        run: bash scripts/ci_verify_aab_signing.sh "${{ steps.artifacts.outputs.aab_path }}"
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-os-android-prod-aab-${{ github.run_number }}
+          path: |
+            android/app/build/outputs/bundle/prodRelease/*.aab
+            android/app/build/outputs/mapping/prodRelease/mapping.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload to Google Play
+        id: upload-play
+        if: env.UPLOAD_PLAY == 'true'
+        uses: r0adkll/upload-google-play@v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.personalos.mobile
+          releaseFiles: android/${{ steps.artifacts.outputs.aab_path }}
+          track: ${{ env.PLAY_TRACK }}
+          status: completed
+          mappingFile: android/${{ steps.artifacts.outputs.mapping_path }}
+          whatsNewDirectory: android/distribution/whatsnew
+
+      - name: Release summary
+        if: always() && steps.app_version.outcome == 'success'
+        env:
+          UPLOAD_PLAY: ${{ env.UPLOAD_PLAY }}
+          UPLOAD_OUTCOME: ${{ steps.upload-play.outcome }}
+          PLAY_TRACK: ${{ env.PLAY_TRACK }}
+        run: |
+          echo "### Personal OS Android release" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Version: **${{ steps.app_version.outputs.version_name }} (${{ steps.app_version.outputs.version_code }})**" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Package: \`com.personalos.mobile\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Ref: \`${{ github.ref }}\`" >> "${GITHUB_STEP_SUMMARY}"
+          if [[ "${UPLOAD_PLAY}" == "true" ]]; then
+            echo "- Play track **${PLAY_TRACK}**: **${UPLOAD_OUTCOME}**" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload Gradle log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-os-android-release-logs-${{ github.run_number }}
+          path: android/gradle-bundle.log
+          retention-days: 14
+          if-no-files-found: ignore
