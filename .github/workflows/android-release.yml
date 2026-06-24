@@ -19,12 +19,12 @@ on:
       play_track:
         description: Play track (create POS-closed in Play Console for closed testing)
         required: true
-        default: POS-closed
+        default: alpha
         type: choice
         options:
+          - alpha
           - POS-closed
           - internal
-          - alpha
           - beta
           - production
   push:
@@ -71,11 +71,16 @@ jobs:
             github.ref == 'refs/heads/master' ||
             startsWith(github.ref, 'refs/tags/android/v')
           ) && 'production') ||
+          'alpha'
+        }}
+      PLAY_RELEASE_STATUS: >-
+        ${{
+          (github.event_name == 'workflow_dispatch' && inputs.play_track == 'production') ||
           (github.event_name == 'push' && (
-            startsWith(github.ref, 'refs/heads/releases/') ||
-            startsWith(github.ref, 'refs/heads/release/')
-          ) && 'POS-closed') ||
-          'POS-closed'
+            github.ref == 'refs/heads/main' ||
+            github.ref == 'refs/heads/master' ||
+            startsWith(github.ref, 'refs/tags/android/v')
+          )) && 'completed' || 'draft'
         }}
 
     steps:
@@ -195,7 +200,7 @@ jobs:
           packageName: com.personalos.mobile
           releaseFiles: android/${{ steps.artifacts.outputs.aab_path }}
           track: ${{ env.PLAY_TRACK }}
-          status: completed
+          status: ${{ env.PLAY_RELEASE_STATUS }}
           mappingFile: android/${{ steps.artifacts.outputs.mapping_path }}
           whatsNewDirectory: android/distribution/whatsnew
 
