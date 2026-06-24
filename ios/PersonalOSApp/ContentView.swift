@@ -27,7 +27,7 @@ struct ContentView: View {
             }
             bootstrapping = false
         }
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase) { phase in
             guard phase == .active, !bootstrapping else { return }
             Task {
                 await session.refreshSessionIfNeeded(force: false)

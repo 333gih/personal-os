@@ -304,7 +304,7 @@ struct MainTabView: View {
             POSInterviewPrepView()
                 .environmentObject(session)
         }
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
             Task {
                 await session.refreshSessionIfNeeded(force: false)
