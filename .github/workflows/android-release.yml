@@ -84,7 +84,13 @@ jobs:
             github.ref == 'refs/heads/main' ||
             github.ref == 'refs/heads/master' ||
             startsWith(github.ref, 'refs/tags/android/v')
-          )) && 'completed' || 'draft'
+          )) && 'completed' ||
+          (github.event_name == 'workflow_dispatch') && 'completed' ||
+          (github.event_name == 'push' && (
+            startsWith(github.ref, 'refs/heads/releases/') ||
+            startsWith(github.ref, 'refs/heads/release/')
+          )) && 'completed' ||
+          'draft'
         }}
 
     steps:

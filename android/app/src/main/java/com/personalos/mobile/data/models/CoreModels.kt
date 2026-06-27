@@ -94,17 +94,24 @@ data class PosSearchHit(
 data class PosSearchResponse(val results: List<PosSearchHit> = emptyList())
 
 @JsonClass(generateAdapter = true)
-data class PosRelationItem(
+data class PosRelationWithEntity(
     val id: String,
-    val title: String,
-    val type: String = "",
-    val domain: String = "",
-)
+    @Json(name = "relation_type") val relationType: String = "",
+    val direction: String = "",
+    @Json(name = "related_entity") val relatedEntity: PosEntity,
+) {
+    val linkedId: String get() = relatedEntity.id
+    val linkedTitle: String get() = relatedEntity.title
+    val linkedDomain: String get() = relatedEntity.domain
+    val subtitle: String get() = listOf(relationType.replace('_', ' '), direction)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+}
 
 @JsonClass(generateAdapter = true)
 data class PosEntityDetailResponse(
     val entity: PosEntity,
-    val relations: List<PosRelationItem> = emptyList(),
+    val relations: List<PosRelationWithEntity> = emptyList(),
 )
 
 enum class PosTab(val title: String) {

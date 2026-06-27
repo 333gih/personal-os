@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.personalos.mobile.data.models.PosEntity
 import com.personalos.mobile.data.models.PosTodayStudyPlan
 import com.personalos.mobile.data.repository.PersonalOSRepository
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,14 +24,27 @@ class LearningViewModel(private val repository: PersonalOSRepository) : ViewMode
     fun load() {
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = null)
-            runCatching {
-                val entitiesDeferred = async { repository.listEntities("learning") }
-                val todayDeferred = async { repository.fetchLearningToday() }
-                entitiesDeferred.await() to todayDeferred.await()
-            }.onSuccess { (list, today) ->
-                _state.value = LearningUiState(loading = false, entities = list.items, today = today)
-            }.onFailure {
-                _state.value = LearningUiState(loading = false, error = it.message)
+            val entitiesResult = runCatching { repository.listEntities("learning") }
+            val todayResult = runCatching { repository.fetchLearningToday() }
+            val entities = entitiesResult.getOrNull()?.items ?: emptyList()
+            val today = todayResult.getOrNull()
+            val entityError = entitiesResult.exceptionOrNull()?.message
+            val todayError = todayResult.exceptionOrNull()?.message
+            when {
+                entitiesResult.isFailure && todayResult.isFailure -> {
+                    _state.value = LearningUiState(
+                        loading = false,
+                        error = entityError ?: todayError,
+                    )
+                }
+                else -> {
+                    _state.value = LearningUiState(
+                        loading = false,
+                        entities = entities,
+                        today = today,
+                        error = if (entitiesResult.isFailure) entityError else null,
+                    )
+                }
             }
         }
     }

@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -20,10 +23,13 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +51,7 @@ fun PosAppHeader(
     Row(
         Modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .background(PosTheme.Background.copy(alpha = 0.96f))
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -75,6 +82,7 @@ fun PosBottomTabBar(selected: PosTab, onSelect: (PosTab) -> Unit) {
         Row(
             Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .background(PosTheme.Card)
                 .height(PosTheme.TabBarHeight)
                 .padding(top = 8.dp, bottom = 8.dp),
@@ -124,6 +132,7 @@ fun PosCloseBar(title: String, onClose: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .background(PosTheme.Background)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -132,5 +141,40 @@ fun PosCloseBar(title: String, onClose: () -> Unit) {
             Icon(Icons.Default.Close, contentDescription = "Close", tint = PosTheme.PrimaryDark)
         }
         Text(title, style = posDisplay(17f), color = PosTheme.Ink, maxLines = 1, modifier = Modifier.weight(1f))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PosModalBottomSheet(
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = PosTheme.Card,
+        dragHandle = null,
+    ) {
+        content()
+    }
+}
+
+@Composable
+fun PosOverlayScaffold(
+    title: String,
+    onClose: () -> Unit,
+    bottomBar: (@Composable () -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(PosTheme.Background),
+    ) {
+        PosCloseBar(title, onClose)
+        Box(Modifier.weight(1f).fillMaxSize()) { content() }
+        bottomBar?.invoke()
     }
 }

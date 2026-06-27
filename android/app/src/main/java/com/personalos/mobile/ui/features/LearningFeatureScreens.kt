@@ -1,12 +1,16 @@
 package com.personalos.mobile.ui.features
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -99,7 +103,7 @@ fun LearningCoachScreen(
         }
     }
 
-    FeatureScaffold("Study Coach", onClose) {
+    FeatureScaffold {
         Text(
             "AI runs in the background — you'll get a notification when the drill is ready.",
             color = PosTheme.Muted,
@@ -137,7 +141,7 @@ fun LearningScheduleScreen(repository: PersonalOSRepository, onClose: () -> Unit
             .onFailure { error = it.message; loading = false }
     }
 
-    FeatureScaffold("Study schedule", onClose) {
+    FeatureScaffold {
         when {
             loading -> PosLoadingView("Loading schedule…")
             else -> {
@@ -217,7 +221,7 @@ fun NotificationLogScreen(repository: PersonalOSRepository, onClose: () -> Unit)
 
     LaunchedEffect(Unit) { reload() }
 
-    FeatureScaffold("Notification log", onClose) {
+    FeatureScaffold {
         when {
             loading -> PosLoadingView("Loading log…")
             items.isEmpty() -> PosEmptyState(
@@ -289,14 +293,34 @@ private fun StepperRow(label: String, value: Int, min: Int, max: Int, onChange: 
 }
 
 @Composable
-internal fun FeatureScaffold(title: String, onClose: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(title, style = posDisplay(22f))
-        content()
+internal fun FeatureScaffold(
+    bottomBar: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content,
+        )
+        bottomBar?.invoke()
     }
+}
+
+@Composable
+internal fun PosFeatureBottomBar(content: @Composable RowScope.() -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .background(PosTheme.Card)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        content = content,
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)

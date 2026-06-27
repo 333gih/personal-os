@@ -4,13 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import com.personalos.mobile.ui.shell.PosAppHeader
 import com.personalos.mobile.ui.shell.PosBottomTabBar
-import com.personalos.mobile.ui.shell.PosCloseBar
+import com.personalos.mobile.ui.shell.PosModalBottomSheet
+import com.personalos.mobile.ui.shell.PosOverlayScaffold
 import com.personalos.mobile.data.models.PosLearningTrack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
@@ -118,7 +121,7 @@ private fun PersonalOSRoot(
 
     when {
         bootstrapping && sessionManager.isAuthenticated.value -> {
-            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.fillMaxSize().statusBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator(modifier = Modifier.padding(24.dp), color = PosTheme.PrimaryDark)
                 Text("Restoring session…")
             }
@@ -197,127 +200,144 @@ private fun MainShell(
         SearchViewModel(repository, activity.applicationContext)
     })
 
-    Column(Modifier.fillMaxSize()) {
-        PosAppHeader(
-            title = tab.headerTitle,
-            initials = sessionManager.userInitials(),
-            onAvatarTap = { nav.onOpenWeb(WebRoute.path("/settings", "Settings")) },
-            onSettingsTap = { nav.onOpenWeb(WebRoute.path("/settings", "Settings")) },
-        )
-        Box(Modifier.weight(1f)) {
-            when (tab) {
-                PosTab.HOME -> HomeScreen(homeVm, sessionManager, nav)
-                PosTab.WORK -> WorkScreen(workVm, nav, workReloadKey)
-                PosTab.LEARNING -> LearningScreen(learningVm, nav, learningReloadKey)
-                PosTab.SEARCH -> SearchScreen(searchVm, nav)
-                PosTab.MORE -> MoreScreen(sessionManager, nav)
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            PosAppHeader(
+                title = tab.headerTitle,
+                initials = sessionManager.userInitials(),
+                onAvatarTap = { nav.onOpenWeb(WebRoute.path("/settings", "Settings")) },
+                onSettingsTap = { nav.onOpenWeb(WebRoute.path("/settings", "Settings")) },
+            )
+            Box(Modifier.weight(1f)) {
+                when (tab) {
+                    PosTab.HOME -> HomeScreen(homeVm, sessionManager, nav)
+                    PosTab.WORK -> WorkScreen(workVm, nav, workReloadKey)
+                    PosTab.LEARNING -> LearningScreen(learningVm, nav, learningReloadKey)
+                    PosTab.SEARCH -> SearchScreen(searchVm, nav)
+                    PosTab.MORE -> MoreScreen(sessionManager, nav)
+                }
+            }
+            PosBottomTabBar(selected = tab, onSelect = { tab = it })
+        }
+
+        webRoute?.let { route ->
+            FullScreenOverlay(route.title, onClose = { webRoute = null }) { EmbeddedWebScreen(route) }
+        }
+        entityRoute?.let { route ->
+            FullScreenOverlay(route.title, onClose = { entityRoute = null }) {
+                val vm: EntityDetailViewModel = viewModel(
+                    key = route.id,
+                    factory = simpleFactory { EntityDetailViewModel(repository, route.id) },
+                )
+                EntityDetailScreen(vm, route.title, route.section, nav) { entityRoute = null }
             }
         }
-        PosBottomTabBar(selected = tab, onSelect = { tab = it })
-    }
-
-    webRoute?.let { route ->
-        FullScreenOverlay(route.title, onClose = { webRoute = null }) { EmbeddedWebScreen(route) }
-    }
-    entityRoute?.let { route ->
-        FullScreenOverlay(route.title, onClose = { entityRoute = null }) {
-            val vm: EntityDetailViewModel = viewModel(
-                key = route.id,
-                factory = simpleFactory { EntityDetailViewModel(repository, route.id) },
-            )
-            EntityDetailScreen(vm, route.title, route.section, nav) { entityRoute = null }
+        lessonRoute?.let { route ->
+            FullScreenOverlay(route.title, onClose = { lessonRoute = null }) {
+                LearningLessonScreen(repository, route.id, route.title, nav) { lessonRoute = null }
+            }
         }
-    }
-    lessonRoute?.let { route ->
-        FullScreenOverlay(route.title, onClose = { lessonRoute = null }) {
-            LearningLessonScreen(repository, route.id, route.title, nav) { lessonRoute = null }
+        if (showCv) FullScreenOverlay("CV Transfer", { showCv = false }) { CvHubScreen(repository) { showCv = false } }
+        if (showJobs) FullScreenOverlay("Job Scout", { showJobs = false }) { JobScoutScreen(repository) { showJobs = false } }
+        if (showWorkImport) {
+            FullScreenOverlay("Import project", { showWorkImport = false }) {
+                WorkImportScreen(repository, nav, onClose = { showWorkImport = false }, onImported = { workReloadKey++ })
+            }
         }
-    }
-    if (showCv) FullScreenOverlay("CV Transfer", { showCv = false }) { CvHubScreen(repository) { showCv = false } }
-    if (showJobs) FullScreenOverlay("Job Scout", { showJobs = false }) { JobScoutScreen(repository) { showJobs = false } }
-    if (showWorkImport) {
-        FullScreenOverlay("Import project", { showWorkImport = false }) {
-            WorkImportScreen(repository, nav, onClose = { showWorkImport = false }, onImported = { workReloadKey++ })
+        if (showWorkAdd) {
+            FullScreenOverlay("Add to Work", { showWorkAdd = false }) {
+                WorkAddScreen(repository, nav, onClose = { showWorkAdd = false }, onCreated = { workReloadKey++ })
+            }
         }
-    }
-    if (showWorkAdd) {
-        FullScreenOverlay("Add to Work", { showWorkAdd = false }) {
-            WorkAddScreen(repository, nav, onClose = { showWorkAdd = false }, onCreated = { workReloadKey++ })
+        if (showStartupAdd) {
+            FullScreenOverlay("Add startup entry", { showStartupAdd = false }) {
+                TextAddScreen(
+                    "Add startup entry",
+                    { showStartupAdd = false },
+                    { kind, raw, hint ->
+                        runCatching { repository.addStartupEntry(kind, raw, hint) }.map { it.entityId to it.title }
+                    },
+                    nav,
+                    kinds = listOf(
+                        "idea" to "Idea",
+                        "feature" to "Feature",
+                        "kpi" to "KPI",
+                        "competitor" to "Competitor",
+                        "pain_point" to "Pain point",
+                        "business_model" to "Business model",
+                    ),
+                    titleHintEnabled = true,
+                    onCreated = { startupReloadKey++ },
+                )
+            }
         }
-    }
-    if (showStartupAdd) {
-        FullScreenOverlay("Add startup entry", { showStartupAdd = false }) {
-            TextAddScreen(
-                "Add startup entry",
-                { showStartupAdd = false },
-                { kind, raw, hint ->
-                    runCatching { repository.addStartupEntry(kind, raw, hint) }.map { it.entityId to it.title }
-                },
-                nav,
-                kinds = listOf(
-                    "idea" to "Idea",
-                    "feature" to "Feature",
-                    "kpi" to "KPI",
-                    "competitor" to "Competitor",
-                    "pain_point" to "Pain point",
-                    "business_model" to "Business model",
-                ),
-                titleHintEnabled = true,
-                onCreated = { startupReloadKey++ },
-            )
+        showLearningAdd?.let { track ->
+            FullScreenOverlay("Add ${track.label}", { showLearningAdd = null }) {
+                TextAddScreen(
+                    "Add ${track.label}",
+                    { showLearningAdd = null },
+                    { kind, raw, hint ->
+                        runCatching { repository.addLearningEntry(kind, track.apiValue, raw, hint) }.map { it.entityId to it.title }
+                    },
+                    nav,
+                    kinds = listOf(
+                        "course" to "Course",
+                        "topic" to "Topic",
+                        "skill" to "Skill",
+                        "note" to "Note",
+                    ),
+                    titleHintEnabled = true,
+                    onCreated = { learningReloadKey++ },
+                )
+            }
         }
-    }
-    showLearningAdd?.let { track ->
-        FullScreenOverlay("Add ${track.label}", { showLearningAdd = null }) {
-            TextAddScreen(
-                "Add ${track.label}",
-                { showLearningAdd = null },
-                { kind, raw, hint ->
-                    runCatching { repository.addLearningEntry(kind, track.apiValue, raw, hint) }.map { it.entityId to it.title }
-                },
-                nav,
-                kinds = listOf(
-                    "course" to "Course",
-                    "topic" to "Topic",
-                    "skill" to "Skill",
-                    "note" to "Note",
-                ),
-                titleHintEnabled = true,
-                onCreated = { learningReloadKey++ },
-            )
+        if (showInterview) FullScreenOverlay("Interview prep", { showInterview = false }) { InterviewPrepScreen(repository) { showInterview = false } }
+        if (showStartup) {
+            FullScreenOverlay("Startup", { showStartup = false }) {
+                StartupScreen(repository, nav, reloadKey = startupReloadKey) { showStartup = false }
+            }
         }
-    }
-    if (showInterview) FullScreenOverlay("Interview prep", { showInterview = false }) { InterviewPrepScreen(repository) { showInterview = false } }
-    if (showStartup) {
-        FullScreenOverlay("Startup", { showStartup = false }) {
-            StartupScreen(repository, nav, reloadKey = startupReloadKey) { showStartup = false }
+        showLearningCoach?.let { route ->
+            FullScreenOverlay("AI coach", { showLearningCoach = null }) {
+                LearningCoachScreen(repository, route.track, route.entityId, route.topic) { showLearningCoach = null }
+            }
         }
-    }
-    if (showStartupHub) FullScreenOverlay("Startup hub", { showStartupHub = false }) { StartupHubSheet(nav) { showStartupHub = false } }
-    if (showWorkHub) FullScreenOverlay("Work hub", { showWorkHub = false }) { WorkHubSheet(nav) { showWorkHub = false } }
-    if (showLearningHub) FullScreenOverlay("Learning hub", { showLearningHub = false }) { LearningHubSheet(nav) { showLearningHub = false } }
-    showLearningCoach?.let { route ->
-        FullScreenOverlay("AI coach", { showLearningCoach = null }) {
-            LearningCoachScreen(repository, route.track, route.entityId, route.topic) { showLearningCoach = null }
+        if (showLearningSchedule) {
+            FullScreenOverlay("Study schedule", { showLearningSchedule = false }) {
+                LearningScheduleScreen(repository) { showLearningSchedule = false }
+            }
         }
-    }
-    if (showLearningSchedule) {
-        FullScreenOverlay("Study schedule", { showLearningSchedule = false }) {
-            LearningScheduleScreen(repository) { showLearningSchedule = false }
+        if (showNotificationLog) {
+            FullScreenOverlay("Notifications", { showNotificationLog = false }) {
+                NotificationLogScreen(repository) { showNotificationLog = false }
+            }
         }
-    }
-    if (showNotificationLog) {
-        FullScreenOverlay("Notifications", { showNotificationLog = false }) {
-            NotificationLogScreen(repository) { showNotificationLog = false }
+        if (showWorkHub) {
+            PosModalBottomSheet(onDismiss = { showWorkHub = false }) {
+                WorkHubSheet(nav) { showWorkHub = false }
+            }
+        }
+        if (showLearningHub) {
+            PosModalBottomSheet(onDismiss = { showLearningHub = false }) {
+                LearningHubSheet(nav) { showLearningHub = false }
+            }
+        }
+        if (showStartupHub) {
+            PosModalBottomSheet(onDismiss = { showStartupHub = false }) {
+                StartupHubSheet(nav) { showStartupHub = false }
+            }
         }
     }
 }
 
 @Composable
 private fun FullScreenOverlay(title: String, onClose: () -> Unit, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize()) {
-        PosCloseBar(title, onClose)
-        Box(Modifier.weight(1f)) { content() }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(com.personalos.mobile.ui.theme.PosTheme.Background),
+    ) {
+        PosOverlayScaffold(title = title, onClose = onClose, content = content)
     }
 }
 

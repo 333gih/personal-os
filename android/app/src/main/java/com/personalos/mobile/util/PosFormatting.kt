@@ -34,6 +34,16 @@ object PosFormatting {
         return iso.take(16).replace('T', ' ')
     }
 
+    fun studyBlockTime(startAt: String?): String {
+        if (startAt.isNullOrBlank()) return "--:--"
+        val tIndex = startAt.indexOf('T')
+        if (tIndex >= 0 && startAt.length >= tIndex + 6) {
+            return startAt.substring(tIndex + 1, tIndex + 6)
+        }
+        if (startAt.length >= 5 && startAt[2] == ':') return startAt.take(5)
+        return startAt.takeLast(8).take(5)
+    }
+
     fun relativeDate(iso: String): String {
         val patterns = listOf(
             "yyyy-MM-dd'T'HH:mm:ssX",

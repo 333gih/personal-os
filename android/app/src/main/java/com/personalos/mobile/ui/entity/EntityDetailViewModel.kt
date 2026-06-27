@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.personalos.mobile.data.models.PosEntity
 import com.personalos.mobile.data.models.PosEntityDetailResponse
-import com.personalos.mobile.data.models.PosRelationItem
+import com.personalos.mobile.data.models.PosRelationWithEntity
 import com.personalos.mobile.data.repository.PersonalOSRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 data class EntityDetailUiState(
     val loading: Boolean = true,
     val entity: PosEntity? = null,
-    val relations: List<PosRelationItem> = emptyList(),
+    val relations: List<PosRelationWithEntity> = emptyList(),
     val error: String? = null,
 )
 

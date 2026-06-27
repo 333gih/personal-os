@@ -16,8 +16,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.personalos.mobile.data.models.PosRelationWithEntity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -55,6 +57,17 @@ fun EntityDetailScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var section by remember(initialSection) { mutableStateOf(initialSection) }
+
+    LaunchedEffect(state.entity?.id, state.relations.size, initialSection) {
+        val entity = state.entity ?: return@LaunchedEffect
+        val hasArch = entity.hasArchitecture()
+        val hasRelated = state.relations.isNotEmpty()
+        section = when {
+            initialSection == PosEntitySection.ARCHITECTURE && hasArch -> PosEntitySection.ARCHITECTURE
+            initialSection == PosEntitySection.RELATED && hasRelated -> PosEntitySection.RELATED
+            else -> PosEntitySection.OVERVIEW
+        }
+    }
 
     PosScreen {
         Column(Modifier.fillMaxSize()) {
@@ -202,11 +215,11 @@ private fun MetadataGrid(entity: com.personalos.mobile.data.models.PosEntity) {
 }
 
 @Composable
-private fun RelatedSection(relations: List<com.personalos.mobile.data.models.PosRelationItem>, nav: AppNavigator) {
+private fun RelatedSection(relations: List<PosRelationWithEntity>, nav: AppNavigator) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         relations.forEach { rel ->
-            PosListRow(rel.title, rel.domain) {
-                nav.onOpenEntity(EntityRoute(rel.id, rel.title))
+            PosListRow(rel.linkedTitle, rel.subtitle.ifBlank { rel.linkedDomain }) {
+                nav.onOpenEntity(EntityRoute(rel.linkedId, rel.linkedTitle))
             }
         }
     }

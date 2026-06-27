@@ -2,6 +2,7 @@ package com.personalos.mobile.ui.features
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,11 +20,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.PersonSearch
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Work
 import com.personalos.mobile.data.models.PosCvContact
 import com.personalos.mobile.data.models.PosCvDocument
 import com.personalos.mobile.data.models.PosCvSuggestedSkill
@@ -83,7 +90,28 @@ fun CvHubScreen(repository: PersonalOSRepository, onClose: () -> Unit) {
 
     LaunchedEffect(Unit) { reload() }
 
-    FeatureScaffold("CV Transfer", onClose) {
+    FeatureScaffold(
+        bottomBar = {
+            if (doc != null) {
+                PosFeatureBottomBar {
+                    PosActionButton("Save", style = PosActionStyle.Primary, modifier = Modifier.weight(1f)) {
+                        scope.launch { doc?.let { repository.saveCv(it) } }
+                    }
+                    PosActionButton("PDF", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
+                        scope.launch { runCatching { context.openPdf(repository.downloadCvPdf()) } }
+                    }
+                    PosActionButton("Share", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
+                        scope.launch {
+                            runCatching {
+                                val url = repository.shareCv().url
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    ) {
         when {
             loading -> PosLoadingView()
             error != null -> PosEmptyState("Could not load CV", error.orEmpty(), "Retry") { reload() }
@@ -205,25 +233,6 @@ fun CvHubScreen(repository: PersonalOSRepository, onClose: () -> Unit) {
                         Text(group.items.joinToString(", "))
                     }
                 }
-                PosPrimaryButton("Save") {
-                    scope.launch { doc?.let { repository.saveCv(it) } }
-                    Unit
-                }
-                PosPrimaryButton("Export PDF") {
-                    scope.launch {
-                        runCatching { context.openPdf(repository.downloadCvPdf()) }
-                    }
-                    Unit
-                }
-                PosPrimaryButton("Share link") {
-                    scope.launch {
-                        runCatching {
-                            val url = repository.shareCv().url
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                        }
-                    }
-                    Unit
-                }
             }
         }
     }
@@ -254,7 +263,7 @@ fun JobScoutScreen(repository: PersonalOSRepository, onClose: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var scanning by remember { mutableStateOf(false) }
     var savingPrefs by remember { mutableStateOf(false) }
-    var showPrefs by remember { mutableStateOf(true) }
+    var showPrefs by remember { mutableStateOf(false) }
     var scanSummary by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -279,7 +288,7 @@ fun JobScoutScreen(repository: PersonalOSRepository, onClose: () -> Unit) {
         loading = false
     }
 
-    FeatureScaffold("Job Scout", onClose) {
+    FeatureScaffold {
         if (loading) PosLoadingView() else {
             PosCard {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -414,7 +423,7 @@ fun WorkImportScreen(
         androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
     ) { uri -> diagramUri = uri }
 
-    FeatureScaffold("Import project", onClose) {
+    FeatureScaffold {
         PosCard {
             Text("Import a work project with optional architecture diagram.", color = PosTheme.Muted, style = posDisplay(11f))
         }
@@ -466,7 +475,7 @@ fun TextAddScreen(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    FeatureScaffold(title, onClose) {
+    FeatureScaffold {
         if (kinds.size > 1) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 kinds.forEach { (value, label) ->
@@ -526,7 +535,7 @@ fun LearningLessonScreen(
             }
     }
 
-    FeatureScaffold(title, onClose) {
+    FeatureScaffold {
         when {
             loading -> PosLoadingView("Loading lesson…")
             error != null -> PosEmptyState("Could not load lesson", error.orEmpty(), "Close", onAction = onClose)
@@ -647,7 +656,7 @@ fun InterviewPrepScreen(repository: PersonalOSRepository, onClose: () -> Unit) {
         loadingTopics = false
     }
 
-    FeatureScaffold("Interview prep", onClose) {
+    FeatureScaffold {
         Text("AI drills from your interview notebook and stack.", color = PosTheme.Muted, style = posDisplay(12f))
         OutlinedTextField(stack, { stack = it }, Modifier.fillMaxWidth(), label = { Text("Stack") })
         when {
@@ -704,7 +713,7 @@ fun StartupScreen(repository: PersonalOSRepository, nav: AppNavigator, reloadKey
         }.onFailure { loading = false }
     }
 
-    FeatureScaffold("Startup", onClose) {
+    FeatureScaffold {
         if (loading) PosLoadingView() else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 PosMetricCard("Portfolio", if (items.isEmpty()) "—" else "${items.size}", "Startup entities", Modifier.weight(1f)) {
@@ -748,31 +757,35 @@ fun StartupScreen(repository: PersonalOSRepository, nav: AppNavigator, reloadKey
 
 @Composable
 fun WorkHubSheet(nav: AppNavigator, onDismiss: () -> Unit) {
-    HubMenu("Work hub", listOf(
-        "Add entry" to { nav.onOpenWorkAdd(); onDismiss() },
-        "Import project" to { nav.onOpenWorkImport(); onDismiss() },
-        "CV Hub" to { nav.onOpenCv(); onDismiss() },
-        "Job Scout" to { nav.onOpenJobScout(); onDismiss() },
-        "Interview prep" to { nav.onOpenInterviewPrep(); onDismiss() },
-    ))
+    Column(
+        Modifier
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("Work hub", style = posDisplay(20f))
+        Text("Career tools — add entries, import projects, CV & jobs.", color = PosTheme.Muted, style = posDisplay(12f))
+        PosHubMenuRow("Add entry", "AI-normalized work capture", Icons.Default.Add) { nav.onOpenWorkAdd(); onDismiss() }
+        PosHubMenuRow("Import project", "Upload architecture diagram", Icons.Default.FileUpload) { nav.onOpenWorkImport(); onDismiss() }
+        PosHubMenuRow("CV Transfer", "Edit ideal resume & export", Icons.Default.Description) { nav.onOpenCv(); onDismiss() }
+        PosHubMenuRow("Job Scout", "Scan matching opportunities", Icons.Default.PersonSearch) { nav.onOpenJobScout(); onDismiss() }
+        PosHubMenuRow("Interview prep", "AI drill & notebook", Icons.Default.Psychology) { nav.onOpenInterviewPrep(); onDismiss() }
+        PosHubMenuRow("Open work board", "Full web career view", Icons.Default.Work) { nav.onOpenWeb(WebRoute.path("/work", "Work")); onDismiss() }
+    }
 }
 
 @Composable
 fun StartupHubSheet(nav: AppNavigator, onDismiss: () -> Unit) {
-    HubMenu("Startup", listOf(
-        "Add startup entry (AI)" to { nav.onOpenStartupAdd(); onDismiss() },
-        "Open startup board" to { nav.onOpenWeb(WebRoute.path("/startup", "Startup")); onDismiss() },
-        "Quick capture" to { nav.captureNote(); onDismiss() },
-    ))
-}
-
-@Composable
-private fun HubMenu(title: String, actions: List<Pair<String, () -> Unit>>) {
-    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(title, style = posDisplay(20f))
-        actions.forEach { (label, action) ->
-            PosHubMenuRow(label, "Open", Icons.Default.Description, onClick = action)
-        }
+    Column(
+        Modifier
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("Startup", style = posDisplay(20f))
+        PosHubMenuRow("Add startup entry (AI)", "Idea, KPI, competitor…", Icons.Default.Add) { nav.onOpenStartupAdd(); onDismiss() }
+        PosHubMenuRow("Open startup board", "Full web startup view", Icons.Default.Work) { nav.onOpenWeb(WebRoute.path("/startup", "Startup")); onDismiss() }
+        PosActionButton("Quick capture", style = PosActionStyle.Secondary, onClick = { nav.captureNote(); onDismiss() })
     }
 }
 

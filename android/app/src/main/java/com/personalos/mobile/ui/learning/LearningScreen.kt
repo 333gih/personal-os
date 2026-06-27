@@ -47,6 +47,7 @@ import com.personalos.mobile.ui.navigation.EntityRoute
 import com.personalos.mobile.ui.navigation.WebRoute
 import com.personalos.mobile.ui.theme.PosTheme
 import com.personalos.mobile.ui.theme.posDisplay
+import com.personalos.mobile.util.PosFormatting
 
 @Composable
 fun LearningScreen(viewModel: LearningViewModel, nav: AppNavigator, reloadKey: Int = 0) {
@@ -71,7 +72,7 @@ fun LearningScreen(viewModel: LearningViewModel, nav: AppNavigator, reloadKey: I
                     state.error != null -> PosEmptyState("Error", state.error.orEmpty(), "Retry") { viewModel.load() }
                     else -> {
                         state.today?.dsa?.let { focus -> DsaDailyFocusCard(focus, nav) }
-                        state.today?.let { plan -> TodayPlanSection(plan, nav) }
+                        TodayPlanSection(state.today, nav)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             PosChip("All", trackFilter == null) { trackFilter = null }
                             PosChip("DSA", trackFilter == PosLearningTrack.DSA) { trackFilter = PosLearningTrack.DSA }
@@ -129,24 +130,32 @@ private fun DsaDailyFocusCard(focus: PosDsaDailyFocus, nav: AppNavigator) {
 }
 
 @Composable
-private fun TodayPlanSection(plan: com.personalos.mobile.data.models.PosTodayStudyPlan, nav: AppNavigator) {
+private fun TodayPlanSection(plan: com.personalos.mobile.data.models.PosTodayStudyPlan?, nav: AppNavigator) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            PosSectionHeader(
-                title = "Today's plan",
-                action = "Schedule",
-                onAction = { nav.onOpenLearningSchedule() },
-            )
+        PosSectionHeader(
+            title = "Today's plan",
+            action = "Schedule",
+            onAction = { nav.onOpenLearningSchedule() },
+        )
+        if (plan == null) {
+            PosCard {
+                Text(
+                    "Could not load today's schedule. Open Schedule to configure study blocks.",
+                    color = PosTheme.Muted,
+                    style = posDisplay(12f),
+                )
+            }
+        } else {
             Text(
                 "${plan.totalMinutes} min · ${if (plan.isWorkDay) "Work day" else "Weekend"}",
                 color = PosTheme.Muted,
                 style = posDisplay(11f),
             )
-        }
-        if (plan.blocks.isEmpty()) {
-            Text("No blocks today — adjust your work schedule.", color = PosTheme.Muted, style = posDisplay(12f))
-        } else {
-            plan.blocks.forEach { block -> StudyBlockRow(block, nav) }
+            if (plan.blocks.isEmpty()) {
+                Text("No blocks today — adjust your work schedule.", color = PosTheme.Muted, style = posDisplay(12f))
+            } else {
+                plan.blocks.forEach { block -> StudyBlockRow(block, nav) }
+            }
         }
     }
 }
@@ -156,7 +165,7 @@ private fun StudyBlockRow(block: PosTodayStudyBlock, nav: AppNavigator) {
     PosCard {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column {
-                Text(block.startAt?.takeLast(8)?.take(5).orEmpty(), color = PosTheme.PrimaryDark, style = posDisplay(11f))
+                Text(PosFormatting.studyBlockTime(block.startAt), color = PosTheme.PrimaryDark, style = posDisplay(11f))
                 Text("${block.durationMinutes}m", color = PosTheme.Muted, style = posDisplay(10f))
             }
             Column(Modifier.weight(1f)) {
@@ -174,7 +183,10 @@ private fun StudyBlockRow(block: PosTodayStudyBlock, nav: AppNavigator) {
 
 @Composable
 fun LearningHubSheet(nav: AppNavigator, onDismiss: () -> Unit) {
-    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        Modifier.padding(horizontal = 20.dp, vertical = 8.dp).padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         Text("Learning hub", style = posDisplay(20f))
         Text("DSA + TOEIC — daily schedule tuned for metro/bus commutes.", color = PosTheme.Muted, style = posDisplay(12f))
         PosHubMenuRow("Today's schedule", "Blocks tuned for commute windows", Icons.Default.CalendarMonth) { nav.onOpenLearningSchedule(); onDismiss() }
