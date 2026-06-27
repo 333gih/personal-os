@@ -106,3 +106,82 @@ type AddSkillResponse struct {
 	Added    []string   `json:"added"`
 	Document CVDocument `json:"document"`
 }
+
+// --- Multi-CV templates ---
+
+type CVBlockOverrides struct {
+	Title          string   `json:"title,omitempty"`
+	Company        string   `json:"company,omitempty"`
+	Period         string   `json:"period,omitempty"`
+	HighlightStack []string `json:"highlight_stack,omitempty"`
+	SkillItems     []string `json:"skill_items,omitempty"`
+}
+
+type CVBlock struct {
+	ID             string            `json:"id"`
+	Type           string            `json:"type"` // summary|experience|project|skills|education|achievements|certificates|contact
+	Order          int               `json:"order"`
+	Enabled        bool              `json:"enabled"`
+	SourceEntityID string            `json:"source_entity_id,omitempty"`
+	Content        string            `json:"content,omitempty"`
+	Overrides      *CVBlockOverrides `json:"overrides,omitempty"`
+	AIRefinedAt    string            `json:"ai_refined_at,omitempty"`
+	PendingRaw     string            `json:"pending_raw,omitempty"`
+	// skills block payload
+	SkillGroups []SkillGroup `json:"skill_groups,omitempty"`
+	// structured items for education/certificates/achievements
+	Items []map[string]any `json:"items,omitempty"`
+}
+
+type CVConstraints struct {
+	MaxPages      int `json:"max_pages"`
+	MaxExperience int `json:"max_experience"`
+	MaxProjects   int `json:"max_projects"`
+}
+
+type CVTemplate struct {
+	ID          string        `json:"id"`
+	Name        string        `json:"name"`
+	LayoutID    string        `json:"layout_id"`
+	IsDefault   bool          `json:"is_default"`
+	Constraints CVConstraints `json:"constraints"`
+	Blocks      []CVBlock     `json:"blocks"`
+	UpdatedAt   string        `json:"updated_at,omitempty"`
+}
+
+type CVLayoutProfile struct {
+	ID          string        `json:"id"`
+	Label       string        `json:"label"`
+	Description string        `json:"description"`
+	Constraints CVConstraints `json:"constraints"`
+}
+
+type ValidateResult struct {
+	Valid      bool     `json:"valid"`
+	PageCount  int      `json:"page_count"`
+	MaxPages   int      `json:"max_pages"`
+	Overflows  []string `json:"overflows,omitempty"`
+	Suggestions []string `json:"suggestions,omitempty"`
+}
+
+type CreateTemplateRequest struct {
+	Name     string `json:"name" binding:"required"`
+	LayoutID string `json:"layout_id"`
+	CloneID  string `json:"clone_id"`
+}
+
+type SaveTemplateRequest struct {
+	Template CVTemplate `json:"template" binding:"required"`
+	Force    bool       `json:"force"`
+}
+
+type RefineBlockRequest struct {
+	Instruction string `json:"instruction"`
+	Content     string `json:"content" binding:"required"`
+}
+
+type AddBlockFromEntityRequest struct {
+	EntityID   string            `json:"entity_id" binding:"required"`
+	BlockType  string            `json:"block_type" binding:"required"`
+	Overrides  *CVBlockOverrides `json:"overrides,omitempty"`
+}

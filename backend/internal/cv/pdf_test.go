@@ -61,11 +61,6 @@ func TestRenderPDF_SinglePage(t *testing.T) {
 	}
 }
 
-func pdfPageCount(data []byte) int {
-	s := string(data)
-	return strings.Count(s, "/Type /Page") - strings.Count(s, "/Type /Pages")
-}
-
 func fullV5TestDocument() CVDocument {
 	return CVDocument{
 		Headline: "Nguyen Khoa Minh Phuc — Software Engineer",

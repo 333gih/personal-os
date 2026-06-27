@@ -147,3 +147,123 @@ struct POSCVAddSkillResponse: Decodable {
     let added: [String]?
     let document: POSCVDocument
 }
+
+struct POSCVBlockOverrides: Codable, Hashable {
+    var title: String?
+    var company: String?
+    var period: String?
+    var highlightStack: [String]?
+    var skillItems: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case title, company, period
+        case highlightStack = "highlight_stack"
+        case skillItems = "skill_items"
+    }
+}
+
+struct POSCVBlock: Codable, Identifiable, Hashable {
+    var id: String
+    var type: String
+    var order: Int
+    var enabled: Bool
+    var sourceEntityID: String?
+    var content: String?
+    var overrides: POSCVBlockOverrides?
+    var aiRefinedAt: String?
+    var pendingRaw: String?
+    var skillGroups: [POSCVSkillGroup]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, order, enabled, content, overrides
+        case sourceEntityID = "source_entity_id"
+        case aiRefinedAt = "ai_refined_at"
+        case pendingRaw = "pending_raw"
+        case skillGroups = "skill_groups"
+    }
+}
+
+struct POSCVConstraints: Codable, Hashable {
+    var maxPages: Int
+    var maxExperience: Int
+    var maxProjects: Int
+
+    enum CodingKeys: String, CodingKey {
+        case maxPages = "max_pages"
+        case maxExperience = "max_experience"
+        case maxProjects = "max_projects"
+    }
+}
+
+struct POSCVTemplate: Codable, Identifiable, Hashable {
+    var id: String
+    var name: String
+    var layoutID: String
+    var isDefault: Bool
+    var constraints: POSCVConstraints
+    var blocks: [POSCVBlock]
+    var updatedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, constraints, blocks
+        case layoutID = "layout_id"
+        case isDefault = "is_default"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct POSCVTemplatesResponse: Decodable {
+    let templates: [POSCVTemplate]
+}
+
+struct POSCVValidateResult: Decodable {
+    let valid: Bool
+    let pageCount: Int
+    let maxPages: Int
+    let overflows: [String]?
+    let suggestions: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case valid, overflows, suggestions
+        case pageCount = "page_count"
+        case maxPages = "max_pages"
+    }
+}
+
+struct POSCVSaveTemplateRequest: Encodable {
+    let template: POSCVTemplate
+    let force: Bool
+}
+
+struct POSCVValidateRequest: Encodable {
+    let template: POSCVTemplate
+}
+
+struct POSCVCreateTemplateRequest: Encodable {
+    let name: String
+    let layoutID: String
+    let cloneID: String
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case layoutID = "layout_id"
+        case cloneID = "clone_id"
+    }
+}
+
+struct POSCVRefineBlockRequest: Encodable {
+    let instruction: String
+    let content: String
+}
+
+struct POSCVAddBlockFromEntityRequest: Encodable {
+    let entityID: String
+    let blockType: String
+    let overrides: POSCVBlockOverrides?
+
+    enum CodingKeys: String, CodingKey {
+        case overrides
+        case entityID = "entity_id"
+        case blockType = "block_type"
+    }
+}

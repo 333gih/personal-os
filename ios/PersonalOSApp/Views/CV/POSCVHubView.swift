@@ -1,52 +1,56 @@
 import SwiftUI
-import UIKit
 
 struct POSCVHubView: View {
     @EnvironmentObject private var session: SessionManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var cv: POSAssembledCV?
+    var initialTemplateID: String? = nil
+
+    @State private var templates: [POSCVTemplate] = []
+    @State private var selectedID: String?
+    @State private var template: POSCVTemplate?
+    @State private var validate: POSCVValidateResult?
     @State private var isLoading = true
     @State private var loadError: String?
+    @State private var saveError: String?
+    @State private var showCreate = false
+    @State private var newTemplateName = ""
+    @State private var refiningBlock: POSCVBlock?
+    @State private var refineDraft = ""
+    @State private var refineInstruction = ""
+    @State private var isRefining = false
     @State private var isSaving = false
     @State private var isExporting = false
-    @State private var chatInstruction = ""
-    @State private var chatReply: String?
-    @State private var selectedSection = "summary"
     @State private var showShareSheet = false
     @State private var sharePDFData: Data?
     @State private var alertMessage: String?
-    @State private var editSummary: String = ""
-    @State private var editHeadline: String = ""
-    @State private var editSkillsText: String = ""
-    @State private var suggestedSkills: [POSCVSuggestedSkill] = []
-    @State private var primaryStackLabel: String = ""
-    @State private var isLoadingSuggestions = false
 
     var body: some View {
         NavigationStack {
             POSScreen {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        if isLoading {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if isLoading && template == nil {
                             POSLoadingView()
                         } else if let loadError {
                             POSEmptyState(
                                 systemImage: "doc.text",
-                                title: "Could not load CV",
+                                title: "Could not load CV templates",
                                 message: loadError,
                                 actionTitle: "Retry",
-                                action: { Task { await load() } }
+                                action: { Task { await reloadTemplates() } }
                             )
-                        } else if cv != nil {
-                            headerSection
-                            aiCoachSection
-                            previewSection
-                            actionsSection
+                        } else {
+                            templatePicker
+                            if let validate { validateBanner(validate) }
+                            if let saveError {
+                                Text(saveError).font(.caption).foregroundStyle(POSTheme.error)
+                            }
+                            if let template { templateContent(template) }
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, 24)
                 }
             }
             .navigationTitle("CV Transfer")
@@ -55,20 +59,23 @@ struct POSCVHubView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Close") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await save() }
-                    } label: {
-                        if isSaving { ProgressView() } else { Text("Save") }
-                    }
-                    .disabled(isSaving || cv == nil)
-                }
             }
-            .task { await load() }
+            .safeAreaInset(edge: .bottom) {
+                if template != nil { bottomBar }
+            }
+            .task { await reloadTemplates() }
             .sheet(isPresented: $showShareSheet) {
                 if let sharePDFData {
                     POSActivityShareSheet(items: [sharePDFData, "My CV.pdf"])
                 }
+            }
+            .alert("New template", isPresented: $showCreate) {
+                TextField("Name", text: $newTemplateName)
+                Button("Create") { Task { await createTemplate() } }
+                Button("Cancel", role: .cancel) {}
+            }
+            .sheet(item: $refiningBlock) { block in
+                refineSheet(block)
             }
             .alert("CV Transfer", isPresented: Binding(
                 get: { alertMessage != nil },
@@ -81,518 +88,281 @@ struct POSCVHubView: View {
         }
     }
 
-    private var headerSection: some View {
-        POSCard {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Ideal CV", systemImage: "doc.richtext")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(POSTheme.primaryDark)
-                TextField("Headline (Name — Role)", text: $editHeadline)
-                    .font(.posDisplay(18))
-                    .onChange(of: editHeadline) { v in updateDocument { $0.headline = v } }
-                TextField("Professional summary", text: $editSummary, axis: .vertical)
-                    .font(.subheadline)
-                    .lineLimit(3...8)
-                    .onChange(of: editSummary) { v in updateDocument { $0.summary = v } }
-                contactFields
-                if let source = cv?.source {
-                    Text(source == "ideal" ? "Pre-built ideal resume — edit sections below, export, or share." : "Assembled from career entries.")
-                        .font(.caption)
-                        .foregroundStyle(POSTheme.muted)
-                }
-            }
-        }
-    }
-
-    private var contactFields: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Contact").font(.caption.weight(.semibold)).foregroundStyle(POSTheme.muted)
-            TextField("Email", text: bindingContact(\.email))
-                .textContentType(.emailAddress)
-                .keyboardType(.emailAddress)
-                .autocapitalization(.none)
-            TextField("Phone", text: bindingContact(\.phone))
-                .textContentType(.telephoneNumber)
-                .keyboardType(.phonePad)
-            TextField("Location", text: bindingContact(\.location))
-            TextField("LinkedIn URL", text: bindingContact(\.linkedin))
-                .textContentType(.URL)
-                .keyboardType(.URL)
-                .autocapitalization(.none)
-            TextField("GitHub URL", text: bindingContact(\.github))
-                .textContentType(.URL)
-                .keyboardType(.URL)
-                .autocapitalization(.none)
-        }
-    }
-
-    private var skillGroupsSection: some View {
-        POSCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Skills (by category)").font(.caption.weight(.semibold))
-                let groups = cv?.document.skillGroups ?? []
-                if groups.isEmpty {
-                    TextField("Comma-separated skills", text: $editSkillsText, axis: .vertical)
-                        .font(.subheadline)
-                        .lineLimit(2...6)
-                        .onChange(of: editSkillsText) { v in
-                            let skills = v.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-                            updateDocument { $0.skills = skills.isEmpty ? nil : skills }
-                        }
-                } else {
-                    ForEach(groups) { group in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(group.category).font(.caption.weight(.semibold)).foregroundStyle(POSTheme.primaryDark)
-                            Text(group.items.joined(separator: ", "))
-                                .font(.caption)
-                                .foregroundStyle(POSTheme.ink)
-                        }
-                        if group.id != groups.last?.id {
-                            Divider()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var suggestedSkillsSection: some View {
-        POSCard {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Label("AI skill suggestions", systemImage: "plus.circle")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(POSTheme.primaryDark)
-                    Spacer()
+    private var templatePicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(templates) { tpl in
                     Button {
-                        Task { await loadSuggestions() }
+                        Task { await loadTemplate(id: tpl.id) }
                     } label: {
-                        if isLoadingSuggestions {
-                            ProgressView()
-                        } else {
-                            Text("Refresh")
-                                .font(.caption.weight(.semibold))
-                        }
+                        Text(tpl.name)
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(selectedID == tpl.id ? POSTheme.primaryDark : POSTheme.border.opacity(0.35))
+                            .foregroundStyle(selectedID == tpl.id ? .white : POSTheme.ink)
+                            .clipShape(Capsule())
                     }
-                    .disabled(isLoadingSuggestions)
                 }
-                Text("Tap a skill to add it directly into your CV.")
-                    .font(.caption2)
-                    .foregroundStyle(POSTheme.muted)
-                if suggestedSkills.isEmpty {
-                    Text("Refresh to get AI suggestions based on your experience.")
-                        .font(.caption)
-                        .foregroundStyle(POSTheme.muted)
-                } else {
-                    FlowLayout(spacing: 8) {
-                        ForEach(suggestedSkills) { item in
-                            Button {
-                                Task { await addSuggestedSkill(item) }
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("+ \(item.skill)")
-                                        .font(.caption.weight(.semibold))
-                                    Text(item.category)
-                                        .font(.caption2)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(POSTheme.border.opacity(0.35))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
+                Button { showCreate = true } label: {
+                    Label("New", systemImage: "plus")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(POSTheme.border.opacity(0.35))
+                        .clipShape(Capsule())
                 }
             }
         }
     }
 
-    private func bindingContact(_ keyPath: WritableKeyPath<POSCVContact, String?>) -> Binding<String> {
-        Binding(
-            get: { cv?.document.contact?[keyPath: keyPath] ?? "" },
-            set: { newValue in
-                updateDocument { doc in
-                    var contact = doc.contact ?? POSCVContact()
-                    contact[keyPath: keyPath] = newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : newValue
-                    doc.contact = contact
-                }
-            }
-        )
-    }
-
-    private var previewSection: some View {
-        Group {
-            if cv?.document != nil {
-                VStack(alignment: .leading, spacing: 12) {
-                    POSSectionHeader(title: "Edit sections", eyebrow: "Resume body")
-
-                    if !primaryStackLabel.isEmpty {
-                        POSCard {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Primary stack (Job Scout)").font(.caption.weight(.semibold))
-                                Text(primaryStackLabel)
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(POSTheme.primaryDark)
-                                Text("Jobs matching this stack score highest — detected from your CV, not hardcoded.")
-                                    .font(.caption2)
-                                    .foregroundStyle(POSTheme.muted)
-                            }
-                        }
-                    }
-
-                    skillGroupsSection
-                    suggestedSkillsSection
-
-                    if let education = cv?.document.education, !education.isEmpty {
-                        POSCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Education").font(.caption.weight(.semibold))
-                                ForEach(education) { item in
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.school).font(.subheadline.weight(.medium))
-                                        if let degree = item.degree, !degree.isEmpty {
-                                            Text(degree).font(.caption)
-                                        }
-                                        if let period = item.period, !period.isEmpty {
-                                            Text(period).font(.caption2).foregroundStyle(POSTheme.muted)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if let achievements = cv?.document.achievements, !achievements.isEmpty {
-                        POSCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Achievements").font(.caption.weight(.semibold))
-                                ForEach(Array(achievements.enumerated()), id: \.element.id) { index, item in
-                                    TextField("Achievement", text: bindingAchievement(index: index), axis: .vertical)
-                                        .font(.caption)
-                                        .lineLimit(2...6)
-                                }
-                            }
-                        }
-                    }
-
-                    if let certificates = cv?.document.certificates, !certificates.isEmpty {
-                        POSCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Certificates").font(.caption.weight(.semibold))
-                                ForEach(Array(certificates.enumerated()), id: \.element.id) { index, item in
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        TextField("Title", text: bindingCertificate(index: index, keyPath: \.title))
-                                            .font(.subheadline.weight(.medium))
-                                        TextField("Issuer", text: bindingOptionalCertificate(index: index, keyPath: \.issuer))
-                                            .font(.caption)
-                                        TextField("Period", text: bindingOptionalCertificate(index: index, keyPath: \.period))
-                                            .font(.caption2)
-                                    }
-                                    if index < certificates.count - 1 { Divider() }
-                                }
-                            }
-                        }
-                    }
-
-                    editableBulletSection(title: "Experience", keyPath: \.experience)
-                    editableBulletSection(title: "Projects", keyPath: \.projects)
-                }
-            }
-        }
-    }
-
-    private func editableBulletSection(title: String, keyPath: WritableKeyPath<POSCVDocument, [POSCVBullet]?>) -> some View {
+    @ViewBuilder
+    private func validateBanner(_ result: POSCVValidateResult) -> some View {
         POSCard {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(title).font(.caption.weight(.semibold)).foregroundStyle(POSTheme.primaryDark)
-                let items = cv?.document[keyPath: keyPath] ?? []
-                ForEach(Array(items.enumerated()), id: \.element.stableID) { index, item in
-                    editableBulletRow(title: title, index: index, item: item, keyPath: keyPath)
-                    if index < items.count - 1 {
-                        Divider()
-                    }
-                }
-            }
-        }
-    }
-
-    private func editableBulletRow(title: String, index: Int, item: POSCVBullet, keyPath: WritableKeyPath<POSCVDocument, [POSCVBullet]?>) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("Title / role", text: bindingBullet(index: index, keyPath: keyPath, itemKeyPath: \.title))
-                .font(.subheadline.weight(.medium))
-            TextField("Company", text: bindingOptionalBullet(index: index, keyPath: keyPath, itemKeyPath: \.company))
-                .font(.caption)
-            TextField("Period (e.g. 2024 — Present)", text: bindingOptionalBullet(index: index, keyPath: keyPath, itemKeyPath: \.period))
-                .font(.caption)
-            TextField("Details (one bullet per line)", text: bindingBullet(index: index, keyPath: keyPath, itemKeyPath: \.content), axis: .vertical)
-                .font(.caption)
-                .lineLimit(3...10)
-        }
-    }
-
-    private func bindingBullet(index: Int, keyPath: WritableKeyPath<POSCVDocument, [POSCVBullet]?>, itemKeyPath: WritableKeyPath<POSCVBullet, String>) -> Binding<String> {
-        Binding(
-            get: { cv?.document[keyPath: keyPath]?[safe: index]?[keyPath: itemKeyPath] ?? "" },
-            set: { newValue in
-                updateDocument { doc in
-                    guard var items = doc[keyPath: keyPath], index < items.count else { return }
-                    items[index][keyPath: itemKeyPath] = newValue
-                    doc[keyPath: keyPath] = items
-                }
-            }
-        )
-    }
-
-    private func bindingOptionalBullet(index: Int, keyPath: WritableKeyPath<POSCVDocument, [POSCVBullet]?>, itemKeyPath: WritableKeyPath<POSCVBullet, String?>) -> Binding<String> {
-        Binding(
-            get: { cv?.document[keyPath: keyPath]?[safe: index]?[keyPath: itemKeyPath] ?? "" },
-            set: { newValue in
-                updateDocument { doc in
-                    guard var items = doc[keyPath: keyPath], index < items.count else { return }
-                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    items[index][keyPath: itemKeyPath] = trimmed.isEmpty ? nil : trimmed
-                    doc[keyPath: keyPath] = items
-                }
-            }
-        )
-    }
-
-    private func bindingAchievement(index: Int) -> Binding<String> {
-        Binding(
-            get: { cv?.document.achievements?[safe: index]?.content ?? "" },
-            set: { newValue in
-                updateDocument { doc in
-                    guard var items = doc.achievements, index < items.count else { return }
-                    items[index].content = newValue
-                    doc.achievements = items
-                }
-            }
-        )
-    }
-
-    private func bindingCertificate(index: Int, keyPath: WritableKeyPath<POSCVCertificate, String>) -> Binding<String> {
-        Binding(
-            get: { cv?.document.certificates?[safe: index]?[keyPath: keyPath] ?? "" },
-            set: { newValue in
-                updateDocument { doc in
-                    guard var items = doc.certificates, index < items.count else { return }
-                    items[index][keyPath: keyPath] = newValue
-                    doc.certificates = items
-                }
-            }
-        )
-    }
-
-    private func bindingOptionalCertificate(index: Int, keyPath: WritableKeyPath<POSCVCertificate, String?>) -> Binding<String> {
-        Binding(
-            get: { cv?.document.certificates?[safe: index]?[keyPath: keyPath] ?? "" },
-            set: { newValue in
-                updateDocument { doc in
-                    guard var items = doc.certificates, index < items.count else { return }
-                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    items[index][keyPath: keyPath] = trimmed.isEmpty ? nil : trimmed
-                    doc.certificates = items
-                }
-            }
-        )
-    }
-
-    private func updateDocument(_ mutate: (inout POSCVDocument) -> Void) {
-        guard var doc = cv?.document else { return }
-        mutate(&doc)
-        cv = POSAssembledCV(documentID: cv?.documentID, document: doc, source: cv?.source ?? "ideal")
-    }
-
-    private var aiCoachSection: some View {
-        POSCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("AI CV coach", systemImage: "sparkles")
+            VStack(alignment: .leading, spacing: 6) {
+                Text(result.valid ? "Fits \(result.maxPages) page(s)" : "Overflow · \(result.pageCount)/\(result.maxPages) pages")
                     .font(.caption.weight(.semibold))
+                    .foregroundStyle(result.valid ? POSTheme.success : POSTheme.error)
+                ForEach(result.overflows ?? [], id: \.self) { Text("• \($0)").font(.caption2) }
+                ForEach(result.suggestions ?? [], id: \.self) { Text("→ \($0)").font(.caption2).foregroundStyle(POSTheme.muted) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func templateContent(_ tpl: POSCVTemplate) -> some View {
+        POSCard {
+            Text("Layout: \(tpl.layoutID)")
+                .font(.caption)
+                .foregroundStyle(POSTheme.muted)
+            Text("\(tpl.blocks.filter(\.enabled).count) active blocks")
+                .font(.caption)
+        }
+        ForEach(Array(tpl.blocks.sorted { $0.order < $1.order }.enumerated()), id: \.element.id) { index, block in
+            blockCard(block, index: index, in: tpl)
+        }
+    }
+
+    private func blockCard(_ block: POSCVBlock, index: Int, in tpl: POSCVTemplate) -> some View {
+        POSCard {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(block.overrides?.title?.isEmpty == false ? block.overrides!.title! : block.type.capitalized)
+                        .font(.subheadline.weight(.semibold))
+                    Text(block.type).font(.caption2).foregroundStyle(POSTheme.muted)
+                }
+                Spacer()
+                Toggle("", isOn: bindingEnabled(blockID: block.id))
+                    .labelsHidden()
+            }
+            if let company = block.overrides?.company, !company.isEmpty {
+                Text(company).font(.caption).foregroundStyle(POSTheme.muted)
+            }
+            if let content = block.content, !content.isEmpty {
+                Text(content).font(.caption).lineLimit(4)
+            }
+            if let stack = block.overrides?.highlightStack, !stack.isEmpty {
+                Text("Stack: \(stack.joined(separator: ", "))")
+                    .font(.caption2)
                     .foregroundStyle(POSTheme.primaryDark)
-                Picker("Section", selection: $selectedSection) {
-                    Text("Summary").tag("summary")
-                    Text("Experience").tag("experience")
-                    Text("Projects").tag("projects")
+            }
+            HStack(spacing: 8) {
+                Button("Edit + refine") { refiningBlock = block; refineDraft = block.content ?? "" }
+                    .font(.caption.weight(.semibold))
+                if index > 0 {
+                    Button("Up") { moveBlock(block.id, direction: -1) }.font(.caption)
                 }
-                .pickerStyle(.segmented)
-                TextField("Ask AI to improve wording, shorten, or tailor for a role…", text: $chatInstruction, axis: .vertical)
-                    .lineLimit(2...4)
-                    .font(.subheadline)
-                POSActionButton(title: "Refine with AI", icon: "wand.and.stars", style: .secondary) {
-                    Task { await refine() }
+                if index < tpl.blocks.count - 1 {
+                    Button("Down") { moveBlock(block.id, direction: 1) }.font(.caption)
                 }
-                if let chatReply {
-                    Text(chatReply)
-                        .font(.caption)
-                        .foregroundStyle(POSTheme.ink)
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(POSTheme.border.opacity(0.25))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .padding(.top, 6)
+        }
+    }
+
+    private var bottomBar: some View {
+        HStack(spacing: 8) {
+            POSActionButton(title: isSaving ? "…" : "Save", style: .primary) {
+                Task { await save() }
+            }
+            POSActionButton(title: "Validate", style: .secondary) {
+                guard let template else { return }
+                Task { await runValidate(template) }
+            }
+            POSActionButton(title: isExporting ? "…" : "PDF", style: .secondary) {
+                Task { await exportPDF() }
+            }
+            POSActionButton(title: "Share", style: .secondary) {
+                Task { await share() }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(POSTheme.background)
+    }
+
+    private func refineSheet(_ block: POSCVBlock) -> some View {
+        NavigationStack {
+            Form {
+                Section("Content") {
+                    TextEditor(text: $refineDraft).frame(minHeight: 120)
+                }
+                Section("Instruction") {
+                    TextField("Optional", text: $refineInstruction, axis: .vertical)
+                }
+            }
+            .navigationTitle("AI refine")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { refiningBlock = nil }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isRefining ? "…" : "Apply") {
+                        Task { await applyRefine(blockID: block.id) }
+                    }
+                    .disabled(isRefining)
                 }
             }
         }
     }
 
-    private var actionsSection: some View {
-        VStack(spacing: 10) {
-            POSActionButton(title: "Download PDF", icon: "arrow.down.doc", style: .primary) {
-                Task { await downloadPDF() }
+    private func bindingEnabled(blockID: String) -> Binding<Bool> {
+        Binding(
+            get: { template?.blocks.first { $0.id == blockID }?.enabled ?? true },
+            set: { enabled in
+                guard var tpl = template else { return }
+                tpl.blocks = tpl.blocks.map { $0.id == blockID ? POSCVBlock(
+                    id: $0.id, type: $0.type, order: $0.order, enabled: enabled,
+                    sourceEntityID: $0.sourceEntityID, content: $0.content, overrides: $0.overrides,
+                    aiRefinedAt: $0.aiRefinedAt, pendingRaw: $0.pendingRaw, skillGroups: $0.skillGroups
+                ) : $0 }
+                template = tpl
             }
-            POSActionButton(title: "Share PDF", icon: "square.and.arrow.up", style: .secondary) {
-                Task { await sharePDF() }
-            }
-            POSActionButton(title: "Upload to cloud (SeaweedFS)", icon: "icloud.and.arrow.up", style: .secondary) {
-                Task { await uploadShareLink() }
-            }
-        }
-        .disabled(isExporting)
+        )
     }
 
-    private func load() async {
+    private func moveBlock(_ blockID: String, direction: Int) {
+        guard var tpl = template else { return }
+        var sorted = tpl.blocks.sorted { $0.order < $1.order }
+        guard let i = sorted.firstIndex(where: { $0.id == blockID }) else { return }
+        let j = i + direction
+        guard sorted.indices.contains(j) else { return }
+        let a = sorted[i].order
+        sorted[i].order = sorted[j].order
+        sorted[j].order = a
+        tpl.blocks = sorted
+        template = tpl
+    }
+
+    @MainActor
+    private func reloadTemplates() async {
         isLoading = true
         loadError = nil
-        defer { isLoading = false }
         do {
-            cv = try await session.api.fetchCV()
-            editHeadline = cv?.document.headline ?? ""
-            editSummary = cv?.document.summary ?? ""
-            editSkillsText = (cv?.document.skills ?? []).joined(separator: ", ")
-            if let stack = cv?.document.primaryStack, !stack.isEmpty {
-                primaryStackLabel = stack.joined(separator: " · ")
-            } else if let groups = cv?.document.skillGroups, let first = groups.first?.items.prefix(3) {
-                primaryStackLabel = first.joined(separator: " · ")
-            }
-            await loadSuggestions()
+            templates = try await session.api.listCVTemplates()
+            let pick = initialTemplateID ?? selectedID ?? templates.first?.id
+            if let pick { await loadTemplate(id: pick) }
+            isLoading = false
         } catch {
             loadError = error.localizedDescription
+            isLoading = false
         }
     }
 
-    private func loadSuggestions() async {
-        isLoadingSuggestions = true
-        defer { isLoadingSuggestions = false }
+    @MainActor
+    private func loadTemplate(id: String) async {
+        isLoading = true
         do {
-            let resp = try await session.api.suggestCVSkills()
-            suggestedSkills = resp.suggestions
-            if let stack = resp.primaryStack, !stack.isEmpty {
-                primaryStackLabel = stack.joined(separator: " · ")
-            }
+            template = try await session.api.getCVTemplate(id: id)
+            selectedID = id
+            isLoading = false
+            if let template { await runValidate(template) }
         } catch {
-            // Suggestions are optional — keep UI usable without AI.
+            loadError = error.localizedDescription
+            isLoading = false
         }
     }
 
-    private func addSuggestedSkill(_ item: POSCVSuggestedSkill) async {
+    @MainActor
+    private func runValidate(_ tpl: POSCVTemplate) async {
+        validate = try? await session.api.validateCVTemplate(id: tpl.id, template: tpl)
+    }
+
+    @MainActor
+    private func save() async {
+        guard let template else { return }
+        isSaving = true
+        saveError = nil
         do {
-            let resp = try await session.api.addCVSkill(category: item.category, skill: item.skill)
-            cv = POSAssembledCV(documentID: cv?.documentID, document: resp.document, source: cv?.source ?? "ideal")
-            suggestedSkills.removeAll { $0.id == item.id }
-            POSHaptics.light()
+            self.template = try await session.api.saveCVTemplate(template)
+            if let tpl = self.template { await runValidate(tpl) }
+        } catch {
+            saveError = error.localizedDescription
+        }
+        isSaving = false
+    }
+
+    @MainActor
+    private func createTemplate() async {
+        let name = newTemplateName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        do {
+            let created = try await session.api.createCVTemplate(name: name, cloneID: selectedID ?? "")
+            newTemplateName = ""
+            await reloadTemplates()
+            await loadTemplate(id: created.id)
         } catch {
             alertMessage = error.localizedDescription
         }
     }
 
-    private func save() async {
-        guard var doc = cv?.document else { return }
-        doc.headline = editHeadline
-        doc.summary = editSummary
-        isSaving = true
-        defer { isSaving = false }
+    @MainActor
+    private func applyRefine(blockID: String) async {
+        isRefining = true
+        defer { isRefining = false }
         do {
-            let saved = try await session.api.saveCV(document: doc)
-            cv = saved
-            POSHaptics.light()
-        } catch {
-            loadError = error.localizedDescription
-        }
-    }
-
-    private func refine() async {
-        guard let doc = cv?.document else { return }
-        guard !chatInstruction.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        let content: String
-        switch selectedSection {
-        case "experience":
-            content = (doc.experience ?? []).map { "\($0.title): \($0.content)" }.joined(separator: "\n")
-        case "projects":
-            content = (doc.projects ?? []).map { "\($0.title): \($0.content)" }.joined(separator: "\n")
-        default:
-            content = doc.summary
-        }
-        do {
-            let resp = try await session.api.refineCV(instruction: chatInstruction, section: selectedSection, content: content)
-            chatReply = resp.reply
-            if selectedSection == "summary", let refined = resp.refinedContent, !refined.isEmpty {
-                editSummary = refined
-                updateDocument { $0.summary = refined }
+            let instruction = refineInstruction.isEmpty
+                ? "Professional tone, ATS-friendly, fix grammar, keep facts"
+                : refineInstruction
+            let res = try await session.api.refineCVBlock(content: refineDraft, instruction: instruction)
+            let refined = res.refinedContent?.isEmpty == false ? res.refinedContent! : refineDraft
+            template = template.map { tpl in
+                var copy = tpl
+                copy.blocks = tpl.blocks.map { $0.id == blockID ? POSCVBlock(
+                    id: $0.id, type: $0.type, order: $0.order, enabled: $0.enabled,
+                    sourceEntityID: $0.sourceEntityID, content: refined, overrides: $0.overrides,
+                    aiRefinedAt: $0.aiRefinedAt, pendingRaw: nil, skillGroups: $0.skillGroups
+                ) : $0 }
+                return copy
             }
-            chatInstruction = ""
-            POSHaptics.light()
+            refiningBlock = nil
         } catch {
-            chatReply = error.localizedDescription
+            alertMessage = error.localizedDescription
         }
     }
 
-    private func downloadPDF() async {
+    @MainActor
+    private func exportPDF() async {
+        guard let template else { return }
         isExporting = true
         defer { isExporting = false }
         do {
-            let data = try await session.api.downloadCVPDF()
-            sharePDFData = data
+            sharePDFData = try await session.api.downloadCVPDF(templateID: template.id)
             showShareSheet = true
         } catch {
-            loadError = error.localizedDescription
+            alertMessage = error.localizedDescription
         }
     }
 
-    private func sharePDF() async {
-        await downloadPDF()
-    }
-
-    private func uploadShareLink() async {
-        isExporting = true
-        defer { isExporting = false }
+    @MainActor
+    private func share() async {
         do {
             let resp = try await session.api.shareCV()
             if let url = URL(string: resp.url) {
-                let av = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let root = scene.windows.first?.rootViewController {
-                    root.present(av, animated: true)
-                }
+                await UIApplication.shared.open(url)
             }
         } catch {
             alertMessage = error.localizedDescription
         }
-    }
-}
-
-struct POSActivityShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        var controllers: [Any] = []
-        for item in items {
-            if let data = item as? Data {
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent("CV.pdf")
-                try? data.write(to: url)
-                controllers.append(url)
-            } else {
-                controllers.append(item)
-            }
-        }
-        return UIActivityViewController(activityItems: controllers, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        guard index >= 0, index < count else { return nil }
-        return self[index]
     }
 }

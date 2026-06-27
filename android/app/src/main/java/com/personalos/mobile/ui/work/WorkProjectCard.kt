@@ -37,6 +37,7 @@ fun WorkProjectCard(
     isPrimary: Boolean,
     onOpen: () -> Unit,
     onArchitecture: () -> Unit,
+    onAddToCv: (() -> Unit)? = null,
 ) {
     val hasArch = item.hasArchitecture()
     Column(
@@ -92,6 +93,20 @@ fun WorkProjectCard(
                 Icon(Icons.Default.GridView, contentDescription = null, tint = PosTheme.PrimaryDark, modifier = Modifier.size(18.dp))
                 Text("View architecture", fontWeight = FontWeight.Medium, color = PosTheme.PrimaryDark, modifier = Modifier.weight(1f))
                 Icon(Icons.Default.ArrowOutward, contentDescription = null, tint = PosTheme.PrimaryDark, modifier = Modifier.size(16.dp))
+            }
+        }
+        if (onAddToCv != null) {
+            HorizontalDivider(Modifier.padding(horizontal = 14.dp), color = PosTheme.Border)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onAddToCv)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Add to CV…", fontWeight = FontWeight.Medium, color = PosTheme.PrimaryDark, modifier = Modifier.weight(1f))
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = PosTheme.PrimaryDark, modifier = Modifier.size(16.dp))
             }
         }
     }

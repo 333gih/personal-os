@@ -19,7 +19,9 @@ if [[ ! -f "${BRIDGE}" ]]; then
 fi
 
 ICON_SCRIPT=""
-if [[ -f "${REPO_ROOT}/story-tracker/scripts/generate-ios-app-icons.mjs" ]]; then
+if [[ -f "${REPO_ROOT}/scripts/generate-pos-app-icons.mjs" ]]; then
+  ICON_SCRIPT="${REPO_ROOT}/scripts/generate-pos-app-icons.mjs"
+elif [[ -f "${REPO_ROOT}/story-tracker/scripts/generate-ios-app-icons.mjs" ]]; then
   ICON_SCRIPT="${REPO_ROOT}/story-tracker/scripts/generate-ios-app-icons.mjs"
 elif [[ -f "${ROOT}/../scripts/generate-ios-app-icons.mjs" ]]; then
   ICON_SCRIPT="${ROOT}/../scripts/generate-ios-app-icons.mjs"

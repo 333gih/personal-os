@@ -6,6 +6,7 @@ struct WorkProjectCard: View {
     let isPrimary: Bool
     let onOpen: () -> Void
     let onArchitecture: () -> Void
+    var onAddToCV: (() -> Void)? = nil
 
     private var hasArchitecture: Bool {
         !item.architectureLayers.isEmpty || item.designImageURL() != nil
@@ -58,6 +59,23 @@ struct WorkProjectCard: View {
                             .font(.subheadline.weight(.medium))
                         Spacer()
                         Image(systemName: "arrow.up.right")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(POSTheme.primaryDark)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(POSPressButtonStyle())
+            }
+            if let onAddToCV {
+                Divider().padding(.horizontal, 14)
+                Button(action: onAddToCV) {
+                    HStack(spacing: 8) {
+                        Text("Add to CV…")
+                            .font(.subheadline.weight(.medium))
+                        Spacer()
+                        Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                     }
                     .foregroundStyle(POSTheme.primaryDark)

@@ -1,14 +1,24 @@
 package com.personalos.mobile.data.repository
 
 import com.personalos.mobile.data.models.PosAssembledCv
+import com.personalos.mobile.data.models.PosCvAddBlockFromEntityRequest
 import com.personalos.mobile.data.models.PosCvAddSkillRequest
 import com.personalos.mobile.data.models.PosCvAddSkillResponse
+import com.personalos.mobile.data.models.PosCvBlockOverrides
+import com.personalos.mobile.data.models.PosCvCreateTemplateRequest
 import com.personalos.mobile.data.models.PosCvDocument
+import com.personalos.mobile.data.models.PosCvLayoutsResponse
+import com.personalos.mobile.data.models.PosCvRefineBlockRequest
 import com.personalos.mobile.data.models.PosCvRefineRequest
 import com.personalos.mobile.data.models.PosCvRefineResponse
 import com.personalos.mobile.data.models.PosCvSaveRequest
+import com.personalos.mobile.data.models.PosCvSaveTemplateRequest
 import com.personalos.mobile.data.models.PosCvShareResponse
 import com.personalos.mobile.data.models.PosCvSuggestSkillsResponse
+import com.personalos.mobile.data.models.PosCvTemplate
+import com.personalos.mobile.data.models.PosCvTemplatesResponse
+import com.personalos.mobile.data.models.PosCvValidateRequest
+import com.personalos.mobile.data.models.PosCvValidateResult
 import com.personalos.mobile.data.models.PosDashboard
 import com.personalos.mobile.data.models.PosEntityDetailResponse
 import com.personalos.mobile.data.models.PosEntityListResponse
@@ -59,6 +69,15 @@ class PersonalOSRepository(
     private val cvSuggestAdapter = moshi.adapter(PosCvSuggestSkillsResponse::class.java)
     private val cvAddSkillReqAdapter = moshi.adapter(PosCvAddSkillRequest::class.java)
     private val cvAddSkillResAdapter = moshi.adapter(PosCvAddSkillResponse::class.java)
+    private val cvTemplatesAdapter = moshi.adapter(PosCvTemplatesResponse::class.java)
+    private val cvTemplateAdapter = moshi.adapter(PosCvTemplate::class.java)
+    private val cvLayoutsAdapter = moshi.adapter(PosCvLayoutsResponse::class.java)
+    private val cvValidateAdapter = moshi.adapter(PosCvValidateResult::class.java)
+    private val cvSaveTemplateAdapter = moshi.adapter(PosCvSaveTemplateRequest::class.java)
+    private val cvValidateReqAdapter = moshi.adapter(PosCvValidateRequest::class.java)
+    private val cvCreateTemplateAdapter = moshi.adapter(PosCvCreateTemplateRequest::class.java)
+    private val cvRefineBlockAdapter = moshi.adapter(PosCvRefineBlockRequest::class.java)
+    private val cvAddBlockAdapter = moshi.adapter(PosCvAddBlockFromEntityRequest::class.java)
     private val jobListAdapter = moshi.adapter(PosJobListResponse::class.java)
     private val jobScanStatusAdapter = moshi.adapter(PosJobScanStatusResponse::class.java)
     private val jobPrefsAdapter = moshi.adapter(PosJobSearchPreferences::class.java)
@@ -112,8 +131,55 @@ class PersonalOSRepository(
             decode(api.post("cv/refine", json), cvRefineResAdapter)
         }
 
-    suspend fun downloadCvPdf(): ByteArray = withContext(Dispatchers.IO) {
-        api.getBytes("cv/export/pdf")
+    suspend fun downloadCvPdf(templateId: String? = null): ByteArray = withContext(Dispatchers.IO) {
+        val path = if (templateId.isNullOrBlank()) "cv/export/pdf" else "cv/export/pdf?template_id=${encode(templateId)}"
+        api.getBytes(path)
+    }
+
+    suspend fun listCvTemplates(): List<PosCvTemplate> = withContext(Dispatchers.IO) {
+        decode(api.get("cv/templates"), cvTemplatesAdapter).templates
+    }
+
+    suspend fun listCvLayouts() = withContext(Dispatchers.IO) {
+        decode(api.get("cv/layouts"), cvLayoutsAdapter).layouts
+    }
+
+    suspend fun getCvTemplate(id: String): PosCvTemplate = withContext(Dispatchers.IO) {
+        decode(api.get("cv/templates/$id"), cvTemplateAdapter)
+    }
+
+    suspend fun createCvTemplate(name: String, layoutId: String = "", cloneId: String = ""): PosCvTemplate =
+        withContext(Dispatchers.IO) {
+            val json = cvCreateTemplateAdapter.toJson(PosCvCreateTemplateRequest(name, layoutId, cloneId))
+            decode(api.post("cv/templates", json), cvTemplateAdapter)
+        }
+
+    suspend fun saveCvTemplate(template: PosCvTemplate, force: Boolean = false): PosCvTemplate =
+        withContext(Dispatchers.IO) {
+            val json = cvSaveTemplateAdapter.toJson(PosCvSaveTemplateRequest(template, force))
+            decode(api.put("cv/templates/${template.id}", json), cvTemplateAdapter)
+        }
+
+    suspend fun validateCvTemplate(templateId: String, template: PosCvTemplate? = null): PosCvValidateResult =
+        withContext(Dispatchers.IO) {
+            val body = template?.let { cvValidateReqAdapter.toJson(PosCvValidateRequest(it)) } ?: "{}"
+            decode(api.post("cv/templates/$templateId/validate", body), cvValidateAdapter)
+        }
+
+    suspend fun refineCvBlock(content: String, instruction: String = ""): PosCvRefineResponse =
+        withContext(Dispatchers.IO) {
+            val json = cvRefineBlockAdapter.toJson(PosCvRefineBlockRequest(instruction, content))
+            decode(api.post("cv/templates/0/blocks/0/refine", json), cvRefineResAdapter)
+        }
+
+    suspend fun addCvBlockFromEntity(
+        templateId: String,
+        entityId: String,
+        blockType: String,
+        overrides: PosCvBlockOverrides? = null,
+    ): PosCvTemplate = withContext(Dispatchers.IO) {
+        val json = cvAddBlockAdapter.toJson(PosCvAddBlockFromEntityRequest(entityId, blockType, overrides))
+        decode(api.post("cv/templates/$templateId/blocks/from-entity", json), cvTemplateAdapter)
     }
 
     suspend fun shareCv(): PosCvShareResponse = withContext(Dispatchers.IO) {

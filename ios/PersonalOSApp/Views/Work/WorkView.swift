@@ -6,7 +6,8 @@ struct WorkView: View {
 
     @State private var items: [POSEntity] = []
     @State private var isLoading = true
-    @State private var loadError: String?
+    @State private var addToCVEntity: POSEntity?
+    @State private var cvAddedAlert: POSCVTemplate?
 
     private var profile: POSEntity? {
         items.first { $0.metadata?.kind == "profile" }
@@ -106,6 +107,22 @@ struct WorkView: View {
         }
         .task(id: session.accessToken) { await load() }
         .refreshable { await load() }
+        .sheet(item: $addToCVEntity) { entity in
+            POSAddToCVSheet(entity: entity) { tpl in
+                cvAddedAlert = tpl
+            }
+        }
+        .alert("Added to CV", isPresented: Binding(
+            get: { cvAddedAlert != nil },
+            set: { if !$0 { cvAddedAlert = nil } }
+        )) {
+            Button("Open CV Hub") { nav.openCV(); cvAddedAlert = nil }
+            Button("OK", role: .cancel) { cvAddedAlert = nil }
+        } message: {
+            if let tpl = cvAddedAlert {
+                Text("Block added to \"\(tpl.name)\".")
+            }
+        }
     }
 
     private var workToolbar: some View {
@@ -247,7 +264,8 @@ struct WorkView: View {
                         onArchitecture: {
                             POSHaptics.light()
                             nav.onOpen(.entity(item.id, title: item.title, section: .architecture))
-                        }
+                        },
+                        onAddToCV: { addToCVEntity = item }
                     )
                     .frame(maxWidth: .infinity)
                 }

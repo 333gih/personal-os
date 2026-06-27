@@ -24,13 +24,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.personalos.mobile.data.models.PosCvTemplate
 import com.personalos.mobile.data.models.PosEntity
 import com.personalos.mobile.data.models.PosEntitySection
+import com.personalos.mobile.data.repository.PersonalOSRepository
 import com.personalos.mobile.ui.components.PosActionButton
 import com.personalos.mobile.ui.components.PosActionStyle
 import com.personalos.mobile.ui.components.PosCard
@@ -49,8 +54,15 @@ import com.personalos.mobile.ui.theme.posLabel
 import com.personalos.mobile.util.periodLabel
 
 @Composable
-fun WorkScreen(viewModel: WorkViewModel, nav: AppNavigator, reloadKey: Int = 0) {
+fun WorkScreen(
+    viewModel: WorkViewModel,
+    repository: PersonalOSRepository,
+    nav: AppNavigator,
+    reloadKey: Int = 0,
+) {
     val state by viewModel.state.collectAsState()
+    var addToCvEntity by remember { mutableStateOf<PosEntity?>(null) }
+    var cvAddedTemplate by remember { mutableStateOf<PosCvTemplate?>(null) }
     androidx.compose.runtime.LaunchedEffect(reloadKey) { viewModel.load() }
 
     val items = state.entities
@@ -91,7 +103,7 @@ fun WorkScreen(viewModel: WorkViewModel, nav: AppNavigator, reloadKey: Int = 0) 
                     else -> {
                         TimelineSection(roles, nav)
                         activeProjects.firstOrNull()?.let { FocusCard(it, nav) }
-                        ProjectsSection(projects, nav)
+                        ProjectsSection(projects, nav, onAddToCv = { addToCvEntity = it })
                         if (designDocs.isNotEmpty()) DesignSection(designDocs, nav)
                         InterviewSection(interviewTopics, state.loading, nav)
                         CareerToolsSection(nav)
@@ -107,6 +119,30 @@ fun WorkScreen(viewModel: WorkViewModel, nav: AppNavigator, reloadKey: Int = 0) 
             onClick = nav.onOpenWorkHub,
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 12.dp),
         )
+        addToCvEntity?.let { entity ->
+            AddToCvSheet(
+                entity = entity,
+                repository = repository,
+                onDismiss = { addToCvEntity = null },
+                onAdded = { cvAddedTemplate = it },
+            )
+        }
+        cvAddedTemplate?.let { tpl ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { cvAddedTemplate = null },
+                title = { Text("Added to CV") },
+                text = { Text("Block added to \"${tpl.name}\".") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        cvAddedTemplate = null
+                        nav.onOpenCv()
+                    }) { Text("Open CV Hub") }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { cvAddedTemplate = null }) { Text("OK") }
+                },
+            )
+        }
     }
 }
 
@@ -182,7 +218,11 @@ private fun FocusCard(project: PosEntity, nav: AppNavigator) {
 }
 
 @Composable
-private fun ProjectsSection(projects: List<PosEntity>, nav: AppNavigator) {
+private fun ProjectsSection(
+    projects: List<PosEntity>,
+    nav: AppNavigator,
+    onAddToCv: (PosEntity) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PosSectionHeader(title = "Projects", action = "${projects.size} total") {
             nav.onOpenWeb(WebRoute.path("/work", "Work"))
@@ -196,6 +236,7 @@ private fun ProjectsSection(projects: List<PosEntity>, nav: AppNavigator) {
                     isPrimary = index == 0,
                     onOpen = { nav.onOpenEntity(EntityRoute(item.id, item.title)) },
                     onArchitecture = { nav.onOpenEntity(EntityRoute(item.id, item.title, PosEntitySection.ARCHITECTURE)) },
+                    onAddToCv = { onAddToCv(item) },
                 )
             }
         }

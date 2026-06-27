@@ -319,3 +319,8 @@ func splitBullets(content string) []string {
 	}
 	return out
 }
+
+func pdfPageCount(data []byte) int {
+	s := string(data)
+	return strings.Count(s, "/Type /Page") - strings.Count(s, "/Type /Pages")
+}

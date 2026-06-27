@@ -147,8 +147,58 @@ final class APIClient: ObservableObject {
         return try decoder.decode(POSCVRefineResponse.self, from: data)
     }
 
-    func downloadCVPDF() async throws -> Data {
-        try await authorizedRequest(path: "cv/export/pdf")
+    func downloadCVPDF(templateID: String? = nil) async throws -> Data {
+        let path = if let templateID, !templateID.isEmpty {
+            "cv/export/pdf?template_id=\(templateID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? templateID)"
+        } else {
+            "cv/export/pdf"
+        }
+        return try await authorizedRequest(path: path)
+    }
+
+    func listCVTemplates() async throws -> [POSCVTemplate] {
+        let data = try await authorizedRequest(path: "cv/templates")
+        return try decoder.decode(POSCVTemplatesResponse.self, from: data).templates
+    }
+
+    func getCVTemplate(id: String) async throws -> POSCVTemplate {
+        let data = try await authorizedRequest(path: "cv/templates/\(id)")
+        return try decoder.decode(POSCVTemplate.self, from: data)
+    }
+
+    func createCVTemplate(name: String, layoutID: String = "", cloneID: String = "") async throws -> POSCVTemplate {
+        let payload = try JSONEncoder().encode(POSCVCreateTemplateRequest(name: name, layoutID: layoutID, cloneID: cloneID))
+        let data = try await authorizedRequest(path: "cv/templates", method: "POST", body: payload)
+        return try decoder.decode(POSCVTemplate.self, from: data)
+    }
+
+    func saveCVTemplate(_ template: POSCVTemplate, force: Bool = false) async throws -> POSCVTemplate {
+        let payload = try JSONEncoder().encode(POSCVSaveTemplateRequest(template: template, force: force))
+        let data = try await authorizedRequest(path: "cv/templates/\(template.id)", method: "PUT", body: payload)
+        return try decoder.decode(POSCVTemplate.self, from: data)
+    }
+
+    func validateCVTemplate(id: String, template: POSCVTemplate? = nil) async throws -> POSCVValidateResult {
+        let payload: Data
+        if let template {
+            payload = try JSONEncoder().encode(POSCVValidateRequest(template: template))
+        } else {
+            payload = Data("{}".utf8)
+        }
+        let data = try await authorizedRequest(path: "cv/templates/\(id)/validate", method: "POST", body: payload)
+        return try decoder.decode(POSCVValidateResult.self, from: data)
+    }
+
+    func refineCVBlock(content: String, instruction: String = "") async throws -> POSCVRefineResponse {
+        let payload = try JSONEncoder().encode(POSCVRefineBlockRequest(instruction: instruction, content: content))
+        let data = try await authorizedRequest(path: "cv/templates/0/blocks/0/refine", method: "POST", body: payload)
+        return try decoder.decode(POSCVRefineResponse.self, from: data)
+    }
+
+    func addCVBlockFromEntity(templateID: String, entityID: String, blockType: String, overrides: POSCVBlockOverrides? = nil) async throws -> POSCVTemplate {
+        let payload = try JSONEncoder().encode(POSCVAddBlockFromEntityRequest(entityID: entityID, blockType: blockType, overrides: overrides))
+        let data = try await authorizedRequest(path: "cv/templates/\(templateID)/blocks/from-entity", method: "POST", body: payload)
+        return try decoder.decode(POSCVTemplate.self, from: data)
     }
 
     func shareCV() async throws -> POSCVShareResponse {

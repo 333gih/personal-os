@@ -211,7 +211,7 @@ private fun MainShell(
             Box(Modifier.weight(1f)) {
                 when (tab) {
                     PosTab.HOME -> HomeScreen(homeVm, sessionManager, nav)
-                    PosTab.WORK -> WorkScreen(workVm, nav, workReloadKey)
+                    PosTab.WORK -> WorkScreen(workVm, repository, nav, workReloadKey)
                     PosTab.LEARNING -> LearningScreen(learningVm, nav, learningReloadKey)
                     PosTab.SEARCH -> SearchScreen(searchVm, nav)
                     PosTab.MORE -> MoreScreen(sessionManager, nav)
@@ -237,7 +237,7 @@ private fun MainShell(
                 LearningLessonScreen(repository, route.id, route.title, nav) { lessonRoute = null }
             }
         }
-        if (showCv) FullScreenOverlay("CV Transfer", { showCv = false }) { CvHubScreen(repository) { showCv = false } }
+        if (showCv) FullScreenOverlay("CV Transfer", { showCv = false }) { CvHubScreen(repository, onClose = { showCv = false }) }
         if (showJobs) FullScreenOverlay("Job Scout", { showJobs = false }) { JobScoutScreen(repository) { showJobs = false } }
         if (showWorkImport) {
             FullScreenOverlay("Import project", { showWorkImport = false }) {

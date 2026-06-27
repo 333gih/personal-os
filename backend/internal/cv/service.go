@@ -27,6 +27,18 @@ func NewService(db *gorm.DB, aiSvc *ai.Service, storageSvc *storage.Service) *Se
 }
 
 func (s *Service) Get(userID uuid.UUID) (*AssembledCV, error) {
+	if err := s.EnsureTemplatesMigrated(userID); err == nil {
+		if tpl, err := s.GetDefaultTemplate(userID); err == nil && tpl != nil {
+			doc := BlocksToDocument(tpl.Blocks)
+			ApplySkillOverrides(&doc, tpl.Blocks)
+			NormalizeDocument(&doc)
+			return &AssembledCV{
+				DocumentID: tpl.ID,
+				Document:   doc,
+				Source:     "template",
+			}, nil
+		}
+	}
 	doc, err := s.loadDocument(userID)
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
@@ -49,6 +61,17 @@ func (s *Service) Get(userID uuid.UUID) (*AssembledCV, error) {
 }
 
 func (s *Service) Save(userID uuid.UUID, doc CVDocument) (*AssembledCV, error) {
+	if tpl, err := s.GetDefaultTemplate(userID); err == nil && tpl != nil {
+		tplID, _ := uuid.Parse(tpl.ID)
+		tpl.Blocks = DocumentToBlocks(doc)
+		saved, err := s.SaveTemplate(userID, tplID, *tpl, false)
+		if err != nil {
+			return nil, err
+		}
+		outDoc := BlocksToDocument(saved.Blocks)
+		NormalizeDocument(&outDoc)
+		return &AssembledCV{DocumentID: saved.ID, Document: outDoc, Source: "template"}, nil
+	}
 	doc.Variant = "ideal"
 	NormalizeDocument(&doc)
 

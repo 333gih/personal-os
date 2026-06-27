@@ -12,7 +12,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.personalos.mobile.R
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -56,16 +60,15 @@ fun PosAppHeader(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier
+        Image(
+            painter = painterResource(R.drawable.pos_logo_source),
+            contentDescription = "Personal OS",
+            modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(PosTheme.Primary.copy(alpha = 0.12f))
                 .clickable(onClick = onAvatarTap),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(initials, color = PosTheme.PrimaryDark, fontWeight = FontWeight.SemiBold)
-        }
+            contentScale = ContentScale.Crop,
+        )
         Spacer(Modifier.weight(1f))
         Text(title, style = posDisplay(17f), color = PosTheme.Ink, maxLines = 1)
         Spacer(Modifier.weight(1f))
