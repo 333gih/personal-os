@@ -148,6 +148,7 @@ data class PosCvTemplate(
     val name: String,
     @Json(name = "layout_id") val layoutId: String = "two_column_one_page_v5",
     @Json(name = "is_default") val isDefault: Boolean = false,
+    @Json(name = "is_system") val isSystem: Boolean = false,
     val constraints: PosCvConstraints = PosCvConstraints(),
     val blocks: List<PosCvBlock> = emptyList(),
     @Json(name = "updated_at") val updatedAt: String? = null,

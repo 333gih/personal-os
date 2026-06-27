@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalos.mobile.data.models.PosCvTemplate
+import com.personalos.mobile.data.models.PosCvValidateResult
 import com.personalos.mobile.data.models.PosEntity
 import com.personalos.mobile.data.models.PosEntitySection
 import com.personalos.mobile.data.repository.PersonalOSRepository
@@ -63,6 +65,7 @@ fun WorkScreen(
     val state by viewModel.state.collectAsState()
     var addToCvEntity by remember { mutableStateOf<PosEntity?>(null) }
     var cvAddedTemplate by remember { mutableStateOf<PosCvTemplate?>(null) }
+    var cvAddedValidation by remember { mutableStateOf<PosCvValidateResult?>(null) }
     androidx.compose.runtime.LaunchedEffect(reloadKey) { viewModel.load() }
 
     val items = state.entities
@@ -108,7 +111,7 @@ fun WorkScreen(
                         InterviewSection(interviewTopics, state.loading, nav)
                         CareerToolsSection(nav)
                         if (cvInResume.isNotEmpty() || cvRecommended.isNotEmpty()) {
-                            CvExperienceSection(cvInResume, cvRecommended, nav)
+                            CvExperienceSection(cvInResume, cvRecommended, nav, onAddToCv = { addToCvEntity = it })
                         }
                         CvShelfSection(insights, nav)
                     }
@@ -124,22 +127,38 @@ fun WorkScreen(
                 entity = entity,
                 repository = repository,
                 onDismiss = { addToCvEntity = null },
-                onAdded = { cvAddedTemplate = it },
+                onAdded = { tpl, validation ->
+                    cvAddedTemplate = tpl
+                    cvAddedValidation = validation
+                },
             )
         }
         cvAddedTemplate?.let { tpl ->
             androidx.compose.material3.AlertDialog(
-                onDismissRequest = { cvAddedTemplate = null },
+                onDismissRequest = { cvAddedTemplate = null; cvAddedValidation = null },
                 title = { Text("Added to CV") },
-                text = { Text("Block added to \"${tpl.name}\".") },
+                text = {
+                    val validation = cvAddedValidation
+                    Text(
+                        if (validation != null && !validation.valid) {
+                            "Block added to \"${tpl.name}\". Warning: ${validation.overflows?.joinToString("; ") ?: "CV may exceed page limits"}."
+                        } else {
+                            "Block added to \"${tpl.name}\"."
+                        },
+                    )
+                },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
                         cvAddedTemplate = null
+                        cvAddedValidation = null
                         nav.onOpenCv()
                     }) { Text("Open CV Hub") }
                 },
                 dismissButton = {
-                    androidx.compose.material3.TextButton(onClick = { cvAddedTemplate = null }) { Text("OK") }
+                    androidx.compose.material3.TextButton(onClick = {
+                        cvAddedTemplate = null
+                        cvAddedValidation = null
+                    }) { Text("OK") }
                 },
             )
         }
@@ -284,7 +303,12 @@ private fun CareerToolsSection(nav: AppNavigator) {
 }
 
 @Composable
-private fun CvExperienceSection(inResume: List<PosEntity>, recommended: List<PosEntity>, nav: AppNavigator) {
+private fun CvExperienceSection(
+    inResume: List<PosEntity>,
+    recommended: List<PosEntity>,
+    nav: AppNavigator,
+    onAddToCv: (PosEntity) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PosSectionHeader(title = "CV experience", eyebrow = "On resume vs recommended")
         PosActionButton("Open CV Transfer", style = PosActionStyle.Secondary, onClick = nav.onOpenCv)
@@ -303,14 +327,24 @@ private fun CvExperienceSection(inResume: List<PosEntity>, recommended: List<Pos
             PosCard {
                 Text("Should add to CV", style = posLabel(), fontWeight = FontWeight.SemiBold, color = PosTheme.PrimaryDark)
                 recommended.take(4).forEach { entry ->
-                    Column(
+                    Row(
                         Modifier
+                            .fillMaxWidth()
                             .padding(top = 6.dp)
-                            .clickable { nav.onOpenEntity(EntityRoute(entry.id, entry.title)) },
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                            .clickable { onAddToCv(entry) },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(entry.title.replace("Add to CV: ", ""), fontWeight = FontWeight.Medium)
-                        Text(entry.content, style = posLabel(), color = PosTheme.Muted, maxLines = 2)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(entry.title.replace("Add to CV: ", ""), fontWeight = FontWeight.Medium)
+                            Text(entry.content, style = posLabel(), color = PosTheme.Muted, maxLines = 2)
+                        }
+                        Icon(
+                            Icons.Default.AddCircle,
+                            contentDescription = "Add to CV",
+                            tint = PosTheme.PrimaryDark,
+                            modifier = Modifier.size(20.dp),
+                        )
                     }
                 }
             }

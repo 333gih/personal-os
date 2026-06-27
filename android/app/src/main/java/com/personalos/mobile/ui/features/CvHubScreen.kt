@@ -6,11 +6,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalos.mobile.data.models.PosCvBlock
+import com.personalos.mobile.data.models.PosCvSkillGroup
 import com.personalos.mobile.data.models.PosCvTemplate
 import com.personalos.mobile.data.models.PosCvValidateResult
 import com.personalos.mobile.data.repository.PersonalOSRepository
@@ -43,9 +45,24 @@ import com.personalos.mobile.ui.components.PosCard
 import com.personalos.mobile.ui.components.PosEmptyState
 import com.personalos.mobile.ui.components.PosLoadingView
 import com.personalos.mobile.ui.components.PosPrimaryButton
+import com.personalos.mobile.ui.components.PosSectionHeader
 import com.personalos.mobile.ui.theme.PosTheme
 import com.personalos.mobile.ui.theme.posDisplay
+import com.personalos.mobile.ui.theme.posLabel
 import kotlinx.coroutines.launch
+
+private data class CvSectionMeta(val type: String, val title: String, val eyebrow: String)
+
+private val cvSectionOrder = listOf(
+    CvSectionMeta("summary", "Profile", "Headline & summary"),
+    CvSectionMeta("contact", "Contact", "Reach you"),
+    CvSectionMeta("skills", "Skills & stack", "Primary focus"),
+    CvSectionMeta("achievements", "Highlights", "Key wins"),
+    CvSectionMeta("education", "Education", "Degrees & schools"),
+    CvSectionMeta("certificates", "Certificates", "Credentials"),
+    CvSectionMeta("experience", "Experience", "Roles"),
+    CvSectionMeta("project", "Projects", "Featured work"),
+)
 
 @Composable
 fun CvHubScreen(
@@ -60,6 +77,7 @@ fun CvHubScreen(
     var validate by remember { mutableStateOf<PosCvValidateResult?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var saveError by remember { mutableStateOf<String?>(null) }
+    var forkNotice by remember { mutableStateOf<String?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var newTemplateName by remember { mutableStateOf("") }
     var refiningBlockId by remember { mutableStateOf<String?>(null) }
@@ -79,6 +97,7 @@ fun CvHubScreen(
     fun loadTemplate(id: String) {
         scope.launch {
             loading = true
+            forkNotice = null
             runCatching { repository.getCvTemplate(id) }
                 .onSuccess {
                     template = it
@@ -96,7 +115,10 @@ fun CvHubScreen(
             runCatching { repository.listCvTemplates() }
                 .onSuccess { list ->
                     templates = list
-                    val pick = selectId ?: initialTemplateId ?: list.firstOrNull()?.id
+                    val pick = selectId
+                        ?: initialTemplateId
+                        ?: list.firstOrNull { it.isDefault }?.id
+                        ?: list.firstOrNull()?.id
                     if (pick != null) loadTemplate(pick) else loading = false
                 }
                 .onFailure { e -> error = e.message; loading = false }
@@ -191,31 +213,57 @@ fun CvHubScreen(
     FeatureScaffold(
         bottomBar = {
             template?.let { tpl ->
-                PosFeatureBottomBar {
-                    PosActionButton("Save", style = PosActionStyle.Primary, modifier = Modifier.weight(1f)) {
-                        scope.launch {
-                            saveError = null
-                            runCatching { repository.saveCvTemplate(tpl) }
-                                .onSuccess {
-                                    template = it
-                                    runValidate(it)
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(PosTheme.Card)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (tpl.isSystem) {
+                        Text(
+                            "Saving creates “My CV” — system template stays unchanged",
+                            style = posLabel(),
+                            color = PosTheme.Muted,
+                        )
+                    }
+                    PosFeatureBottomBar {
+                        PosActionButton(
+                            if (tpl.isSystem) "Save as My CV" else "Save",
+                            style = PosActionStyle.Primary,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            scope.launch {
+                                saveError = null
+                                val wasSystem = tpl.isSystem
+                                runCatching { repository.saveCvTemplate(tpl) }
+                                    .onSuccess {
+                                        template = it
+                                        selectedId = it.id
+                                        if (wasSystem) {
+                                            forkNotice = "Saved as “${it.name}”. System template unchanged."
+                                            reloadTemplates(it.id)
+                                        } else {
+                                            runValidate(it)
+                                        }
+                                    }
+                                    .onFailure { saveError = it.message }
+                            }
+                        }
+                        PosActionButton("Validate", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
+                            runValidate(tpl)
+                        }
+                        PosActionButton("PDF", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
+                            scope.launch {
+                                runCatching { context.openPdf(repository.downloadCvPdf(tpl.id)) }
+                            }
+                        }
+                        PosActionButton("Share", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
+                            scope.launch {
+                                runCatching {
+                                    val url = repository.shareCv().url
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                 }
-                                .onFailure { saveError = it.message }
-                        }
-                    }
-                    PosActionButton("Validate", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
-                        runValidate(tpl)
-                    }
-                    PosActionButton("PDF", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
-                        scope.launch {
-                            runCatching { context.openPdf(repository.downloadCvPdf(tpl.id)) }
-                        }
-                    }
-                    PosActionButton("Share", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
-                        scope.launch {
-                            runCatching {
-                                val url = repository.shareCv().url
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                             }
                         }
                     }
@@ -227,86 +275,46 @@ fun CvHubScreen(
             loading && template == null -> PosLoadingView()
             error != null -> PosEmptyState("Could not load CV templates", error.orEmpty(), "Retry") { reloadTemplates() }
             else -> {
-                Column(
-                    Modifier
-                        .verticalScroll(rememberScrollState())
-                        .padding(bottom = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        templates.forEach { t ->
-                            FilterChip(
-                                selected = t.id == selectedId,
-                                onClick = { loadTemplate(t.id) },
-                                label = { Text(t.name) },
-                            )
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    HeroHeader(template?.name)
+                    TemplatePicker(templates, selectedId, onSelect = { loadTemplate(it) }, onCreate = { showCreateDialog = true })
+                    validate?.let { v -> ValidateBanner(v, template) }
+                    forkNotice?.let { notice ->
+                        PosCard {
+                            Text(notice, style = posLabel(), fontWeight = FontWeight.SemiBold, color = PosTheme.PrimaryDark)
                         }
-                        FilterChip(
-                            selected = false,
-                            onClick = { showCreateDialog = true },
-                            label = { Text("+") },
-                            leadingIcon = { androidx.compose.material3.Icon(Icons.Default.Add, contentDescription = null) },
-                        )
-                    }
-
-                    validate?.let { v ->
-                        ValidateBanner(v)
                     }
                     saveError?.let {
                         PosCard {
                             Text(it, color = PosTheme.Error, style = posDisplay(12f))
                         }
                     }
-
                     template?.let { tpl ->
-                        PosCard {
-                            Text("Layout: ${tpl.layoutId}", color = PosTheme.Muted, style = posDisplay(11f))
-                            Text("${tpl.blocks.count { it.enabled }} active blocks", style = posDisplay(12f))
-                        }
-                        tpl.blocks.sortedBy { it.order }.forEachIndexed { index, block ->
-                            CvBlockCard(
-                                block = block,
-                                onToggle = { enabled ->
-                                    template = tpl.copy(blocks = tpl.blocks.map {
-                                        if (it.id == block.id) it.copy(enabled = enabled) else it
-                                    })
-                                },
-                                onEdit = {
+                        ConstraintsCard(tpl)
+                        if (tpl.blocks.isEmpty()) {
+                            PosEmptyState(
+                                "No blocks yet",
+                                "Pull to refresh or pick ★ Default (1-page) after the server seeds your CV.",
+                                "Retry",
+                            ) { reloadTemplates(tpl.id) }
+                        } else {
+                            TemplateSections(
+                                tpl = tpl,
+                                onTemplateChange = { template = it },
+                                onEditBlock = { block ->
                                     refineDraft = block.content.orEmpty()
                                     refineInstruction = ""
                                     refiningBlockId = block.id
                                 },
-                                onMoveUp = if (index > 0) {
-                                    {
-                                        val sorted = tpl.blocks.sortedBy { it.order }.toMutableList()
-                                        val i = sorted.indexOfFirst { it.id == block.id }
-                                        if (i > 0) {
-                                            val a = sorted[i - 1].order
-                                            sorted[i - 1] = sorted[i - 1].copy(order = sorted[i].order)
-                                            sorted[i] = sorted[i].copy(order = a)
-                                            template = tpl.copy(blocks = sorted)
-                                        }
-                                    }
-                                } else null,
-                                onMoveDown = if (index < tpl.blocks.size - 1) {
-                                    {
-                                        val sorted = tpl.blocks.sortedBy { it.order }.toMutableList()
-                                        val i = sorted.indexOfFirst { it.id == block.id }
-                                        if (i >= 0 && i < sorted.lastIndex) {
-                                            val a = sorted[i + 1].order
-                                            sorted[i + 1] = sorted[i + 1].copy(order = sorted[i].order)
-                                            sorted[i] = sorted[i].copy(order = a)
-                                            template = tpl.copy(blocks = sorted)
-                                        }
-                                    }
-                                } else null,
                             )
                         }
+                    }
+                    if (template == null && !loading) {
+                        PosEmptyState(
+                            "No CV template yet",
+                            "Create a template or wait for the server to seed your default CV.",
+                            "Create template",
+                        ) { showCreateDialog = true }
                     }
                 }
             }
@@ -315,30 +323,171 @@ fun CvHubScreen(
 }
 
 @Composable
-private fun ValidateBanner(result: PosCvValidateResult) {
+private fun HeroHeader(templateName: String?) {
+    PosCard {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("CV Transfer", style = posLabel(), fontWeight = FontWeight.SemiBold, color = PosTheme.PrimaryDark)
+            Text(templateName ?: "Your resume workspace", style = posDisplay(22f))
+            Text(
+                "System templates stay as recommendations. Edits save as your own copy with length checks.",
+                color = PosTheme.Muted,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TemplatePicker(
+    templates: List<PosCvTemplate>,
+    selectedId: String?,
+    onSelect: (String) -> Unit,
+    onCreate: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        PosSectionHeader(title = "Templates", eyebrow = "Default · AI · yours")
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            templates.forEach { t ->
+                FilterChip(
+                    selected = t.id == selectedId,
+                    onClick = { onSelect(t.id) },
+                    label = { Text(if (t.isSystem) "★ ${t.name}" else t.name) },
+                )
+            }
+            FilterChip(
+                selected = false,
+                onClick = onCreate,
+                label = { Text("New") },
+                leadingIcon = { androidx.compose.material3.Icon(Icons.Default.Add, contentDescription = null) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConstraintsCard(tpl: PosCvTemplate) {
+    PosCard {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    tpl.layoutId.replace('_', ' '),
+                    style = posLabel(),
+                    fontWeight = FontWeight.SemiBold,
+                    color = PosTheme.Muted,
+                )
+                Text("${tpl.blocks.count { it.enabled }} active blocks", style = posDisplay(12f))
+            }
+            if (tpl.isSystem) {
+                Text(
+                    "System",
+                    style = posLabel(),
+                    fontWeight = FontWeight.Bold,
+                    color = PosTheme.PrimaryDark,
+                    modifier = Modifier
+                        .background(PosTheme.PrimaryDark.copy(alpha = 0.12f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TemplateSections(
+    tpl: PosCvTemplate,
+    onTemplateChange: (PosCvTemplate) -> Unit,
+    onEditBlock: (PosCvBlock) -> Unit,
+) {
+    val grouped = tpl.blocks.sortedBy { it.order }.groupBy { it.type }
+    cvSectionOrder.forEach { meta ->
+        val blocks = grouped[meta.type].orEmpty()
+        if (blocks.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                PosSectionHeader(title = meta.title, eyebrow = meta.eyebrow)
+                blocks.forEach { block ->
+                    val sorted = tpl.blocks.sortedBy { it.order }
+                    val globalIndex = sorted.indexOfFirst { it.id == block.id }
+                    CvBlockCard(
+                        block = block,
+                        onToggle = { enabled ->
+                            onTemplateChange(
+                                tpl.copy(blocks = tpl.blocks.map {
+                                    if (it.id == block.id) it.copy(enabled = enabled) else it
+                                }),
+                            )
+                        },
+                        onEdit = { onEditBlock(block) },
+                        onMoveUp = if (globalIndex > 0) {
+                            {
+                                val list = sorted.toMutableList()
+                                val i = list.indexOfFirst { it.id == block.id }
+                                if (i > 0) {
+                                    val a = list[i - 1].order
+                                    list[i - 1] = list[i - 1].copy(order = list[i].order)
+                                    list[i] = list[i].copy(order = a)
+                                    onTemplateChange(tpl.copy(blocks = list))
+                                }
+                            }
+                        } else null,
+                        onMoveDown = if (globalIndex >= 0 && globalIndex < sorted.lastIndex) {
+                            {
+                                val list = sorted.toMutableList()
+                                val i = list.indexOfFirst { it.id == block.id }
+                                if (i >= 0 && i < list.lastIndex) {
+                                    val a = list[i + 1].order
+                                    list[i + 1] = list[i + 1].copy(order = list[i].order)
+                                    list[i] = list[i].copy(order = a)
+                                    onTemplateChange(tpl.copy(blocks = list))
+                                }
+                            }
+                        } else null,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ValidateBanner(result: PosCvValidateResult, template: PosCvTemplate?) {
+    val nearOverflow = !result.valid && result.pageCount <= result.maxPages + 1
     val bg = when {
         result.valid -> PosTheme.SuccessBg
-        result.pageCount <= result.maxPages + 1 -> PosTheme.Border.copy(0.35f)
+        nearOverflow -> PosTheme.Border.copy(0.35f)
         else -> PosTheme.Error.copy(0.12f)
     }
     val color = when {
         result.valid -> PosTheme.Success
-        result.pageCount <= result.maxPages + 1 -> PosTheme.PrimaryDark
+        nearOverflow -> PosTheme.PrimaryDark
         else -> PosTheme.Error
     }
     PosCard(modifier = Modifier.background(bg)) {
-        Text(
-            if (result.valid) "Fits ${result.maxPages} page(s) · ${result.pageCount} page PDF"
-            else "Overflow · ${result.pageCount}/${result.maxPages} pages",
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-            style = posDisplay(12f),
-        )
-        result.overflows?.forEach { Text("• $it", color = color, style = posDisplay(11f)) }
-        result.suggestions?.forEach { Text("→ $it", color = PosTheme.Muted, style = posDisplay(11f)) }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                if (result.valid) "Fits ${result.maxPages} page(s) · ${result.pageCount} page PDF"
+                else "Overflow · ${result.pageCount}/${result.maxPages} pages",
+                color = color,
+                fontWeight = FontWeight.SemiBold,
+                style = posDisplay(12f),
+            )
+            template?.let {
+                Text(
+                    "Limits: ${it.constraints.maxPages} page · max ${it.constraints.maxExperience} roles · max ${it.constraints.maxProjects} projects",
+                    style = posLabel(),
+                    color = PosTheme.Muted,
+                )
+            }
+            result.overflows?.forEach { Text("• $it", color = color, style = posDisplay(11f)) }
+            result.suggestions?.forEach { Text("→ $it", color = PosTheme.Muted, style = posDisplay(11f)) }
+        }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CvBlockCard(
     block: PosCvBlock,
@@ -350,30 +499,79 @@ private fun CvBlockCard(
     val title = block.overrides?.title?.takeIf { it.isNotBlank() }
         ?: block.type.replaceFirstChar { it.uppercase() }
     PosCard {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.SemiBold, style = posDisplay(13f))
-                Text(block.type, color = PosTheme.Muted, style = posDisplay(10f))
+        Column(
+            modifier = Modifier.fillMaxWidth().then(
+                if (block.enabled) Modifier else Modifier.background(PosTheme.Border.copy(alpha = 0.08f)),
+            ),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, fontWeight = FontWeight.SemiBold, style = posDisplay(13f))
+                    block.overrides?.period?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, color = PosTheme.Muted, style = posDisplay(11f))
+                    }
+                }
+                Switch(checked = block.enabled, onCheckedChange = onToggle)
             }
-            Switch(checked = block.enabled, onCheckedChange = onToggle)
-        }
-        block.overrides?.company?.takeIf { it.isNotBlank() }?.let {
-            Text(it, color = PosTheme.Muted, style = posDisplay(11f))
-        }
-        block.content?.takeIf { it.isNotBlank() }?.let {
-            Text(it, maxLines = 4, style = posDisplay(11f), modifier = Modifier.padding(top = 6.dp))
-        }
-        block.overrides?.highlightStack?.takeIf { it.isNotEmpty() }?.let {
-            Text("Stack: ${it.joinToString(", ")}", color = PosTheme.PrimaryDark, style = posDisplay(10f))
-        }
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PosPrimaryButton("Edit + refine") { onEdit() }
-            onMoveUp?.let {
-                PosActionButton("Up", style = PosActionStyle.Secondary, icon = Icons.Default.ArrowUpward, onClick = it)
+            block.overrides?.company?.takeIf { it.isNotBlank() }?.let {
+                Text(it, color = PosTheme.Muted, style = posDisplay(11f))
             }
-            onMoveDown?.let {
-                PosActionButton("Down", style = PosActionStyle.Secondary, icon = Icons.Default.ArrowDownward, onClick = it)
+            when {
+                block.type == "skills" && !block.skillGroups.isNullOrEmpty() -> {
+                    block.overrides?.skillItems?.takeIf { it.isNotEmpty() }?.let { focus ->
+                        Text("Primary focus", style = posLabel(), fontWeight = FontWeight.SemiBold, color = PosTheme.PrimaryDark)
+                        SkillChips(focus)
+                    }
+                    block.skillGroups.orEmpty().forEach { group -> SkillGroupBlock(group) }
+                }
+                !block.content.isNullOrBlank() -> {
+                    Text(
+                        block.content.orEmpty(),
+                        maxLines = if (block.type == "summary") 8 else 5,
+                        style = posDisplay(11f),
+                    )
+                }
             }
+            block.overrides?.highlightStack?.takeIf { it.isNotEmpty() }?.let {
+                SkillChips(it)
+            }
+            block.overrides?.skillItems?.takeIf { it.isNotEmpty() && block.type != "skills" }?.let {
+                SkillChips(it)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PosPrimaryButton("Edit + refine", onClick = onEdit)
+                onMoveUp?.let {
+                    PosActionButton("Up", style = PosActionStyle.Secondary, icon = Icons.Default.ArrowUpward, onClick = it)
+                }
+                onMoveDown?.let {
+                    PosActionButton("Down", style = PosActionStyle.Secondary, icon = Icons.Default.ArrowDownward, onClick = it)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SkillGroupBlock(group: PosCvSkillGroup) {
+    Text(group.category, style = posLabel(), fontWeight = FontWeight.SemiBold, color = PosTheme.Muted)
+    SkillChips(group.items)
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SkillChips(items: List<String>) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.forEach { item ->
+            Text(
+                item,
+                style = posLabel(),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .background(PosTheme.Border.copy(alpha = 0.35f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
         }
     }
 }
