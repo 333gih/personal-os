@@ -13,6 +13,11 @@ import (
 	"gorm.io/gorm"
 )
 
+// entityWrites omits pgvector embedding on insert/update — empty [] is invalid for vector(1536).
+func entityWrites(db *gorm.DB) *gorm.DB {
+	return db.Omit("embedding")
+}
+
 func (s *Service) EnsureTemplatesMigrated(userID uuid.UUID) error {
 	var count int64
 	s.db.Model(&models.Entity{}).
@@ -184,7 +189,7 @@ func (s *Service) SaveTemplate(userID, templateID uuid.UUID, tpl CVTemplate, for
 	}
 	ent.Title = "CV Template — " + tpl.Name
 	ent.Metadata = templateToMetadata(tpl)
-	if err := s.db.Save(ent).Error; err != nil {
+	if err := entityWrites(s.db).Save(ent).Error; err != nil {
 		return nil, err
 	}
 	out := entityToTemplate(ent)
@@ -204,7 +209,7 @@ func (s *Service) DeleteTemplate(userID, templateID uuid.UUID) error {
 		return fmt.Errorf("cannot delete system template")
 	}
 	ent.Status = "archived"
-	return s.db.Save(ent).Error
+	return entityWrites(s.db).Save(ent).Error
 }
 
 func (s *Service) ValidateTemplate(userID, templateID uuid.UUID, tplOverride *CVTemplate) (*ValidateResult, error) {
@@ -368,7 +373,7 @@ func (s *Service) createTemplateEntity(userID uuid.UUID, tpl CVTemplate) (*model
 		Status:   "active",
 		Domain:   models.DomainWork,
 	}
-	if err := s.db.Create(&ent).Error; err != nil {
+	if err := entityWrites(s.db).Create(&ent).Error; err != nil {
 		return nil, err
 	}
 	return &ent, nil

@@ -164,7 +164,7 @@ func (s *Service) upsertIdealDocument(userID uuid.UUID, doc CVDocument) error {
 		existing.Title = headlineTitle(doc)
 		existing.Content = doc.Summary
 		existing.Metadata = documentToMetadata(doc)
-		return s.db.Save(existing).Error
+		return entityWrites(s.db).Save(existing).Error
 	}
 	fixedID, _ := uuid.Parse(idealDocumentID)
 	ent := models.Entity{
@@ -179,7 +179,7 @@ func (s *Service) upsertIdealDocument(userID uuid.UUID, doc CVDocument) error {
 		Status:   "active",
 		Domain:   models.DomainWork,
 	}
-	return s.db.Create(&ent).Error
+	return entityWrites(s.db).Create(&ent).Error
 }
 
 func (s *Service) syncTemplateBlocks(userID uuid.UUID, templateID uuid.UUID, doc CVDocument) error {
@@ -196,7 +196,7 @@ func (s *Service) syncTemplateBlocks(userID uuid.UUID, templateID uuid.UUID, doc
 		tpl.IsSystem = true
 	}
 	ent.Metadata = templateToMetadata(tpl)
-	return s.db.Save(ent).Error
+	return entityWrites(s.db).Save(ent).Error
 }
 
 func (s *Service) loadIdealDocument(userID uuid.UUID) (CVDocument, bool) {

@@ -84,7 +84,7 @@ func (s *Service) Save(userID uuid.UUID, doc CVDocument) (*AssembledCV, error) {
 		existing.Title = headlineTitle(doc)
 		existing.Content = doc.Summary
 		existing.Metadata = documentToMetadata(doc)
-		if err := s.db.Save(existing).Error; err != nil {
+		if err := entityWrites(s.db).Save(existing).Error; err != nil {
 			return nil, err
 		}
 		return &AssembledCV{DocumentID: existing.ID.String(), Document: doc, Source: "ideal"}, nil
@@ -103,7 +103,7 @@ func (s *Service) Save(userID uuid.UUID, doc CVDocument) (*AssembledCV, error) {
 		Status:   "active",
 		Domain:   models.DomainWork,
 	}
-	if err := s.db.Create(&ent).Error; err != nil {
+	if err := entityWrites(s.db).Create(&ent).Error; err != nil {
 		return nil, err
 	}
 	return &AssembledCV{DocumentID: ent.ID.String(), Document: doc, Source: "ideal"}, nil
