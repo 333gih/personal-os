@@ -7,12 +7,12 @@ import com.squareup.moshi.JsonClass
 data class PosJobOpportunity(
     val id: String,
     val title: String,
-    val company: String = "",
-    val location: String = "",
+    val company: String? = null,
+    val location: String? = null,
     val url: String = "",
     val status: String = "open",
-    val score: Double? = null,
-    @Json(name = "posted_at") val postedAt: String? = null,
+    @Json(name = "match_score") val matchScore: Float = 0f,
+    @Json(name = "match_reason") val matchReason: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -23,8 +23,11 @@ data class PosJobStatusRequest(val status: String)
 
 @JsonClass(generateAdapter = true)
 data class PosJobScanResult(
-    @Json(name = "jobs_found") val jobsFound: Int = 0,
-    @Json(name = "jobs_new") val jobsNew: Int = 0,
+    val found: Int = 0,
+    val matched: Int = 0,
+    val stored: Int = 0,
+    val updated: Int = 0,
+    @Json(name = "min_score") val minScore: Float? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -36,11 +39,12 @@ data class PosJobScanStatusResponse(
 
 @JsonClass(generateAdapter = true)
 data class PosJobSearchPreferences(
-    val roles: List<String> = emptyList(),
-    val locations: List<String> = emptyList(),
-    val keywords: List<String> = emptyList(),
-    @Json(name = "min_match_score") val minMatchScore: Double = 0.0,
-    @Json(name = "remote_ok") val remoteOk: Boolean = true,
+    @Json(name = "focus_skills") val focusSkills: List<String> = listOf("Java", "Spring Boot"),
+    @Json(name = "years_experience") val yearsExperience: Float = 3.5f,
+    @Json(name = "target_role") val targetRole: String = "Software Engineer",
+    @Json(name = "work_location_types") val workLocationTypes: List<String> = listOf("remote", "hybrid"),
+    @Json(name = "employment_types") val employmentTypes: List<String> = listOf("full_time"),
+    @Json(name = "available_skills") val availableSkills: List<String>? = null,
 )
 
 @JsonClass(generateAdapter = true)

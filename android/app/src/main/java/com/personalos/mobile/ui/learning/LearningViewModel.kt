@@ -30,7 +30,7 @@ class LearningViewModel(private val repository: PersonalOSRepository) : ViewMode
                 val todayDeferred = async { repository.fetchLearningToday() }
                 entitiesDeferred.await() to todayDeferred.await()
             }.onSuccess { (list, today) ->
-                _state.value = LearningUiState(loading = false, entities = list.entities, today = today)
+                _state.value = LearningUiState(loading = false, entities = list.items, today = today)
             }.onFailure {
                 _state.value = LearningUiState(loading = false, error = it.message)
             }

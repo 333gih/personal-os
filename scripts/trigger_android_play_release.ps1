@@ -1,8 +1,8 @@
 # Trigger Android Release → Google Play closed testing (POS-closed).
 param(
     [string]$Repo = "333gih/personal-os",
-    [string]$Ref = "releases/1.0.1",
-    [string]$PlayTrack = "alpha"
+    [string]$Ref = "releases/1.0",
+    [string]$PlayTrack = "POS-closed"
 )
 
 $ErrorActionPreference = "Stop"

@@ -87,10 +87,24 @@ data class PosCvRefineResponse(
 )
 
 @JsonClass(generateAdapter = true)
-data class PosCvShareResponse(@Json(name = "share_url") val shareUrl: String)
+data class PosCvShareResponse(
+    val url: String,
+    @Json(name = "expires_in") val expiresIn: String? = null,
+    val filename: String? = null,
+)
 
 @JsonClass(generateAdapter = true)
-data class PosCvSuggestSkillsResponse(val suggestions: List<PosCvSkillGroup> = emptyList())
+data class PosCvSuggestedSkill(
+    val category: String,
+    val skill: String,
+    val reason: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class PosCvSuggestSkillsResponse(
+    @Json(name = "primary_stack") val primaryStack: List<String>? = null,
+    val suggestions: List<PosCvSuggestedSkill> = emptyList(),
+)
 
 @JsonClass(generateAdapter = true)
 data class PosCvAddSkillRequest(val category: String, val skill: String)

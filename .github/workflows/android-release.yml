@@ -19,11 +19,11 @@ on:
       play_track:
         description: Play track (create POS-closed in Play Console for closed testing)
         required: true
-        default: alpha
+        default: POS-closed
         type: choice
         options:
-          - alpha
           - POS-closed
+          - alpha
           - internal
           - beta
           - production
@@ -71,7 +71,11 @@ jobs:
             github.ref == 'refs/heads/master' ||
             startsWith(github.ref, 'refs/tags/android/v')
           ) && 'production') ||
-          'alpha'
+          (github.event_name == 'push' && (
+            startsWith(github.ref, 'refs/heads/releases/') ||
+            startsWith(github.ref, 'refs/heads/release/')
+          ) && 'POS-closed') ||
+          'POS-closed'
         }}
       PLAY_RELEASE_STATUS: >-
         ${{

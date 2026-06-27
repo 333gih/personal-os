@@ -17,10 +17,13 @@ Structure follows [`fash-android-mobile`](../../fash/fash-android-mobile): singl
 
 2. Open `android/` in Android Studio, sync Gradle, run **`devDebug`** or **`prodDebug`**.
 
-3. For emulator hitting local frontend on your PC:
-   ```env
+3. **Local frontend (emulator)** — add to `android/local.properties` (gitignored), then rebuild `devDebug`:
+   ```properties
    PERSONAL_OS_FE_URL=http://10.0.2.2:3000/dashboard
    ```
+   Start the Next.js app on your PC (`frontend/` on port 3000). `10.0.2.2` is the emulator’s alias for host `localhost`.
+
+4. **Production URL / DNS errors** — if login shows `ERR_NAME_NOT_RESOLVED`, the device cannot resolve `personal-os-fe.fashandcurious.com`. Use step 3 for local dev, or fix emulator DNS (cold boot, or `-dns-server 8.8.8.8`).
 
 ## Build variants
 

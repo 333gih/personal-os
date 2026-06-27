@@ -4,27 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Work
+import com.personalos.mobile.ui.shell.PosAppHeader
+import com.personalos.mobile.ui.shell.PosBottomTabBar
+import com.personalos.mobile.ui.shell.PosCloseBar
+import com.personalos.mobile.data.models.PosLearningTrack
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,7 +32,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.personalos.mobile.data.auth.SessionManager
-import com.personalos.mobile.data.models.PosLearningTrack
+import com.personalos.mobile.data.models.PosEntitySection
 import com.personalos.mobile.data.models.PosTab
 import com.personalos.mobile.ui.auth.LoginWebScreen
 import com.personalos.mobile.ui.entity.EntityDetailScreen
@@ -49,7 +40,11 @@ import com.personalos.mobile.ui.entity.EntityDetailViewModel
 import com.personalos.mobile.ui.features.CvHubScreen
 import com.personalos.mobile.ui.features.InterviewPrepScreen
 import com.personalos.mobile.ui.features.JobScoutScreen
+import com.personalos.mobile.ui.features.LearningCoachScreen
 import com.personalos.mobile.ui.features.LearningLessonScreen
+import com.personalos.mobile.ui.features.LearningScheduleScreen
+import com.personalos.mobile.ui.features.NotificationLogScreen
+import com.personalos.mobile.ui.features.StartupHubSheet
 import com.personalos.mobile.ui.features.StartupScreen
 import com.personalos.mobile.ui.features.TextAddScreen
 import com.personalos.mobile.ui.features.WorkHubSheet
@@ -62,7 +57,9 @@ import com.personalos.mobile.ui.learning.LearningViewModel
 import com.personalos.mobile.ui.more.MoreScreen
 import com.personalos.mobile.ui.navigation.AppNavigator
 import com.personalos.mobile.ui.navigation.EntityRoute
+import com.personalos.mobile.ui.navigation.LearningCoachRoute
 import com.personalos.mobile.ui.navigation.LearningLessonRoute
+import com.personalos.mobile.ui.work.WorkAddScreen
 import com.personalos.mobile.ui.navigation.WebRoute
 import com.personalos.mobile.ui.search.SearchScreen
 import com.personalos.mobile.ui.search.SearchViewModel
@@ -101,7 +98,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PersonalOSRoot(
     app: PersonalOSApplication,
@@ -141,7 +137,6 @@ private fun PersonalOSRoot(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainShell(
     sessionManager: SessionManager,
@@ -157,10 +152,17 @@ private fun MainShell(
     var showWorkAdd by remember { mutableStateOf(false) }
     var showWorkHub by remember { mutableStateOf(false) }
     var showStartup by remember { mutableStateOf(false) }
+    var showStartupHub by remember { mutableStateOf(false) }
     var showStartupAdd by remember { mutableStateOf(false) }
     var showLearningHub by remember { mutableStateOf(false) }
     var showLearningAdd by remember { mutableStateOf<PosLearningTrack?>(null) }
+    var showLearningCoach by remember { mutableStateOf<LearningCoachRoute?>(null) }
+    var showLearningSchedule by remember { mutableStateOf(false) }
+    var showNotificationLog by remember { mutableStateOf(false) }
     var showInterview by remember { mutableStateOf(false) }
+    var workReloadKey by remember { mutableStateOf(0) }
+    var learningReloadKey by remember { mutableStateOf(0) }
+    var startupReloadKey by remember { mutableStateOf(0) }
 
     val nav = remember {
         AppNavigator(
@@ -173,13 +175,16 @@ private fun MainShell(
             onOpenWorkAdd = { showWorkAdd = true },
             onOpenWorkHub = { showWorkHub = true },
             onOpenStartup = { showStartup = true },
+            onOpenStartupHub = { showStartupHub = true },
             onOpenStartupAdd = { showStartupAdd = true },
             onOpenLearningHub = { showLearningHub = true },
             onOpenLearningAdd = { showLearningAdd = it },
-            onOpenLearningCoach = { _, _, _ -> showLearningHub = false },
+            onOpenLearningCoach = { track, entityId, topic ->
+                showLearningCoach = LearningCoachRoute(track, entityId, topic)
+            },
             onOpenLearningLesson = { id, title -> lessonRoute = LearningLessonRoute(id, title) },
-            onOpenLearningSchedule = { webRoute = WebRoute.path("/learning", "Schedule") },
-            onOpenNotificationLog = { webRoute = WebRoute.path("/learning", "Notifications") },
+            onOpenLearningSchedule = { showLearningSchedule = true },
+            onOpenNotificationLog = { showNotificationLog = true },
             onOpenInterviewPrep = { showInterview = true },
         )
     }
@@ -192,100 +197,127 @@ private fun MainShell(
         SearchViewModel(repository, activity.applicationContext)
     })
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(tab.title) },
-                actions = {
-                    Text(sessionManager.userInitials(), modifier = Modifier.padding(end = 16.dp))
-                },
-            )
-        },
-        bottomBar = {
-            NavigationBar {
-                PosTab.entries.forEach { item ->
-                    NavigationBarItem(
-                        selected = tab == item,
-                        onClick = { tab = item },
-                        icon = {
-                            Icon(
-                                when (item) {
-                                    PosTab.HOME -> Icons.Default.Home
-                                    PosTab.WORK -> Icons.Default.Work
-                                    PosTab.LEARNING -> Icons.Default.MenuBook
-                                    PosTab.SEARCH -> Icons.Default.Search
-                                    PosTab.MORE -> Icons.Default.MoreHoriz
-                                },
-                                contentDescription = item.title,
-                            )
-                        },
-                        label = { Text(item.title) },
-                    )
-                }
-            }
-        },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+    Column(Modifier.fillMaxSize()) {
+        PosAppHeader(
+            title = tab.headerTitle,
+            initials = sessionManager.userInitials(),
+            onAvatarTap = { nav.onOpenWeb(WebRoute.path("/settings", "Settings")) },
+            onSettingsTap = { nav.onOpenWeb(WebRoute.path("/settings", "Settings")) },
+        )
+        Box(Modifier.weight(1f)) {
             when (tab) {
                 PosTab.HOME -> HomeScreen(homeVm, sessionManager, nav)
-                PosTab.WORK -> WorkScreen(workVm, nav)
-                PosTab.LEARNING -> LearningScreen(learningVm, nav)
+                PosTab.WORK -> WorkScreen(workVm, nav, workReloadKey)
+                PosTab.LEARNING -> LearningScreen(learningVm, nav, learningReloadKey)
                 PosTab.SEARCH -> SearchScreen(searchVm, nav)
                 PosTab.MORE -> MoreScreen(sessionManager, nav)
             }
         }
+        PosBottomTabBar(selected = tab, onSelect = { tab = it })
     }
 
     webRoute?.let { route ->
-        FullScreenOverlay(onClose = { webRoute = null }) { EmbeddedWebScreen(route) }
+        FullScreenOverlay(route.title, onClose = { webRoute = null }) { EmbeddedWebScreen(route) }
     }
     entityRoute?.let { route ->
-        FullScreenOverlay(onClose = { entityRoute = null }) {
+        FullScreenOverlay(route.title, onClose = { entityRoute = null }) {
             val vm: EntityDetailViewModel = viewModel(
                 key = route.id,
                 factory = simpleFactory { EntityDetailViewModel(repository, route.id) },
             )
-            EntityDetailScreen(vm, route.title, nav) { entityRoute = null }
+            EntityDetailScreen(vm, route.title, route.section, nav) { entityRoute = null }
         }
     }
     lessonRoute?.let { route ->
-        FullScreenOverlay(onClose = { lessonRoute = null }) {
-            LearningLessonScreen(repository, route.id, route.title) { lessonRoute = null }
+        FullScreenOverlay(route.title, onClose = { lessonRoute = null }) {
+            LearningLessonScreen(repository, route.id, route.title, nav) { lessonRoute = null }
         }
     }
-    if (showCv) FullScreenOverlay({ showCv = false }) { CvHubScreen(repository) { showCv = false } }
-    if (showJobs) FullScreenOverlay({ showJobs = false }) { JobScoutScreen(repository) { showJobs = false } }
-    if (showWorkImport) FullScreenOverlay({ showWorkImport = false }) { WorkImportScreen(repository, nav) { showWorkImport = false } }
-    if (showWorkAdd) FullScreenOverlay({ showWorkAdd = false }) {
-        TextAddScreen("Add work entry", { showWorkAdd = false }, { kind, raw ->
-            runCatching { repository.addWorkEntry(kind, raw) }.map { it.entityId to it.title }
-        }, nav)
+    if (showCv) FullScreenOverlay("CV Transfer", { showCv = false }) { CvHubScreen(repository) { showCv = false } }
+    if (showJobs) FullScreenOverlay("Job Scout", { showJobs = false }) { JobScoutScreen(repository) { showJobs = false } }
+    if (showWorkImport) {
+        FullScreenOverlay("Import project", { showWorkImport = false }) {
+            WorkImportScreen(repository, nav, onClose = { showWorkImport = false }, onImported = { workReloadKey++ })
+        }
     }
-    if (showStartupAdd) FullScreenOverlay({ showStartupAdd = false }) {
-        TextAddScreen("Add startup entry", { showStartupAdd = false }, { kind, raw ->
-            runCatching { repository.addStartupEntry(kind, raw) }.map { it.entityId to it.title }
-        }, nav)
+    if (showWorkAdd) {
+        FullScreenOverlay("Add to Work", { showWorkAdd = false }) {
+            WorkAddScreen(repository, nav, onClose = { showWorkAdd = false }, onCreated = { workReloadKey++ })
+        }
+    }
+    if (showStartupAdd) {
+        FullScreenOverlay("Add startup entry", { showStartupAdd = false }) {
+            TextAddScreen(
+                "Add startup entry",
+                { showStartupAdd = false },
+                { kind, raw, hint ->
+                    runCatching { repository.addStartupEntry(kind, raw, hint) }.map { it.entityId to it.title }
+                },
+                nav,
+                kinds = listOf(
+                    "idea" to "Idea",
+                    "feature" to "Feature",
+                    "kpi" to "KPI",
+                    "competitor" to "Competitor",
+                    "pain_point" to "Pain point",
+                    "business_model" to "Business model",
+                ),
+                titleHintEnabled = true,
+                onCreated = { startupReloadKey++ },
+            )
+        }
     }
     showLearningAdd?.let { track ->
-        FullScreenOverlay({ showLearningAdd = null }) {
-            TextAddScreen("Add ${track.label}", { showLearningAdd = null }, { kind, raw ->
-                runCatching { repository.addLearningEntry(kind, track.apiValue, raw) }.map { it.entityId to it.title }
-            }, nav)
+        FullScreenOverlay("Add ${track.label}", { showLearningAdd = null }) {
+            TextAddScreen(
+                "Add ${track.label}",
+                { showLearningAdd = null },
+                { kind, raw, hint ->
+                    runCatching { repository.addLearningEntry(kind, track.apiValue, raw, hint) }.map { it.entityId to it.title }
+                },
+                nav,
+                kinds = listOf(
+                    "course" to "Course",
+                    "topic" to "Topic",
+                    "skill" to "Skill",
+                    "note" to "Note",
+                ),
+                titleHintEnabled = true,
+                onCreated = { learningReloadKey++ },
+            )
         }
     }
-    if (showInterview) FullScreenOverlay({ showInterview = false }) { InterviewPrepScreen(repository) { showInterview = false } }
-    if (showStartup) FullScreenOverlay({ showStartup = false }) { StartupScreen(repository, nav) { showStartup = false } }
-    if (showWorkHub) FullScreenOverlay({ showWorkHub = false }) { WorkHubSheet(nav) { showWorkHub = false } }
-    if (showLearningHub) FullScreenOverlay({ showLearningHub = false }) { LearningHubSheet(nav) { showLearningHub = false } }
+    if (showInterview) FullScreenOverlay("Interview prep", { showInterview = false }) { InterviewPrepScreen(repository) { showInterview = false } }
+    if (showStartup) {
+        FullScreenOverlay("Startup", { showStartup = false }) {
+            StartupScreen(repository, nav, reloadKey = startupReloadKey) { showStartup = false }
+        }
+    }
+    if (showStartupHub) FullScreenOverlay("Startup hub", { showStartupHub = false }) { StartupHubSheet(nav) { showStartupHub = false } }
+    if (showWorkHub) FullScreenOverlay("Work hub", { showWorkHub = false }) { WorkHubSheet(nav) { showWorkHub = false } }
+    if (showLearningHub) FullScreenOverlay("Learning hub", { showLearningHub = false }) { LearningHubSheet(nav) { showLearningHub = false } }
+    showLearningCoach?.let { route ->
+        FullScreenOverlay("AI coach", { showLearningCoach = null }) {
+            LearningCoachScreen(repository, route.track, route.entityId, route.topic) { showLearningCoach = null }
+        }
+    }
+    if (showLearningSchedule) {
+        FullScreenOverlay("Study schedule", { showLearningSchedule = false }) {
+            LearningScheduleScreen(repository) { showLearningSchedule = false }
+        }
+    }
+    if (showNotificationLog) {
+        FullScreenOverlay("Notifications", { showNotificationLog = false }) {
+            NotificationLogScreen(repository) { showNotificationLog = false }
+        }
+    }
 }
 
 @Composable
-private fun FullScreenOverlay(onClose: () -> Unit, content: @Composable () -> Unit) {
+private fun FullScreenOverlay(title: String, onClose: () -> Unit, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onClose) { Text("←") }
-        }
-        content()
+        PosCloseBar(title, onClose)
+        Box(Modifier.weight(1f)) { content() }
     }
 }
 

@@ -23,7 +23,7 @@ class WorkViewModel(private val repository: PersonalOSRepository) : ViewModel() 
         viewModelScope.launch {
             _state.value = _state.value.copy(loading = true, error = null)
             runCatching { repository.listEntities("work") }
-                .onSuccess { _state.value = WorkUiState(loading = false, entities = it.entities) }
+                .onSuccess { _state.value = WorkUiState(loading = false, entities = it.items) }
                 .onFailure { _state.value = WorkUiState(loading = false, error = it.message) }
         }
     }

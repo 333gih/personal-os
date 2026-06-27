@@ -18,10 +18,15 @@ object PosTheme {
     val PrimaryDark = Color(0xFF8C2634)
     val Muted = Color(0xFF766C62)
     val Border = Color(0xFFE4DCD2)
+    val PaperLine = Color(0xFFDCD2C6)
+    val PaperHighlight = Color.White
+    val PaperShadow = Color(0xFF5A4637)
     val Focus = Color(0xFF3A6658)
     val Success = Color(0xFF2E784E)
     val SuccessBg = Color(0xFFE8F6EC)
+    val Error = Color(0xFFB03444)
     val CardRadius = 20.dp
+    val TabBarHeight = 60.dp
 }
 
 private val LightColors = lightColorScheme(
@@ -56,8 +61,18 @@ fun PersonalOSTheme(content: @Composable () -> Unit) {
     )
 }
 
-fun posDisplay(size: Float = 28f) = TextStyle(
+fun posDisplay(size: Float = 28f, weight: FontWeight = FontWeight.SemiBold) = TextStyle(
     fontFamily = FontFamily.Serif,
+    fontWeight = weight,
+    fontSize = size.sp,
+)
+
+fun posLabel(size: Float = 11f) = TextStyle(
+    fontWeight = FontWeight.Medium,
+    fontSize = size.sp,
+)
+
+fun posCaps(size: Float = 10f) = TextStyle(
     fontWeight = FontWeight.SemiBold,
     fontSize = size.sp,
 )

@@ -41,8 +41,9 @@ val releaseKeystoreFile: File? =
 
 fun ApplicationProductFlavor.injectFromEnv(env: Map<String, String>, flavorName: String) {
     fun envVal(key: String): String =
-        env[key]?.trim()?.takeIf { it.isNotEmpty() }
-            ?: error("$key is required in env for flavor '$flavorName'")
+        project.prop(key)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: env[key]?.trim()?.takeIf { it.isNotEmpty() }
+            ?: error("$key is required in env for flavor '$flavorName' (optional override: android/local.properties)")
 
     buildConfigField("String", "ENVIRONMENT_NAME", buildConfigStringLiteral(envVal("ENVIRONMENT_NAME")))
     buildConfigField("String", "PERSONAL_OS_FE_URL", buildConfigStringLiteral(envVal("PERSONAL_OS_FE_URL")))
@@ -62,8 +63,8 @@ android {
         applicationId = "com.personalos.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "HTTP_USER_AGENT", buildConfigStringLiteral("PersonalOS-Android/1.0"))
     }

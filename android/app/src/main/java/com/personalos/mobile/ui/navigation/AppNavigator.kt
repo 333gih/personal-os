@@ -30,6 +30,12 @@ data class EntityRoute(
 
 data class LearningLessonRoute(val id: String, val title: String)
 
+data class LearningCoachRoute(
+    val track: PosLearningTrack,
+    val entityId: String? = null,
+    val topic: String = "",
+)
+
 class AppNavigator(
     val onSwitchTab: (PosTab) -> Unit,
     val onOpenWeb: (WebRoute) -> Unit,
@@ -40,6 +46,7 @@ class AppNavigator(
     val onOpenWorkAdd: () -> Unit,
     val onOpenWorkHub: () -> Unit,
     val onOpenStartup: () -> Unit,
+    val onOpenStartupHub: () -> Unit,
     val onOpenStartupAdd: () -> Unit,
     val onOpenLearningHub: () -> Unit,
     val onOpenLearningAdd: (PosLearningTrack) -> Unit,

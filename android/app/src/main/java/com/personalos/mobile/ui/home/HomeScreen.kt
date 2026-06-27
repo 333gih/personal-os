@@ -1,6 +1,7 @@
 package com.personalos.mobile.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,28 +9,35 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.personalos.mobile.data.auth.SessionManager
 import com.personalos.mobile.data.models.PosDashboard
 import com.personalos.mobile.data.models.PosTab
-import com.personalos.mobile.ui.components.PosCard
 import com.personalos.mobile.ui.components.PosEmptyState
+import com.personalos.mobile.ui.components.PosFloatingCaptureButton
+import com.personalos.mobile.ui.components.PosFocusCard
 import com.personalos.mobile.ui.components.PosJournalDateStamp
 import com.personalos.mobile.ui.components.PosListRow
 import com.personalos.mobile.ui.components.PosLoadingView
 import com.personalos.mobile.ui.components.PosMetricCard
+import com.personalos.mobile.ui.components.PosNoteDivider
+import com.personalos.mobile.ui.components.PosQuickActionRow
 import com.personalos.mobile.ui.components.PosScreen
+import com.personalos.mobile.ui.components.PosSectionHeader
+import com.personalos.mobile.ui.components.PosShelfHighlightCard
 import com.personalos.mobile.ui.navigation.AppNavigator
+import com.personalos.mobile.ui.navigation.EntityRoute
 import com.personalos.mobile.ui.navigation.WebRoute
 import com.personalos.mobile.ui.theme.PosTheme
-import com.personalos.mobile.ui.theme.posDisplay
+import com.personalos.mobile.util.PosFormatting
 
 @Composable
 fun HomeScreen(
@@ -40,65 +48,147 @@ fun HomeScreen(
     val state by viewModel.state.collectAsState()
     LaunchedEffect(Unit) { viewModel.load() }
 
-    PosScreen {
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            PosJournalDateStamp(sessionManager.firstName())
-            when {
-                state.loading -> PosLoadingView("Opening your journal…")
-                state.error != null -> PosEmptyState(
-                    title = "Could not refresh",
-                    message = state.error.orEmpty(),
-                    actionTitle = "Try again",
-                    onAction = { viewModel.load() },
-                )
-                state.dashboard != null -> HomeContent(state.dashboard!!, nav)
+    Box(Modifier.fillMaxSize()) {
+        PosScreen {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+                    .padding(bottom = 72.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
+            ) {
+                PosJournalDateStamp(sessionManager.firstName())
+                when {
+                    state.loading && state.dashboard == null -> PosLoadingView("Opening your journal…")
+                    state.error != null && state.dashboard == null -> PosEmptyState(
+                        title = "Could not refresh",
+                        message = state.error.orEmpty(),
+                        actionTitle = "Try again",
+                        onAction = { viewModel.load() },
+                    )
+                    state.dashboard != null -> HomeContent(state.dashboard!!, nav, onRefresh = { viewModel.load(refresh = true) })
+                }
             }
         }
+        PosFloatingCaptureButton(
+            onClick = nav.captureNote,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 18.dp, bottom = 12.dp),
+        )
     }
 }
 
 @Composable
-private fun HomeContent(data: PosDashboard, nav: AppNavigator) {
+private fun HomeContent(
+    data: PosDashboard,
+    nav: AppNavigator,
+    onRefresh: () -> Unit,
+) {
     val total = data.domainCounts.values.sum()
     val learning = data.domainCounts["learning"] ?: 0
     val work = data.domainCounts["work"] ?: 0
     val pct = if (total > 0) minOf(100, 28 + learning * 8 + work * 4) else 0
 
-    PosCard {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("TODAY'S FOCUS", color = PosTheme.Focus, style = posDisplay(12f))
-            Text(if (total > 0) "${learning + work} entries" else "Start a note", style = posDisplay(30f))
-            Text(
-                if (total > 0) "Building across learning and work." else "Capture one thought in Inbox to begin.",
-                color = PosTheme.Muted,
-            )
-            LinearProgressIndicator(progress = { pct / 100f }, modifier = Modifier.fillMaxWidth(), color = PosTheme.Focus)
-        }
-    }
+    PosFocusCard(
+        learning = learning,
+        work = work,
+        progress = pct,
+        onClick = { nav.onSwitchTab(PosTab.LEARNING) },
+    )
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        PosMetricCard("Inbox", "${data.inboxCount}", if (data.inboxCount > 0) "Waiting to sort" else "All caught up", Modifier.weight(1f)) {
+        PosMetricCard(
+            "Inbox",
+            "${data.inboxCount}",
+            if (data.inboxCount > 0) "Waiting to sort" else "All caught up",
+            Modifier.weight(1f),
+        ) {
             nav.onOpenWeb(WebRoute.path("/inbox", "Inbox"))
         }
         PosMetricCard("Library", "$total", "Notes & projects", Modifier.weight(1f)) {
-            nav.onSwitchTab(PosTab.WORK)
+            nav.onSwitchTab(PosTab.SEARCH)
         }
     }
 
-    Text("Recent", style = posDisplay(18f))
-    data.recentEntities.take(6).forEach { entity ->
-        PosListRow(entity.title, entity.domain) {
-            nav.onOpenEntity(com.personalos.mobile.ui.navigation.EntityRoute(entity.id, entity.title))
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        PosSectionHeader(
+            title = "Quick capture",
+            action = "Inbox",
+            onAction = { nav.onOpenWeb(WebRoute.path("/inbox", "Inbox")) },
+        )
+        PosQuickActionRow(
+            onNewNote = nav.captureNote,
+            onStudy = { nav.onSwitchTab(PosTab.LEARNING) },
+            onReading = { nav.onOpenWeb(WebRoute.path("/entertainment", "Reading Log")) },
+            onSearch = { nav.onSwitchTab(PosTab.SEARCH) },
+        )
     }
 
-    if (data.reminders.isNotEmpty()) {
-        Text("Up next", style = posDisplay(18f))
-        data.reminders.take(5).forEach { reminder ->
-            PosListRow(reminder.title, reminder.due) {}
+    PosNoteDivider()
+
+    ShelfSection(data, nav)
+
+    PosNoteDivider()
+
+    UpNextSection(data, nav, onRefresh)
+}
+
+@Composable
+private fun ShelfSection(data: PosDashboard, nav: AppNavigator) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        PosSectionHeader(
+            title = "From your shelf",
+            eyebrow = "Recently touched",
+            action = "Reading log",
+            onAction = { nav.onOpenWeb(WebRoute.path("/entertainment", "Reading Log")) },
+        )
+        data.recent.firstOrNull()?.let { recent ->
+            PosShelfHighlightCard(
+                domain = PosFormatting.domainLabel(recent.domain),
+                title = recent.title,
+                content = recent.content,
+                onClick = { nav.onOpenEntity(EntityRoute(recent.id, recent.title)) },
+            )
+        } ?: PosEmptyState(
+            title = "Nothing on the shelf yet",
+            message = "Your latest note or reading entry will land here.",
+            actionTitle = "Capture a note",
+            onAction = nav.captureNote,
+        )
+    }
+}
+
+@Composable
+private fun UpNextSection(data: PosDashboard, nav: AppNavigator, onRefresh: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        PosSectionHeader(title = "Up next", action = "Refresh", onAction = onRefresh)
+        if (data.upcomingReminders.isEmpty()) {
+            PosEmptyState(
+                title = "A clear afternoon",
+                message = "Add a reminder to any entry and it will appear here.",
+                actionTitle = "Open inbox",
+                onAction = { nav.onOpenWeb(WebRoute.path("/inbox", "Inbox")) },
+            )
+        } else {
+            data.upcomingReminders.take(5).forEach { reminder ->
+                PosListRow(
+                    title = reminder.title,
+                    subtitle = PosFormatting.friendlyDue(reminder.dueAt),
+                    badge = reminder.status.takeIf { it.isNotBlank() },
+                    icon = Icons.Default.AccessTime,
+                    iconTint = PosTheme.Focus,
+                    onClick = {
+                        val entityId = reminder.entityId?.takeIf { it.isNotBlank() }
+                        if (entityId != null) {
+                            nav.onOpenEntity(EntityRoute(entityId, reminder.title))
+                        } else {
+                            nav.onOpenWeb(WebRoute.path("/inbox", "Reminders"))
+                        }
+                    },
+                )
+            }
         }
     }
 }

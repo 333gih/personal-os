@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val loading: Boolean = true,
+    val refreshing: Boolean = false,
     val dashboard: PosDashboard? = null,
     val error: String? = null,
 )
@@ -20,14 +21,21 @@ class HomeViewModel(private val repository: PersonalOSRepository) : ViewModel() 
     private val _state = MutableStateFlow(HomeUiState())
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
-    fun load() {
+    fun load(refresh: Boolean = false) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(loading = true, error = null)
+            if (refresh) {
+                _state.value = _state.value.copy(refreshing = true, error = null)
+            } else {
+                _state.value = _state.value.copy(loading = true, error = null)
+            }
             runCatching { repository.dashboard() }
-                .onSuccess { _state.value = HomeUiState(loading = false, dashboard = it) }
+                .onSuccess {
+                    _state.value = HomeUiState(loading = false, refreshing = false, dashboard = it)
+                }
                 .onFailure { e ->
-                    _state.value = HomeUiState(
+                    _state.value = _state.value.copy(
                         loading = false,
+                        refreshing = false,
                         error = when (e) {
                             MobileApiClient.ApiException.Unauthorized -> "Session expired"
                             is MobileApiClient.ApiException.Http -> e.message

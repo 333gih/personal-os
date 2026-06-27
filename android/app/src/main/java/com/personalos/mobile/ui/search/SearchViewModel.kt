@@ -37,7 +37,7 @@ class SearchViewModel(
             runCatching { repository.search(q, _state.value.mode) }
                 .onSuccess {
                     saveRecent(q)
-                    _state.value = _state.value.copy(loading = false, hits = it.hits, recent = loadRecent())
+                    _state.value = _state.value.copy(loading = false, hits = it.results, recent = loadRecent())
                 }
                 .onFailure { _state.value = _state.value.copy(loading = false, error = it.message) }
         }

@@ -8,10 +8,12 @@ Same pattern as [fash-android-mobile](https://gitlab.com/fash3194512/fash-androi
 GitLab personal-os1/personal-os
   └── push main / releases/*
         └── scripts/mirror-monorepo-to-github.sh
-                  └── GitHub fashandcurious14052026-dotcom/personal-os
+                  └── GitHub 333gih/personal-os
                         ├── Android Release → AAB → Play (closed: POS-closed)
                         └── iOS Release     → IPA → TestFlight
 ```
+
+> **Thử nghiệm khép kín lần đầu:** xem [PLAY-CLOSED-TESTING-VI.md](PLAY-CLOSED-TESTING-VI.md) — app `com.personalos.mobile` phải được tạo trên Play Console trước khi CI upload được.
 
 ## Workflows
 
@@ -83,12 +85,12 @@ bash scripts/mirror-monorepo-to-github.sh
    - Android: `android/app/build.gradle.kts` → `versionCode` / `versionName`
    - iOS: `ios/project.yml` → marketing + build number
 2. Update `android/distribution/whatsnew/*` if needed.
-3. Commit to branch `releases/1.0.1` (example).
+3. Commit to branch `releases/1.0` (or `releases/x.y.z`).
 4. Push GitLab → mirror GitHub:
    ```powershell
-   git push origin releases/1.0.1
+   git push origin releases/1.0
    bash scripts/mirror-monorepo-to-github.sh
-   # or set GITHUB_MIRROR_BRANCH=releases/1.0.1
+   # or set GITHUB_MIRROR_BRANCH=releases/1.0
    ```
 5. GitHub Actions runs automatically:
    - **Android Release** → track `POS-closed`
