@@ -166,7 +166,7 @@ jobs:
           chmod +x gradlew
           ./gradlew :app:bundleProdRelease --stacktrace | tee gradle-bundle.log
 
-      - name: Locate AAB and mapping
+      - name: Locate AAB, mapping, and native debug symbols
         id: artifacts
         run: |
           set -euo pipefail
@@ -177,6 +177,22 @@ jobs:
           MAPPING="app/build/outputs/mapping/prodRelease/mapping.txt"
           if [[ -f "${MAPPING}" ]]; then
             echo "mapping_path=${MAPPING}" >> "${GITHUB_OUTPUT}"
+            echo "R8 mapping: ${MAPPING} ($(wc -c < "${MAPPING}") bytes)"
+          else
+            echo "::warning::mapping.txt not found - Play crash reports may stay obfuscated"
+          fi
+          NATIVE_ZIP="app/build/outputs/native-debug-symbols/prodRelease/native-debug-symbols.zip"
+          if [[ -f "${NATIVE_ZIP}" ]]; then
+            echo "native_symbols_path=${NATIVE_ZIP}" >> "${GITHUB_OUTPUT}"
+            echo "Native debug symbols: ${NATIVE_ZIP} ($(wc -c < "${NATIVE_ZIP}") bytes)"
+          else
+            NATIVE_DIR="app/build/intermediates/merged_native_libs/prodRelease/mergeProdReleaseNativeLibs/out/lib"
+            if [[ -d "${NATIVE_DIR}" ]] && [[ -n "$(find "${NATIVE_DIR}" -name '*.so' -print -quit)" ]]; then
+              echo "native_symbols_path=${NATIVE_DIR}" >> "${GITHUB_OUTPUT}"
+              echo "Native debug symbols (unstripped libs): ${NATIVE_DIR}"
+            else
+              echo "::warning::Native debug symbols not found - Play may warn about native crash symbolication"
+            fi
           fi
 
       - name: Verify AAB upload certificate (SHA-1)
@@ -195,9 +211,32 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      - name: Upload native debug symbols artifact
+        if: steps.artifacts.outputs.native_symbols_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-os-android-native-symbols-${{ github.run_number }}
+          path: android/${{ steps.artifacts.outputs.native_symbols_path }}
+          retention-days: 30
+          if-no-files-found: error
+
       - name: Upload to Google Play
         id: upload-play
-        if: env.UPLOAD_PLAY == 'true'
+        if: env.UPLOAD_PLAY == 'true' && steps.artifacts.outputs.native_symbols_path != ''
+        uses: r0adkll/upload-google-play@v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.personalos.mobile
+          releaseFiles: android/${{ steps.artifacts.outputs.aab_path }}
+          track: ${{ env.PLAY_TRACK }}
+          status: ${{ env.PLAY_RELEASE_STATUS }}
+          mappingFile: android/${{ steps.artifacts.outputs.mapping_path }}
+          debugSymbols: android/${{ steps.artifacts.outputs.native_symbols_path }}
+          whatsNewDirectory: android/distribution/whatsnew
+
+      - name: Upload to Google Play (no native symbols)
+        id: upload-play-no-symbols
+        if: env.UPLOAD_PLAY == 'true' && steps.artifacts.outputs.native_symbols_path == ''
         uses: r0adkll/upload-google-play@v1.1.3
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
@@ -212,9 +251,12 @@ jobs:
         if: always() && steps.app_version.outcome == 'success'
         env:
           UPLOAD_PLAY: ${{ env.UPLOAD_PLAY }}
-          UPLOAD_OUTCOME: ${{ steps.upload-play.outcome }}
           PLAY_TRACK: ${{ env.PLAY_TRACK }}
         run: |
+          UPLOAD_OUTCOME="${{ steps.upload-play.outcome }}"
+          if [[ "${UPLOAD_OUTCOME}" == "skipped" ]]; then
+            UPLOAD_OUTCOME="${{ steps.upload-play-no-symbols.outcome }}"
+          fi
           echo "### Personal OS Android release" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Version: **${{ steps.app_version.outputs.version_name }} (${{ steps.app_version.outputs.version_code }})**" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Package: \`com.personalos.mobile\`" >> "${GITHUB_STEP_SUMMARY}"
