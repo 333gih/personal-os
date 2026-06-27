@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct POSCVHubView: View {
     @EnvironmentObject private var session: SessionManager
@@ -365,4 +366,24 @@ struct POSCVHubView: View {
             alertMessage = error.localizedDescription
         }
     }
+}
+
+struct POSActivityShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        var controllers: [Any] = []
+        for item in items {
+            if let data = item as? Data {
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent("CV.pdf")
+                try? data.write(to: url)
+                controllers.append(url)
+            } else {
+                controllers.append(item)
+            }
+        }
+        return UIActivityViewController(activityItems: controllers, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

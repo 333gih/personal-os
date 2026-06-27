@@ -75,7 +75,20 @@ const fgDir = resolve(repoRoot, 'android/app/src/main/res/drawable-nodpi');
 mkdirSync(fgDir, { recursive: true });
 await sharp(sourcePath)
   .resize(432, 432, { fit: 'contain', background: { r: 249, g: 247, b: 242, alpha: 1 } })
-  .png()
+  .png({ compressionLevel: 9, force: true })
   .toFile(resolve(fgDir, 'ic_launcher_foreground.png'));
+
+// In-app header logo (must be AAPT-friendly; avoid raw full-resolution marketing PNG in res/)
+await sharp(sourcePath)
+  .resize(192, 192, { fit: 'contain', background: { r: 249, g: 247, b: 242, alpha: 1 } })
+  .png({ compressionLevel: 9, force: true })
+  .toFile(resolve(fgDir, 'pos_logo_source.png'));
+
+const iosResourceLogo = resolve(repoRoot, 'ios/PersonalOSApp/Resources/pos-logo-source.png');
+mkdirSync(dirname(iosResourceLogo), { recursive: true });
+await sharp(sourcePath)
+  .resize(512, 512, { fit: 'contain', background: { r: 249, g: 247, b: 242, alpha: 1 } })
+  .png({ compressionLevel: 9, force: true })
+  .toFile(iosResourceLogo);
 
 console.log('Done — PoS app icons generated');

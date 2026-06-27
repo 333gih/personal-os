@@ -15,6 +15,7 @@ enum POSTheme {
     static let success = Color(red: 46 / 255, green: 120 / 255, blue: 78 / 255)
     static let successBg = Color(red: 232 / 255, green: 246 / 255, blue: 236 / 255)
     static let focus = Color(red: 58 / 255, green: 102 / 255, blue: 88 / 255)
+    static let error = Color(red: 176 / 255, green: 52 / 255, blue: 68 / 255)
 
     static let cardRadius: CGFloat = 20
     static let tabBarHeight: CGFloat = 60
