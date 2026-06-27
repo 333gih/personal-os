@@ -365,20 +365,21 @@ struct POSCVHubView: View {
                 Text("Saving creates “My CV” — system template stays unchanged")
                     .font(.caption2)
                     .foregroundStyle(POSTheme.muted)
+                    .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            POSActionButton(title: isSaving ? "…" : saveButtonTitle, style: .primary) {
+                Task { await save() }
+            }
             HStack(spacing: 8) {
-                POSActionButton(title: isSaving ? "…" : saveButtonTitle, style: .primary) {
-                    Task { await save() }
-                }
-                POSActionButton(title: "Validate", style: .secondary) {
+                bottomToolButton(title: "Validate", icon: "checkmark.circle") {
                     guard let template else { return }
                     Task { await runValidate(template) }
                 }
-                POSActionButton(title: isExporting ? "…" : "PDF", style: .secondary) {
+                bottomToolButton(title: isExporting ? "…" : "PDF", icon: "doc.richtext") {
                     Task { await exportPDF() }
                 }
-                POSActionButton(title: "Share", style: .secondary) {
+                bottomToolButton(title: "Share", icon: "square.and.arrow.up") {
                     Task { await share() }
                 }
             }
@@ -386,6 +387,32 @@ struct POSCVHubView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(POSTheme.background)
+    }
+
+    private func bottomToolButton(title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: {
+            POSHaptics.light()
+            action()
+        }) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.subheadline.weight(.semibold))
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .background(POSTheme.card)
+            .foregroundStyle(POSTheme.ink)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(POSTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(POSPressButtonStyle())
     }
 
     private var saveButtonTitle: String {

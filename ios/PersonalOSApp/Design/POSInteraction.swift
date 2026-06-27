@@ -208,6 +208,8 @@ struct POSActionButton: View {
                 }
                 Text(title)
                     .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             .frame(maxWidth: style == .ghost ? nil : .infinity)
             .padding(.horizontal, style == .ghost ? 0 : 16)
