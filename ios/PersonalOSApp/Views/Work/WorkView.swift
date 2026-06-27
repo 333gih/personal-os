@@ -9,6 +9,7 @@ struct WorkView: View {
     @State private var loadError: String?
     @State private var addToCVEntity: POSEntity?
     @State private var cvAddedAlert: POSCVTemplate?
+    @State private var cvAddedValidation: POSCVValidateResult?
 
     private var profile: POSEntity? {
         items.first { $0.metadata?.kind == "profile" }
@@ -109,19 +110,24 @@ struct WorkView: View {
         .task(id: session.accessToken) { await load() }
         .refreshable { await load() }
         .sheet(item: $addToCVEntity) { entity in
-            POSAddToCVSheet(entity: entity) { tpl in
+            POSAddToCVSheet(entity: entity) { tpl, validation in
                 cvAddedAlert = tpl
+                cvAddedValidation = validation
             }
         }
         .alert("Added to CV", isPresented: Binding(
             get: { cvAddedAlert != nil },
-            set: { if !$0 { cvAddedAlert = nil } }
+            set: { if !$0 { cvAddedAlert = nil; cvAddedValidation = nil } }
         )) {
-            Button("Open CV Hub") { nav.openCV(); cvAddedAlert = nil }
-            Button("OK", role: .cancel) { cvAddedAlert = nil }
+            Button("Open CV Hub") { nav.openCV(); cvAddedAlert = nil; cvAddedValidation = nil }
+            Button("OK", role: .cancel) { cvAddedAlert = nil; cvAddedValidation = nil }
         } message: {
             if let tpl = cvAddedAlert {
-                Text("Block added to \"\(tpl.name)\".")
+                if let validation = cvAddedValidation, !validation.valid {
+                    Text("Block added to \"\(tpl.name)\". Warning: \(validation.overflows?.joined(separator: "; ") ?? "CV may exceed page limits").")
+                } else {
+                    Text("Block added to \"\(tpl.name)\".")
+                }
             }
         }
     }
@@ -383,14 +389,19 @@ struct WorkView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(POSTheme.primaryDark)
                         ForEach(cvRecommended.prefix(4)) { entry in
-                            Button { nav.onOpen(.entity(entry.id, title: entry.title)) } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(entry.title.replacingOccurrences(of: "Add to CV: ", with: ""))
-                                        .font(.subheadline.weight(.medium))
-                                    Text(entry.content)
-                                        .font(.caption)
-                                        .foregroundStyle(POSTheme.muted)
-                                        .lineLimit(2)
+                            Button { addToCVEntity = entry } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(entry.title.replacingOccurrences(of: "Add to CV: ", with: ""))
+                                            .font(.subheadline.weight(.medium))
+                                        Text(entry.content)
+                                            .font(.caption)
+                                            .foregroundStyle(POSTheme.muted)
+                                            .lineLimit(2)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "plus.circle.fill")
+                                        .foregroundStyle(POSTheme.primaryDark)
                                 }
                                 .padding(.top, 6)
                             }

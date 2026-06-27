@@ -25,12 +25,24 @@ struct POSCVHubView: View {
     @State private var showShareSheet = false
     @State private var sharePDFData: Data?
     @State private var alertMessage: String?
+    @State private var forkNotice: String?
+
+    private let sectionMeta: [(type: String, title: String, eyebrow: String)] = [
+        ("summary", "Profile", "Headline & summary"),
+        ("contact", "Contact", "Reach you"),
+        ("skills", "Skills & stack", "Primary focus"),
+        ("achievements", "Highlights", "Key wins"),
+        ("education", "Education", "Degrees & schools"),
+        ("certificates", "Certificates", "Credentials"),
+        ("experience", "Experience", "Roles"),
+        ("project", "Projects", "Featured work"),
+    ]
 
     var body: some View {
         NavigationStack {
             POSScreen {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 20) {
                         if isLoading && template == nil {
                             POSLoadingView()
                         } else if let loadError {
@@ -42,12 +54,31 @@ struct POSCVHubView: View {
                                 action: { Task { await reloadTemplates() } }
                             )
                         } else {
+                            heroHeader
                             templatePicker
                             if let validate { validateBanner(validate) }
+                            if let forkNotice {
+                                POSCard {
+                                    Label(forkNotice, systemImage: "doc.on.doc")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(POSTheme.primaryDark)
+                                }
+                            }
                             if let saveError {
                                 Text(saveError).font(.caption).foregroundStyle(POSTheme.error)
                             }
-                            if let template { templateContent(template) }
+                            if let template {
+                                constraintsCard(template)
+                                templateSections(template)
+                            } else if !isLoading {
+                                POSEmptyState(
+                                    systemImage: "doc.badge.plus",
+                                    title: "No CV template yet",
+                                    message: "Create a template or wait for the server to seed your default CV.",
+                                    actionTitle: "Create template",
+                                    action: { showCreate = true }
+                                )
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -89,28 +120,104 @@ struct POSCVHubView: View {
         }
     }
 
+    private var heroHeader: some View {
+        POSCard {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("CV Transfer")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(POSTheme.primaryDark)
+                Text(template?.name ?? "Your resume workspace")
+                    .font(.posDisplay(22))
+                    .foregroundStyle(POSTheme.ink)
+                Text("System templates stay as recommendations. Edits save as your own copy with length checks.")
+                    .font(.subheadline)
+                    .foregroundStyle(POSTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     private var templatePicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(templates) { tpl in
-                    Button {
-                        Task { await loadTemplate(id: tpl.id) }
-                    } label: {
-                        Text(tpl.name)
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(selectedID == tpl.id ? POSTheme.primaryDark : POSTheme.border.opacity(0.35))
-                            .foregroundStyle(selectedID == tpl.id ? .white : POSTheme.ink)
-                            .clipShape(Capsule())
+        VStack(alignment: .leading, spacing: 10) {
+            POSSectionHeader(title: "Templates", eyebrow: "Default · AI · yours")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(templates) { tpl in
+                        POSChip(title: chipLabel(tpl), isSelected: selectedID == tpl.id) {
+                            Task { await loadTemplate(id: tpl.id) }
+                        }
                     }
+                    POSChip(title: "+ New", isSelected: false) { showCreate = true }
                 }
-                Button { showCreate = true } label: {
-                    Label("New", systemImage: "plus")
+            }
+        }
+    }
+
+    private func chipLabel(_ tpl: POSCVTemplate) -> String {
+        if tpl.isSystem == true { return "★ \(tpl.name)" }
+        return tpl.name
+    }
+
+    @ViewBuilder
+    private func validateBanner(_ result: POSCVValidateResult) -> some View {
+        let nearOverflow = !result.valid && result.pageCount <= result.maxPages + 1
+        POSCard {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(bannerTitle(result))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(bannerColor(result, nearOverflow: nearOverflow))
+                if let template {
+                    Text("Limits: \(template.constraints.maxPages) page · max \(template.constraints.maxExperience) roles · max \(template.constraints.maxProjects) projects")
+                        .font(.caption2)
+                        .foregroundStyle(POSTheme.muted)
+                }
+                ForEach(result.overflows ?? [], id: \.self) { Text("• \($0)").font(.caption2) }
+                ForEach(result.suggestions ?? [], id: \.self) { Text("→ \($0)").font(.caption2).foregroundStyle(POSTheme.muted) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(4)
+            .background(bannerBackground(result, nearOverflow: nearOverflow).opacity(0.35))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+    }
+
+    private func bannerTitle(_ result: POSCVValidateResult) -> String {
+        if result.valid {
+            return "Fits \(result.maxPages) page(s) · \(result.pageCount) page PDF"
+        }
+        return "Overflow · \(result.pageCount)/\(result.maxPages) pages"
+    }
+
+    private func bannerColor(_ result: POSCVValidateResult, nearOverflow: Bool) -> Color {
+        if result.valid { return POSTheme.success }
+        if nearOverflow { return POSTheme.primaryDark }
+        return POSTheme.error
+    }
+
+    private func bannerBackground(_ result: POSCVValidateResult, nearOverflow: Bool) -> Color {
+        if result.valid { return POSTheme.success }
+        if nearOverflow { return POSTheme.border }
+        return POSTheme.error
+    }
+
+    private func constraintsCard(_ tpl: POSCVTemplate) -> some View {
+        POSCard {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(tpl.layoutID.replacingOccurrences(of: "_", with: " "))
                         .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(POSTheme.border.opacity(0.35))
+                        .foregroundStyle(POSTheme.muted)
+                    Text("\(tpl.blocks.filter(\.enabled).count) active blocks")
+                        .font(.subheadline.weight(.medium))
+                }
+                Spacer()
+                if tpl.isSystem == true {
+                    Text("System")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(POSTheme.primaryDark.opacity(0.12))
+                        .foregroundStyle(POSTheme.primaryDark)
                         .clipShape(Capsule())
                 }
             }
@@ -118,39 +225,37 @@ struct POSCVHubView: View {
     }
 
     @ViewBuilder
-    private func validateBanner(_ result: POSCVValidateResult) -> some View {
-        POSCard {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(result.valid ? "Fits \(result.maxPages) page(s)" : "Overflow · \(result.pageCount)/\(result.maxPages) pages")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(result.valid ? POSTheme.success : POSTheme.error)
-                ForEach(result.overflows ?? [], id: \.self) { Text("• \($0)").font(.caption2) }
-                ForEach(result.suggestions ?? [], id: \.self) { Text("→ \($0)").font(.caption2).foregroundStyle(POSTheme.muted) }
+    private func templateSections(_ tpl: POSCVTemplate) -> some View {
+        let grouped = groupBlocks(tpl.blocks)
+        ForEach(sectionMeta, id: \.type) { meta in
+            if let blocks = grouped[meta.type], !blocks.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    POSSectionHeader(title: meta.title, eyebrow: meta.eyebrow)
+                    ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
+                        blockCard(block, index: index, in: tpl, sectionBlocks: blocks)
+                    }
+                }
             }
         }
     }
 
-    @ViewBuilder
-    private func templateContent(_ tpl: POSCVTemplate) -> some View {
-        POSCard {
-            Text("Layout: \(tpl.layoutID)")
-                .font(.caption)
-                .foregroundStyle(POSTheme.muted)
-            Text("\(tpl.blocks.filter(\.enabled).count) active blocks")
-                .font(.caption)
+    private func groupBlocks(_ blocks: [POSCVBlock]) -> [String: [POSCVBlock]] {
+        var out: [String: [POSCVBlock]] = [:]
+        for block in blocks.sorted(by: { $0.order < $1.order }) {
+            out[block.type, default: []].append(block)
         }
-        ForEach(Array(tpl.blocks.sorted { $0.order < $1.order }.enumerated()), id: \.element.id) { index, block in
-            blockCard(block, index: index, in: tpl)
-        }
+        return out
     }
 
-    private func blockCard(_ block: POSCVBlock, index: Int, in tpl: POSCVTemplate) -> some View {
+    private func blockCard(_ block: POSCVBlock, index: Int, in tpl: POSCVTemplate, sectionBlocks: [POSCVBlock]) -> some View {
         POSCard {
-            HStack {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(block.overrides?.title?.isEmpty == false ? block.overrides!.title! : block.type.capitalized)
+                    Text(blockTitle(block))
                         .font(.subheadline.weight(.semibold))
-                    Text(block.type).font(.caption2).foregroundStyle(POSTheme.muted)
+                    if let period = block.overrides?.period, !period.isEmpty {
+                        Text(period).font(.caption).foregroundStyle(POSTheme.muted)
+                    }
                 }
                 Spacer()
                 Toggle("", isOn: bindingEnabled(blockID: block.id))
@@ -159,42 +264,123 @@ struct POSCVHubView: View {
             if let company = block.overrides?.company, !company.isEmpty {
                 Text(company).font(.caption).foregroundStyle(POSTheme.muted)
             }
-            if let content = block.content, !content.isEmpty {
-                Text(content).font(.caption).lineLimit(4)
+            if block.type == "skills", let groups = block.skillGroups, !groups.isEmpty {
+                skillsBlockBody(groups: groups, focus: block.overrides?.skillItems)
+            } else if let content = block.content, !content.isEmpty {
+                Text(content)
+                    .font(.caption)
+                    .foregroundStyle(POSTheme.ink.opacity(0.9))
+                    .lineLimit(block.type == "summary" ? 8 : 5)
+                    .padding(.top, 4)
             }
             if let stack = block.overrides?.highlightStack, !stack.isEmpty {
-                Text("Stack: \(stack.joined(separator: ", "))")
-                    .font(.caption2)
-                    .foregroundStyle(POSTheme.primaryDark)
+                skillChips(stack)
+                    .padding(.top, 6)
+            }
+            if let extra = block.overrides?.skillItems, !extra.isEmpty, block.type != "skills" {
+                skillChips(extra)
+                    .padding(.top, 4)
             }
             HStack(spacing: 8) {
-                Button("Edit + refine") { refiningBlock = block; refineDraft = block.content ?? "" }
+                Button {
+                    POSHaptics.light()
+                    refiningBlock = block
+                    refineDraft = block.content ?? ""
+                } label: {
+                    Text("Edit + refine")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(POSTheme.primaryDark)
+                }
+                .buttonStyle(POSPressButtonStyle())
+                if let globalIndex = tpl.blocks.sorted(by: { $0.order < $1.order }).firstIndex(where: { $0.id == block.id }), globalIndex > 0 {
+                    Button {
+                        POSHaptics.selection()
+                        moveBlock(block.id, direction: -1)
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(POSPressButtonStyle())
+                }
+                if let globalIndex = tpl.blocks.sorted(by: { $0.order < $1.order }).firstIndex(where: { $0.id == block.id }),
+                   globalIndex < tpl.blocks.count - 1 {
+                    Button {
+                        POSHaptics.selection()
+                        moveBlock(block.id, direction: 1)
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(POSPressButtonStyle())
+                }
+            }
+            .padding(.top, 8)
+        }
+        .opacity(block.enabled ? 1 : 0.55)
+    }
+
+    private func blockTitle(_ block: POSCVBlock) -> String {
+        if let title = block.overrides?.title, !title.isEmpty { return title }
+        return block.type.capitalized
+    }
+
+    @ViewBuilder
+    private func skillsBlockBody(groups: [POSCVSkillGroup], focus: [String]?) -> some View {
+        if let focus, !focus.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Primary focus")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(POSTheme.primaryDark)
+                skillChips(focus)
+            }
+            .padding(.top, 4)
+        }
+        ForEach(groups) { group in
+            VStack(alignment: .leading, spacing: 6) {
+                Text(group.category)
                     .font(.caption.weight(.semibold))
-                if index > 0 {
-                    Button("Up") { moveBlock(block.id, direction: -1) }.font(.caption)
-                }
-                if index < tpl.blocks.count - 1 {
-                    Button("Down") { moveBlock(block.id, direction: 1) }.font(.caption)
-                }
+                    .foregroundStyle(POSTheme.muted)
+                skillChips(group.items)
             }
             .padding(.top, 6)
         }
     }
 
+    private func skillChips(_ items: [String]) -> some View {
+        FlowLayout(spacing: 6) {
+            ForEach(items, id: \.self) { item in
+                Text(item)
+                    .font(.caption2.weight(.medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(POSTheme.border.opacity(0.35))
+                    .clipShape(Capsule())
+            }
+        }
+    }
+
     private var bottomBar: some View {
-        HStack(spacing: 8) {
-            POSActionButton(title: isSaving ? "…" : "Save", style: .primary) {
-                Task { await save() }
+        VStack(spacing: 8) {
+            if template?.isSystem == true {
+                Text("Saving creates “My CV” — system template stays unchanged")
+                    .font(.caption2)
+                    .foregroundStyle(POSTheme.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            POSActionButton(title: "Validate", style: .secondary) {
-                guard let template else { return }
-                Task { await runValidate(template) }
-            }
-            POSActionButton(title: isExporting ? "…" : "PDF", style: .secondary) {
-                Task { await exportPDF() }
-            }
-            POSActionButton(title: "Share", style: .secondary) {
-                Task { await share() }
+            HStack(spacing: 8) {
+                POSActionButton(title: isSaving ? "…" : saveButtonTitle, style: .primary) {
+                    Task { await save() }
+                }
+                POSActionButton(title: "Validate", style: .secondary) {
+                    guard let template else { return }
+                    Task { await runValidate(template) }
+                }
+                POSActionButton(title: isExporting ? "…" : "PDF", style: .secondary) {
+                    Task { await exportPDF() }
+                }
+                POSActionButton(title: "Share", style: .secondary) {
+                    Task { await share() }
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -202,17 +388,39 @@ struct POSCVHubView: View {
         .background(POSTheme.background)
     }
 
+    private var saveButtonTitle: String {
+        template?.isSystem == true ? "Save as My CV" : "Save"
+    }
+
     private func refineSheet(_ block: POSCVBlock) -> some View {
         NavigationStack {
-            Form {
-                Section("Content") {
-                    TextEditor(text: $refineDraft).frame(minHeight: 120)
-                }
-                Section("Instruction") {
-                    TextField("Optional", text: $refineInstruction, axis: .vertical)
+            POSScreen {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        POSCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Content")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(POSTheme.primaryDark)
+                                TextEditor(text: $refineDraft)
+                                    .frame(minHeight: 140)
+                                    .font(.subheadline)
+                            }
+                        }
+                        POSCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Instruction (optional)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(POSTheme.primaryDark)
+                                TextField("Professional tone, ATS-friendly…", text: $refineInstruction, axis: .vertical)
+                            }
+                        }
+                    }
+                    .padding(16)
                 }
             }
             .navigationTitle("AI refine")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { refiningBlock = nil }
@@ -232,11 +440,14 @@ struct POSCVHubView: View {
             get: { template?.blocks.first { $0.id == blockID }?.enabled ?? true },
             set: { enabled in
                 guard var tpl = template else { return }
-                tpl.blocks = tpl.blocks.map { $0.id == blockID ? POSCVBlock(
-                    id: $0.id, type: $0.type, order: $0.order, enabled: enabled,
-                    sourceEntityID: $0.sourceEntityID, content: $0.content, overrides: $0.overrides,
-                    aiRefinedAt: $0.aiRefinedAt, pendingRaw: $0.pendingRaw, skillGroups: $0.skillGroups
-                ) : $0 }
+                tpl.blocks = tpl.blocks.map { block in
+                    guard block.id == blockID else { return block }
+                    return POSCVBlock(
+                        id: block.id, type: block.type, order: block.order, enabled: enabled,
+                        sourceEntityID: block.sourceEntityID, content: block.content, overrides: block.overrides,
+                        aiRefinedAt: block.aiRefinedAt, pendingRaw: block.pendingRaw, skillGroups: block.skillGroups
+                    )
+                }
                 template = tpl
             }
         )
@@ -261,9 +472,12 @@ struct POSCVHubView: View {
         loadError = nil
         do {
             templates = try await session.api.listCVTemplates()
-            let pick = initialTemplateID ?? selectedID ?? templates.first?.id
-            if let pick { await loadTemplate(id: pick) }
-            isLoading = false
+            let pick = initialTemplateID ?? selectedID ?? templates.first(where: { $0.isDefault })?.id ?? templates.first?.id
+            if let pick {
+                await loadTemplate(id: pick)
+            } else {
+                isLoading = false
+            }
         } catch {
             loadError = error.localizedDescription
             isLoading = false
@@ -273,6 +487,7 @@ struct POSCVHubView: View {
     @MainActor
     private func loadTemplate(id: String) async {
         isLoading = true
+        forkNotice = nil
         do {
             template = try await session.api.getCVTemplate(id: id)
             selectedID = id
@@ -294,8 +509,16 @@ struct POSCVHubView: View {
         guard let template else { return }
         isSaving = true
         saveError = nil
+        let wasSystem = template.isSystem == true
         do {
-            self.template = try await session.api.saveCVTemplate(template)
+            let saved = try await session.api.saveCVTemplate(template)
+            self.template = saved
+            selectedID = saved.id
+            if wasSystem {
+                forkNotice = "Saved as “\(saved.name)”. System template unchanged."
+                await reloadTemplates()
+                await loadTemplate(id: saved.id)
+            }
             if let tpl = self.template { await runValidate(tpl) }
         } catch {
             saveError = error.localizedDescription
@@ -329,11 +552,14 @@ struct POSCVHubView: View {
             let refined = res.refinedContent?.isEmpty == false ? res.refinedContent! : refineDraft
             template = template.map { tpl in
                 var copy = tpl
-                copy.blocks = tpl.blocks.map { $0.id == blockID ? POSCVBlock(
-                    id: $0.id, type: $0.type, order: $0.order, enabled: $0.enabled,
-                    sourceEntityID: $0.sourceEntityID, content: refined, overrides: $0.overrides,
-                    aiRefinedAt: $0.aiRefinedAt, pendingRaw: nil, skillGroups: $0.skillGroups
-                ) : $0 }
+                copy.blocks = tpl.blocks.map { block in
+                    guard block.id == blockID else { return block }
+                    return POSCVBlock(
+                        id: block.id, type: block.type, order: block.order, enabled: block.enabled,
+                        sourceEntityID: block.sourceEntityID, content: refined, overrides: block.overrides,
+                        aiRefinedAt: block.aiRefinedAt, pendingRaw: nil, skillGroups: block.skillGroups
+                    )
+                }
                 return copy
             }
             refiningBlock = nil
@@ -365,6 +591,43 @@ struct POSCVHubView: View {
         } catch {
             alertMessage = error.localizedDescription
         }
+    }
+}
+
+/// Simple horizontal wrapping chip row for skills.
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = arrange(proposal: proposal, subviews: subviews)
+        return result.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(proposal: proposal, subviews: subviews)
+        for (index, frame) in result.frames.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: .unspecified)
+        }
+    }
+
+    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, frames: [CGRect]) {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var frames: [CGRect] = []
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            frames.append(CGRect(x: x, y: y, width: size.width, height: size.height))
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+        }
+        return (CGSize(width: maxWidth, height: y + rowHeight), frames)
     }
 }
 

@@ -3,6 +3,7 @@ package cv
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -45,6 +46,7 @@ func (s *Service) EnsureTemplatesMigrated(userID uuid.UUID) error {
 		Name:        name,
 		LayoutID:    layoutID,
 		IsDefault:   true,
+		IsSystem:    true,
 		Constraints: LayoutConstraints(layoutID),
 		Blocks:      blocks,
 	}
@@ -53,7 +55,7 @@ func (s *Service) EnsureTemplatesMigrated(userID uuid.UUID) error {
 }
 
 func (s *Service) ListTemplates(userID uuid.UUID) ([]CVTemplate, error) {
-	if err := s.EnsureTemplatesMigrated(userID); err != nil {
+	if err := s.EnsureSystemCVSetup(userID); err != nil {
 		return nil, err
 	}
 	var ents []models.Entity
@@ -65,10 +67,22 @@ func (s *Service) ListTemplates(userID uuid.UUID) ([]CVTemplate, error) {
 	for _, e := range ents {
 		out = append(out, entityToTemplate(&e))
 	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].IsSystem != out[j].IsSystem {
+			return out[i].IsSystem
+		}
+		if out[i].IsDefault != out[j].IsDefault {
+			return out[i].IsDefault
+		}
+		return out[i].Name < out[j].Name
+	})
 	return out, nil
 }
 
 func (s *Service) GetTemplate(userID, templateID uuid.UUID) (*CVTemplate, error) {
+	if err := s.EnsureSystemCVSetup(userID); err != nil {
+		return nil, err
+	}
 	ent, err := s.loadTemplateEntity(userID, templateID)
 	if err != nil {
 		return nil, err
@@ -78,7 +92,7 @@ func (s *Service) GetTemplate(userID, templateID uuid.UUID) (*CVTemplate, error)
 }
 
 func (s *Service) GetDefaultTemplate(userID uuid.UUID) (*CVTemplate, error) {
-	if err := s.EnsureTemplatesMigrated(userID); err != nil {
+	if err := s.EnsureSystemCVSetup(userID); err != nil {
 		return nil, err
 	}
 	var ent models.Entity
@@ -105,6 +119,7 @@ func (s *Service) CreateTemplate(userID uuid.UUID, req CreateTemplateRequest) (*
 		Name:        req.Name,
 		LayoutID:    layoutID,
 		IsDefault:   false,
+		IsSystem:    false,
 		Constraints: LayoutConstraints(layoutID),
 		Blocks:      []CVBlock{},
 	}
@@ -133,6 +148,24 @@ func (s *Service) SaveTemplate(userID, templateID uuid.UUID, tpl CVTemplate, for
 	ent, err := s.loadTemplateEntity(userID, templateID)
 	if err != nil {
 		return nil, err
+	}
+	existing := entityToTemplate(ent)
+	if existing.IsSystem {
+		forked, forkID, err := s.forkSystemTemplateIfNeeded(userID, &existing)
+		if err != nil {
+			return nil, err
+		}
+		tpl.ID = forked.ID
+		tpl.IsSystem = false
+		tpl.IsDefault = false
+		if tpl.Name == existing.Name || tpl.Name == systemDefaultName || tpl.Name == systemRecommendedName {
+			tpl.Name = forked.Name
+		}
+		templateID = forkID
+		ent, err = s.loadTemplateEntity(userID, templateID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	meta := map[string]any(ent.Metadata)
 	if isDefault, _ := meta["is_default"].(bool); tpl.IsDefault && !isDefault {
@@ -166,6 +199,9 @@ func (s *Service) DeleteTemplate(userID, templateID uuid.UUID) error {
 	meta := map[string]any(ent.Metadata)
 	if isDefault, _ := meta["is_default"].(bool); isDefault {
 		return fmt.Errorf("cannot delete default template")
+	}
+	if isSystem, _ := meta["is_system"].(bool); isSystem {
+		return fmt.Errorf("cannot delete system template")
 	}
 	ent.Status = "archived"
 	return s.db.Save(ent).Error
@@ -243,6 +279,14 @@ func (s *Service) AddBlockFromEntity(userID, templateID uuid.UUID, req AddBlockF
 	if err != nil {
 		return nil, err
 	}
+	if tpl.IsSystem {
+		forked, forkID, err := s.forkSystemTemplateIfNeeded(userID, tpl)
+		if err != nil {
+			return nil, err
+		}
+		tpl = forked
+		templateID = forkID
+	}
 	blockType := req.BlockType
 	if blockType == "" {
 		blockType = inferBlockType(workEnt.Type)
@@ -260,17 +304,27 @@ func (s *Service) AddBlockFromEntity(userID, templateID uuid.UUID, req AddBlockF
 			overrides.Company = c
 		}
 	}
+	content := workEnt.Content
+	stack, cleaned := extractHighlightStack(content)
+	if len(overrides.HighlightStack) == 0 && len(stack) > 0 {
+		overrides.HighlightStack = stack
+		content = cleaned
+	}
 	block := CVBlock{
 		ID:             uuid.NewString(),
 		Type:           blockType,
 		Enabled:        true,
 		SourceEntityID: workEnt.ID.String(),
-		Content:        workEnt.Content,
+		Content:        content,
 		Overrides:      overrides,
 		Order:          len(tpl.Blocks),
 	}
 	tpl.Blocks = append(tpl.Blocks, block)
-	return s.SaveTemplate(userID, templateID, *tpl, true)
+	saved, err := s.SaveTemplate(userID, templateID, *tpl, false)
+	if err != nil && strings.Contains(err.Error(), "layout limits") {
+		saved, err = s.SaveTemplate(userID, templateID, *tpl, true)
+	}
+	return saved, err
 }
 
 func inferBlockType(entityType string) string {
@@ -337,6 +391,7 @@ func entityToTemplate(ent *models.Entity) CVTemplate {
 	var meta struct {
 		LayoutID    string        `json:"layout_id"`
 		IsDefault   bool          `json:"is_default"`
+		IsSystem    bool          `json:"is_system"`
 		Constraints CVConstraints `json:"constraints"`
 		Blocks      []CVBlock     `json:"blocks"`
 		Name        string        `json:"name"`
@@ -352,6 +407,10 @@ func entityToTemplate(ent *models.Entity) CVTemplate {
 		tpl.LayoutID = "two_column_one_page_v5"
 	}
 	tpl.IsDefault = meta.IsDefault
+	tpl.IsSystem = meta.IsSystem
+	if tpl.IsDefault && tpl.Name == systemDefaultName {
+		tpl.IsSystem = true
+	}
 	tpl.Constraints = meta.Constraints
 	if tpl.Constraints.MaxPages == 0 {
 		tpl.Constraints = LayoutConstraints(tpl.LayoutID)
@@ -364,6 +423,7 @@ func templateToMetadata(tpl CVTemplate) datatypes.JSONMap {
 	m := map[string]any{
 		"layout_id":   tpl.LayoutID,
 		"is_default":  tpl.IsDefault,
+		"is_system":   tpl.IsSystem,
 		"name":        tpl.Name,
 		"constraints": tpl.Constraints,
 		"blocks":      tpl.Blocks,

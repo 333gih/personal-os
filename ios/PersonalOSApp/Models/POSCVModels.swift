@@ -200,6 +200,7 @@ struct POSCVTemplate: Codable, Identifiable, Hashable {
     var name: String
     var layoutID: String
     var isDefault: Bool
+    var isSystem: Bool?
     var constraints: POSCVConstraints
     var blocks: [POSCVBlock]
     var updatedAt: String?
@@ -208,6 +209,7 @@ struct POSCVTemplate: Codable, Identifiable, Hashable {
         case id, name, constraints, blocks
         case layoutID = "layout_id"
         case isDefault = "is_default"
+        case isSystem = "is_system"
         case updatedAt = "updated_at"
     }
 }

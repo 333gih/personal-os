@@ -18,7 +18,9 @@ func DocumentToBlocks(doc CVDocument) []CVBlock {
 
 	if doc.Summary != "" || doc.Headline != "" {
 		content := doc.Summary
-		if content == "" {
+		if doc.Headline != "" && content != "" && !strings.Contains(content, doc.Headline) {
+			content = doc.Headline + "\n" + content
+		} else if content == "" {
 			content = doc.Headline
 		}
 		add(CVBlock{ID: "summary", Type: "summary", Enabled: true, Content: content})
@@ -28,7 +30,11 @@ func DocumentToBlocks(doc CVDocument) []CVBlock {
 			doc.Contact.Email, doc.Contact.Phone, doc.Contact.Location)})
 	}
 	if len(doc.SkillGroups) > 0 {
-		add(CVBlock{ID: "skills", Type: "skills", Enabled: true, SkillGroups: doc.SkillGroups})
+		overrides := (*CVBlockOverrides)(nil)
+		if len(doc.PrimaryStack) > 0 {
+			overrides = &CVBlockOverrides{SkillItems: append([]string(nil), doc.PrimaryStack...)}
+		}
+		add(CVBlock{ID: "skills", Type: "skills", Enabled: true, SkillGroups: doc.SkillGroups, Overrides: overrides})
 	}
 	for i, a := range doc.Achievements {
 		add(CVBlock{
@@ -40,6 +46,12 @@ func DocumentToBlocks(doc CVDocument) []CVBlock {
 		content := e.School
 		if e.Degree != "" {
 			content += " · " + e.Degree
+		}
+		if e.Period != "" {
+			content += " (" + e.Period + ")"
+		}
+		if e.Content != "" {
+			content += "\n" + e.Content
 		}
 		add(CVBlock{
 			ID: fmt.Sprintf("education-%d", i), Type: "education", Enabled: true, Content: content,
@@ -56,9 +68,10 @@ func DocumentToBlocks(doc CVDocument) []CVBlock {
 		if id == "" {
 			id = uuid.NewString()
 		}
+		content := exp.Content
 		add(CVBlock{
 			ID: id, Type: "experience", Enabled: true, SourceEntityID: exp.ID,
-			Content: exp.Content,
+			Content: content,
 			Overrides: &CVBlockOverrides{
 				Title: exp.Title, Company: exp.Company, Period: exp.Period,
 			},
@@ -69,11 +82,14 @@ func DocumentToBlocks(doc CVDocument) []CVBlock {
 		if id == "" {
 			id = uuid.NewString()
 		}
+		content := proj.Content
+		stack, cleaned := extractHighlightStack(content)
 		add(CVBlock{
 			ID: id, Type: "project", Enabled: true, SourceEntityID: proj.ID,
-			Content: proj.Content,
+			Content: cleaned,
 			Overrides: &CVBlockOverrides{
 				Title: proj.Title, Company: proj.Company, Period: proj.Period,
+				HighlightStack: stack,
 			},
 		})
 	}
@@ -134,6 +150,13 @@ func blockToBullet(b CVBlock) BulletItem {
 				item.Content = stack + "\n" + item.Content
 			} else {
 				item.Content = stack
+			}
+		} else if len(b.Overrides.SkillItems) > 0 {
+			stack := strings.Join(b.Overrides.SkillItems, ", ")
+			if item.Content != "" {
+				item.Content = "Skills: " + stack + "\n" + item.Content
+			} else {
+				item.Content = "Skills: " + stack
 			}
 		}
 	}

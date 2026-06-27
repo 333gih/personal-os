@@ -144,6 +144,7 @@ type CVTemplate struct {
 	Name        string        `json:"name"`
 	LayoutID    string        `json:"layout_id"`
 	IsDefault   bool          `json:"is_default"`
+	IsSystem    bool          `json:"is_system"`
 	Constraints CVConstraints `json:"constraints"`
 	Blocks      []CVBlock     `json:"blocks"`
 	UpdatedAt   string        `json:"updated_at,omitempty"`
