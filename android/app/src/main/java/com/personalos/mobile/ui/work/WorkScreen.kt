@@ -296,9 +296,9 @@ private fun InterviewSection(topics: List<PosEntity>, loading: Boolean, nav: App
 private fun CareerToolsSection(nav: AppNavigator) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         PosSectionHeader(title = "Career tools", eyebrow = "CV & opportunities")
-        PosActionButton("Work menu", style = PosActionStyle.Primary, onClick = nav.onOpenWorkHub)
-        PosActionButton("Add entry (AI normalize)", style = PosActionStyle.Secondary, onClick = nav.onOpenWorkAdd)
-        PosActionButton("Job Scout", style = PosActionStyle.Secondary, onClick = nav.onOpenJobScout)
+        PosActionButton("Work menu", style = PosActionStyle.Primary, modifier = Modifier.fillMaxWidth(), onClick = nav.onOpenWorkHub)
+        PosActionButton("Add entry (AI normalize)", style = PosActionStyle.Secondary, modifier = Modifier.fillMaxWidth(), onClick = nav.onOpenWorkAdd)
+        PosActionButton("Job Scout", style = PosActionStyle.Secondary, modifier = Modifier.fillMaxWidth(), onClick = nav.onOpenJobScout)
     }
 }
 

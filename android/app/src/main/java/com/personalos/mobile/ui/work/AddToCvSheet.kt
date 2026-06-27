@@ -70,13 +70,17 @@ fun AddToCvSheet(
     val selectedTemplate = templates.firstOrNull { it.id == selectedTemplateId }
 
     LaunchedEffect(Unit) {
-        runCatching { repository.listCvTemplates() }
-            .onSuccess {
-                templates = it
-                selectedTemplateId = it.firstOrNull { tpl -> tpl.isDefault }?.id ?: it.firstOrNull()?.id
-                loading = false
-            }
-            .onFailure { err -> error = err.message; loading = false }
+        var list = runCatching { repository.listCvTemplates() }.getOrElse { err ->
+            error = err.message
+            loading = false
+            return@LaunchedEffect
+        }
+        if (list.all { it.blocks.isEmpty() }) {
+            list = runCatching { repository.syncCvSystemTemplates() }.getOrDefault(list)
+        }
+        templates = list
+        selectedTemplateId = list.firstOrNull { it.isDefault }?.id ?: list.firstOrNull()?.id
+        loading = false
     }
 
     lengthAlert?.let { message ->

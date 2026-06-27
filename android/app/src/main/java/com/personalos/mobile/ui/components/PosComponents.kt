@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.personalos.mobile.ui.theme.PosTheme
 import com.personalos.mobile.ui.theme.posCaps
@@ -402,7 +403,14 @@ fun PosActionButton(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         icon?.let { Icon(it, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp)) }
-        Text(text, color = fg, fontWeight = FontWeight.SemiBold)
+        Text(
+            text,
+            color = fg,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
+        )
     }
 }
 
@@ -447,5 +455,5 @@ fun PosPrimaryButton(text: String, modifier: Modifier = Modifier, onClick: () ->
         onClick = onClick,
         modifier = modifier,
         colors = ButtonDefaults.buttonColors(containerColor = PosTheme.PrimaryDark),
-    ) { Text(text) }
+    ) { Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis) }
 }

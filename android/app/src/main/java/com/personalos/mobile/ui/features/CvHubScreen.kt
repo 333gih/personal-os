@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -39,8 +41,6 @@ import com.personalos.mobile.data.models.PosCvSkillGroup
 import com.personalos.mobile.data.models.PosCvTemplate
 import com.personalos.mobile.data.models.PosCvValidateResult
 import com.personalos.mobile.data.repository.PersonalOSRepository
-import com.personalos.mobile.ui.components.PosActionButton
-import com.personalos.mobile.ui.components.PosActionStyle
 import com.personalos.mobile.ui.components.PosCard
 import com.personalos.mobile.ui.components.PosEmptyState
 import com.personalos.mobile.ui.components.PosLoadingView
@@ -99,20 +99,51 @@ fun CvHubScreen(
             loading = true
             forkNotice = null
             runCatching { repository.getCvTemplate(id) }
-                .onSuccess {
-                    template = it
+                .onSuccess { loaded ->
+                    var tpl = loaded
+                    if (tpl.blocks.isEmpty()) {
+                        tpl = runCatching { repository.syncCvSystemTemplates() }
+                            .getOrNull()
+                            ?.let { synced ->
+                                templates = synced
+                                synced.firstOrNull { it.id == id } ?: synced.firstOrNull { it.isDefault }
+                            }
+                            ?: tpl
+                        if (tpl.blocks.isEmpty()) {
+                            val blocks = runCatching { repository.fetchCv() }
+                                .getOrNull()
+                                ?.let { CvDocumentBlocks.build(it.document) }
+                                .orEmpty()
+                            if (blocks.isNotEmpty()) tpl = tpl.copy(blocks = blocks)
+                        }
+                    }
+                    template = tpl
                     selectedId = id
                     loading = false
-                    runValidate(it)
+                    runValidate(tpl)
                 }
                 .onFailure { e -> error = e.message; loading = false }
         }
     }
 
+    suspend fun fetchTemplatesWithBootstrap(): List<PosCvTemplate> {
+        var list = repository.listCvTemplates()
+        if (list.all { it.blocks.isEmpty() }) {
+            list = runCatching { repository.syncCvSystemTemplates() }.getOrDefault(list)
+        }
+        if (list.all { it.blocks.isEmpty() }) {
+            val bootstrapped = runCatching { repository.fetchCv() }
+                .getOrNull()
+                ?.let { CvDocumentBlocks.bootstrapDefaultTemplate(it) }
+            if (bootstrapped != null) list = listOf(bootstrapped)
+        }
+        return list
+    }
+
     fun reloadTemplates(selectId: String? = selectedId) {
         scope.launch {
             loading = true
-            runCatching { repository.listCvTemplates() }
+            runCatching { fetchTemplatesWithBootstrap() }
                 .onSuccess { list ->
                     templates = list
                     val pick = selectId
@@ -213,61 +244,43 @@ fun CvHubScreen(
     FeatureScaffold(
         bottomBar = {
             template?.let { tpl ->
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(PosTheme.Card)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (tpl.isSystem) {
-                        Text(
-                            "Saving creates “My CV” — system template stays unchanged",
-                            style = posLabel(),
-                            color = PosTheme.Muted,
-                        )
-                    }
-                    PosFeatureBottomBar {
-                        PosActionButton(
-                            if (tpl.isSystem) "Save as My CV" else "Save",
-                            style = PosActionStyle.Primary,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            scope.launch {
-                                saveError = null
-                                val wasSystem = tpl.isSystem
-                                runCatching { repository.saveCvTemplate(tpl) }
-                                    .onSuccess {
-                                        template = it
-                                        selectedId = it.id
-                                        if (wasSystem) {
-                                            forkNotice = "Saved as “${it.name}”. System template unchanged."
-                                            reloadTemplates(it.id)
-                                        } else {
-                                            runValidate(it)
-                                        }
+                PosCvBottomBar(
+                    saveTitle = if (tpl.isSystem) "Save as My CV" else "Save",
+                    isSystem = tpl.isSystem,
+                    isExporting = false,
+                    onSave = {
+                        scope.launch {
+                            saveError = null
+                            val wasSystem = tpl.isSystem
+                            runCatching { repository.saveCvTemplate(tpl) }
+                                .onSuccess {
+                                    template = it
+                                    selectedId = it.id
+                                    if (wasSystem) {
+                                        forkNotice = "Saved as “${it.name}”. System template unchanged."
+                                        reloadTemplates(it.id)
+                                    } else {
+                                        runValidate(it)
                                     }
-                                    .onFailure { saveError = it.message }
-                            }
-                        }
-                        PosActionButton("Validate", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
-                            runValidate(tpl)
-                        }
-                        PosActionButton("PDF", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
-                            scope.launch {
-                                runCatching { context.openPdf(repository.downloadCvPdf(tpl.id)) }
-                            }
-                        }
-                        PosActionButton("Share", style = PosActionStyle.Secondary, modifier = Modifier.weight(1f)) {
-                            scope.launch {
-                                runCatching {
-                                    val url = repository.shareCv().url
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                                 }
+                                .onFailure { saveError = it.message }
+                        }
+                    },
+                    onValidate = { runValidate(tpl) },
+                    onPdf = {
+                        scope.launch {
+                            runCatching { context.openPdf(repository.downloadCvPdf(tpl.id)) }
+                        }
+                    },
+                    onShare = {
+                        scope.launch {
+                            runCatching {
+                                val url = repository.shareCv().url
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                             }
                         }
-                    }
-                }
+                    },
+                )
             }
         },
     ) {
@@ -539,13 +552,21 @@ private fun CvBlockCard(
             block.overrides?.skillItems?.takeIf { it.isNotEmpty() && block.type != "skills" }?.let {
                 SkillChips(it)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PosPrimaryButton("Edit + refine", onClick = onEdit)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PosPrimaryButton("Refine", modifier = Modifier.weight(1f), onClick = onEdit)
                 onMoveUp?.let {
-                    PosActionButton("Up", style = PosActionStyle.Secondary, icon = Icons.Default.ArrowUpward, onClick = it)
+                    IconButton(onClick = it) {
+                        Icon(Icons.Default.ArrowUpward, contentDescription = "Move up", tint = PosTheme.Ink)
+                    }
                 }
                 onMoveDown?.let {
-                    PosActionButton("Down", style = PosActionStyle.Secondary, icon = Icons.Default.ArrowDownward, onClick = it)
+                    IconButton(onClick = it) {
+                        Icon(Icons.Default.ArrowDownward, contentDescription = "Move down", tint = PosTheme.Ink)
+                    }
                 }
             }
         }

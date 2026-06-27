@@ -140,6 +140,10 @@ class PersonalOSRepository(
         decode(api.get("cv/templates"), cvTemplatesAdapter).templates
     }
 
+    suspend fun syncCvSystemTemplates(): List<PosCvTemplate> = withContext(Dispatchers.IO) {
+        decode(api.post("cv/templates/sync-system", "{}"), cvTemplatesAdapter).templates
+    }
+
     suspend fun listCvLayouts() = withContext(Dispatchers.IO) {
         decode(api.get("cv/layouts"), cvLayoutsAdapter).layouts
     }
