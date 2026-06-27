@@ -161,6 +161,11 @@ final class APIClient: ObservableObject {
         return try decoder.decode(POSCVTemplatesResponse.self, from: data).templates
     }
 
+    func syncCVSystemTemplates() async throws -> [POSCVTemplate] {
+        let data = try await authorizedRequest(path: "cv/templates/sync-system", method: "POST")
+        return try decoder.decode(POSCVTemplatesResponse.self, from: data).templates
+    }
+
     func getCVTemplate(id: String) async throws -> POSCVTemplate {
         let data = try await authorizedRequest(path: "cv/templates/\(id)")
         return try decoder.decode(POSCVTemplate.self, from: data)

@@ -29,6 +29,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/share", h.Share)
 	r.GET("/layouts", h.ListLayouts)
 	r.GET("/templates", h.ListTemplates)
+	r.POST("/templates/sync-system", h.SyncSystemTemplates)
 	r.POST("/templates", h.CreateTemplate)
 	r.GET("/templates/:id", h.GetTemplate)
 	r.PUT("/templates/:id", h.SaveTemplate)
@@ -155,6 +156,20 @@ func (h *Handler) ListLayouts(c *gin.Context) {
 
 func (h *Handler) ListTemplates(c *gin.Context) {
 	list, err := h.service.ListTemplates(auth.GetUserID(c))
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"templates": list})
+}
+
+func (h *Handler) SyncSystemTemplates(c *gin.Context) {
+	userID := auth.GetUserID(c)
+	if err := h.service.ForceSyncSystemCVSetup(userID); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	list, err := h.service.ListTemplates(userID)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

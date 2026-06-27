@@ -7,6 +7,17 @@ import (
 	"github.com/google/uuid"
 )
 
+func contactParts(c Contact) []string {
+	var parts []string
+	for _, p := range []string{c.Email, c.Phone, c.Location, c.LinkedIn, c.GitHub} {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			parts = append(parts, p)
+		}
+	}
+	return parts
+}
+
 func DocumentToBlocks(doc CVDocument) []CVBlock {
 	var blocks []CVBlock
 	order := 0
@@ -25,9 +36,8 @@ func DocumentToBlocks(doc CVDocument) []CVBlock {
 		}
 		add(CVBlock{ID: "summary", Type: "summary", Enabled: true, Content: content})
 	}
-	if doc.Contact.Email != "" || doc.Contact.Phone != "" || doc.Contact.Location != "" {
-		add(CVBlock{ID: "contact", Type: "contact", Enabled: true, Content: fmt.Sprintf("%s · %s · %s",
-			doc.Contact.Email, doc.Contact.Phone, doc.Contact.Location)})
+	if parts := contactParts(doc.Contact); len(parts) > 0 {
+		add(CVBlock{ID: "contact", Type: "contact", Enabled: true, Content: strings.Join(parts, " · ")})
 	}
 	if len(doc.SkillGroups) > 0 {
 		overrides := (*CVBlockOverrides)(nil)

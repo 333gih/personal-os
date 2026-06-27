@@ -28,7 +28,7 @@ func NewService(db *gorm.DB, aiSvc *ai.Service, storageSvc *storage.Service) *Se
 
 func (s *Service) Get(userID uuid.UUID) (*AssembledCV, error) {
 	if err := s.EnsureSystemCVSetup(userID); err == nil {
-		if tpl, err := s.GetDefaultTemplate(userID); err == nil && tpl != nil {
+		if tpl, err := s.GetDefaultTemplate(userID); err == nil && tpl != nil && len(tpl.Blocks) > 0 {
 			doc := BlocksToDocument(tpl.Blocks)
 			ApplySkillOverrides(&doc, tpl.Blocks)
 			NormalizeDocument(&doc)

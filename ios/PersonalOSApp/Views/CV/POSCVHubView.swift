@@ -472,6 +472,14 @@ struct POSCVHubView: View {
         loadError = nil
         do {
             templates = try await session.api.listCVTemplates()
+            if templates.allSatisfy({ $0.blocks.isEmpty }) {
+                if let synced = try? await session.api.syncCVSystemTemplates() {
+                    templates = synced
+                }
+            }
+            if templates.allSatisfy({ $0.blocks.isEmpty }) {
+                templates = try await bootstrapTemplatesFromDocument()
+            }
             let pick = initialTemplateID ?? selectedID ?? templates.first(where: { $0.isDefault })?.id ?? templates.first?.id
             if let pick {
                 await loadTemplate(id: pick)
@@ -485,14 +493,46 @@ struct POSCVHubView: View {
     }
 
     @MainActor
+    private func bootstrapTemplatesFromDocument() async throws -> [POSCVTemplate] {
+        let assembled = try await session.api.fetchCV()
+        let blocks = POSCVDocumentBlocks.build(from: assembled.document)
+        guard !blocks.isEmpty else { return templates }
+
+        var defaultTpl = templates.first(where: { $0.isDefault })
+            ?? templates.first
+            ?? POSCVTemplate(
+                id: assembled.documentID ?? UUID().uuidString,
+                name: "Default (1-page)",
+                layoutID: "two_column_one_page_v5",
+                isDefault: true,
+                isSystem: true,
+                constraints: POSCVConstraints(maxPages: 1, maxExperience: 4, maxProjects: 8),
+                blocks: blocks
+            )
+        defaultTpl.blocks = blocks
+        return [defaultTpl]
+    }
+
+    @MainActor
     private func loadTemplate(id: String) async {
         isLoading = true
         forkNotice = nil
         do {
-            template = try await session.api.getCVTemplate(id: id)
+            var loaded = try await session.api.getCVTemplate(id: id)
+            if loaded.blocks.isEmpty {
+                if let synced = try? await session.api.syncCVSystemTemplates(),
+                   let match = synced.first(where: { $0.id == id }) ?? synced.first(where: { $0.isDefault }) {
+                    loaded = match
+                    templates = synced
+                } else {
+                    let assembled = try await session.api.fetchCV()
+                    loaded.blocks = POSCVDocumentBlocks.build(from: assembled.document)
+                }
+            }
+            template = loaded
             selectedID = id
             isLoading = false
-            if let template { await runValidate(template) }
+            await runValidate(loaded)
         } catch {
             loadError = error.localizedDescription
             isLoading = false

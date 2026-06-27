@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/personal-os/backend/internal/models"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -20,10 +21,21 @@ const (
 var techLineRE = regexp.MustCompile(`(?i)(?:^|\n)\s*Tech:\s*(.+?)(?:\n|$)`)
 
 func (s *Service) EnsureSystemCVSetup(userID uuid.UUID) error {
+	return s.ensureSystemCVSetup(userID, false)
+}
+
+func (s *Service) ForceSyncSystemCVSetup(userID uuid.UUID) error {
+	return s.ensureSystemCVSetup(userID, true)
+}
+
+func (s *Service) ensureSystemCVSetup(userID uuid.UUID, force bool) error {
 	if err := s.EnsureTemplatesMigrated(userID); err != nil {
 		return err
 	}
-	baseDoc, hasDoc := s.loadIdealDocument(userID)
+	baseDoc, err := s.ensureIdealDocument(userID)
+	if err != nil {
+		return err
+	}
 
 	var templates []models.Entity
 	if err := s.db.Where("user_id = ? AND type = ? AND status = ?", userID, models.TypeWorkCVTemplate, "active").
@@ -37,24 +49,30 @@ func (s *Service) EnsureSystemCVSetup(userID uuid.UUID) error {
 		tpl := entityToTemplate(&templates[i])
 		if tpl.Name == systemDefaultName || tpl.IsDefault {
 			hasDefault = true
-			if len(tpl.Blocks) == 0 && hasDoc {
-				if err := s.backfillTemplateBlocks(userID, templates[i].ID, baseDoc); err != nil {
-					return err
-				}
-			}
 		}
 		if tpl.Name == systemRecommendedName {
 			hasRecommended = true
-			if len(tpl.Blocks) == 0 && hasDoc {
-				recDoc := BuildRecommendedDocument(baseDoc)
-				if err := s.backfillTemplateBlocks(userID, templates[i].ID, recDoc); err != nil {
+		}
+		if isSystemTemplate(tpl) {
+			doc := baseDoc
+			if tpl.Name == systemRecommendedName {
+				doc = BuildRecommendedDocument(baseDoc)
+			}
+			if force || templateBlocksNeedSync(tpl.Blocks) {
+				if err := s.syncTemplateBlocks(userID, templates[i].ID, doc); err != nil {
 					return err
 				}
+			}
+			continue
+		}
+		if len(tpl.Blocks) == 0 {
+			if err := s.syncTemplateBlocks(userID, templates[i].ID, baseDoc); err != nil {
+				return err
 			}
 		}
 	}
 
-	if !hasDefault && hasDoc {
+	if !hasDefault {
 		tpl := CVTemplate{
 			Name:        systemDefaultName,
 			LayoutID:    "two_column_one_page_v5",
@@ -68,7 +86,7 @@ func (s *Service) EnsureSystemCVSetup(userID uuid.UUID) error {
 		}
 	}
 
-	if !hasRecommended && hasDoc {
+	if !hasRecommended {
 		recDoc := BuildRecommendedDocument(baseDoc)
 		tpl := CVTemplate{
 			Name:        systemRecommendedName,
@@ -86,30 +104,111 @@ func (s *Service) EnsureSystemCVSetup(userID uuid.UUID) error {
 	return nil
 }
 
-func (s *Service) loadIdealDocument(userID uuid.UUID) (CVDocument, bool) {
-	docEnt, err := s.loadDocument(userID)
-	if err == nil && docEnt != nil {
-		doc := metadataToDocument(docEnt)
-		NormalizeDocument(&doc)
-		return doc, true
+func isSystemTemplate(tpl CVTemplate) bool {
+	if tpl.IsSystem {
+		return true
 	}
-	assembled, err := s.assembleFromEntries(userID)
-	if err != nil {
-		return CVDocument{}, false
-	}
-	NormalizeDocument(&assembled)
-	return assembled, true
+	return tpl.Name == systemDefaultName || tpl.Name == systemRecommendedName
 }
 
-func (s *Service) backfillTemplateBlocks(userID uuid.UUID, templateID uuid.UUID, doc CVDocument) error {
+func templateBlocksNeedSync(blocks []CVBlock) bool {
+	if len(blocks) == 0 {
+		return true
+	}
+	hasExp, hasProj := false, false
+	for _, b := range blocks {
+		if !b.Enabled {
+			continue
+		}
+		switch b.Type {
+		case "experience":
+			hasExp = true
+		case "project":
+			hasProj = true
+		}
+	}
+	return !hasExp && !hasProj
+}
+
+func (s *Service) ensureIdealDocument(userID uuid.UUID) (CVDocument, error) {
+	docEnt, err := s.loadDocument(userID)
+	if err == gorm.ErrRecordNotFound {
+		doc := CanonicalIdealCV()
+		if upsertErr := s.upsertIdealDocument(userID, doc); upsertErr != nil {
+			return CVDocument{}, upsertErr
+		}
+		return doc, nil
+	}
+	if err != nil {
+		return CVDocument{}, err
+	}
+	doc := metadataToDocument(docEnt)
+	NormalizeDocument(&doc)
+	if documentIsSparse(doc) {
+		doc = CanonicalIdealCV()
+		if upsertErr := s.upsertIdealDocument(userID, doc); upsertErr != nil {
+			return CVDocument{}, upsertErr
+		}
+	}
+	return doc, nil
+}
+
+func (s *Service) upsertIdealDocument(userID uuid.UUID, doc CVDocument) error {
+	doc.Variant = "ideal"
+	NormalizeDocument(&doc)
+	existing, err := s.loadDocument(userID)
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return err
+	}
+	if existing != nil {
+		existing.Title = headlineTitle(doc)
+		existing.Content = doc.Summary
+		existing.Metadata = documentToMetadata(doc)
+		return s.db.Save(existing).Error
+	}
+	fixedID, _ := uuid.Parse(idealDocumentID)
+	ent := models.Entity{
+		ID:       fixedID,
+		UserID:   userID,
+		Type:     models.TypeWorkCVDocument,
+		Title:    headlineTitle(doc),
+		Content:  doc.Summary,
+		Tags:     datatypes.JSON(`["cv","ideal","transfer"]`),
+		Source:   "cv_system",
+		Metadata: documentToMetadata(doc),
+		Status:   "active",
+		Domain:   models.DomainWork,
+	}
+	return s.db.Create(&ent).Error
+}
+
+func (s *Service) syncTemplateBlocks(userID uuid.UUID, templateID uuid.UUID, doc CVDocument) error {
 	ent, err := s.loadTemplateEntity(userID, templateID)
 	if err != nil {
 		return err
 	}
 	tpl := entityToTemplate(ent)
 	tpl.Blocks = DocumentToBlocks(doc)
+	if tpl.IsDefault && tpl.Name == systemDefaultName {
+		tpl.IsSystem = true
+	}
+	if tpl.Name == systemRecommendedName {
+		tpl.IsSystem = true
+	}
 	ent.Metadata = templateToMetadata(tpl)
 	return s.db.Save(ent).Error
+}
+
+func (s *Service) loadIdealDocument(userID uuid.UUID) (CVDocument, bool) {
+	doc, err := s.ensureIdealDocument(userID)
+	if err != nil {
+		return CVDocument{}, false
+	}
+	return doc, true
+}
+
+func (s *Service) backfillTemplateBlocks(userID uuid.UUID, templateID uuid.UUID, doc CVDocument) error {
+	return s.syncTemplateBlocks(userID, templateID, doc)
 }
 
 // BuildRecommendedDocument reorders skills and projects for the user's primary stack (fast, no AI call).
