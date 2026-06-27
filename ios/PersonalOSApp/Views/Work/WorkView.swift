@@ -6,6 +6,7 @@ struct WorkView: View {
 
     @State private var items: [POSEntity] = []
     @State private var isLoading = true
+    @State private var loadError: String?
     @State private var addToCVEntity: POSEntity?
     @State private var cvAddedAlert: POSCVTemplate?
 
