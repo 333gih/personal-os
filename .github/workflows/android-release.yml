@@ -1,7 +1,7 @@
 # Prod AAB + Google Play upload for Personal OS Android.
 #
 # Branch → Play track (push):
-#   releases/**, release/**  → closed testing (POS-closed or internal)
+#   releases/**, release/**  → alpha (closed testing on Play)
 #   main, master             → production
 #   tag android/v*           → production
 #
@@ -17,14 +17,14 @@ on:
         default: true
         type: boolean
       play_track:
-        description: Play track (create POS-closed in Play Console for closed testing)
+        description: Play track (alpha = closed testing; create POS-closed in Console for custom track)
         required: true
-        default: POS-closed
+        default: alpha
         type: choice
         options:
-          - POS-closed
           - alpha
           - internal
+          - POS-closed
           - beta
           - production
   push:
@@ -74,8 +74,8 @@ jobs:
           (github.event_name == 'push' && (
             startsWith(github.ref, 'refs/heads/releases/') ||
             startsWith(github.ref, 'refs/heads/release/')
-          ) && 'POS-closed') ||
-          'POS-closed'
+          ) && 'alpha') ||
+          'alpha'
         }}
       PLAY_RELEASE_STATUS: >-
         ${{
