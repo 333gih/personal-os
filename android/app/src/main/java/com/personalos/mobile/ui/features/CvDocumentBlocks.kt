@@ -33,7 +33,20 @@ object CvDocumentBlocks {
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
             if (parts.isNotEmpty()) {
-                add(PosCvBlock(id = "contact", type = "contact", content = parts.joinToString(" · ")))
+                add(
+                    PosCvBlock(
+                        id = "contact",
+                        type = "contact",
+                        content = parts.joinToString(" · "),
+                        overrides = PosCvBlockOverrides(
+                            email = contact.email,
+                            phone = contact.phone,
+                            location = contact.location,
+                            linkedin = contact.linkedin,
+                            github = contact.github,
+                        ),
+                    ),
+                )
             }
         }
 
@@ -101,7 +114,7 @@ object CvDocumentBlocks {
         if (blocks.isEmpty()) return null
         return PosCvTemplate(
             id = assembled.documentId.orEmpty().ifBlank { UUID.randomUUID().toString() },
-            name = "Default (1-page)",
+            name = "Professional CV (1 page)",
             isDefault = true,
             isSystem = true,
             constraints = PosCvConstraints(maxPages = 1, maxExperience = 4, maxProjects = 8),

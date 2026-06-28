@@ -154,9 +154,14 @@ struct POSCVBlockOverrides: Codable, Hashable {
     var period: String?
     var highlightStack: [String]?
     var skillItems: [String]?
+    var email: String?
+    var phone: String?
+    var location: String?
+    var linkedin: String?
+    var github: String?
 
     enum CodingKeys: String, CodingKey {
-        case title, company, period
+        case title, company, period, email, phone, location, linkedin, github
         case highlightStack = "highlight_stack"
         case skillItems = "skill_items"
     }

@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalos.mobile.data.models.PosCvBlock
+import com.personalos.mobile.data.models.PosCvBlockOverrides
 import com.personalos.mobile.data.models.PosCvSkillGroup
 import com.personalos.mobile.data.models.PosCvTemplate
 import com.personalos.mobile.data.models.PosCvValidateResult
@@ -81,8 +82,14 @@ fun CvHubScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var newTemplateName by remember { mutableStateOf("") }
     var refiningBlockId by remember { mutableStateOf<String?>(null) }
+    var refiningBlockType by remember { mutableStateOf<String?>(null) }
     var refineDraft by remember { mutableStateOf("") }
     var refineInstruction by remember { mutableStateOf("") }
+    var contactEmailDraft by remember { mutableStateOf("") }
+    var contactPhoneDraft by remember { mutableStateOf("") }
+    var contactLocationDraft by remember { mutableStateOf("") }
+    var contactLinkedInDraft by remember { mutableStateOf("") }
+    var contactGitHubDraft by remember { mutableStateOf("") }
     var refining by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -190,47 +197,79 @@ fun CvHubScreen(
     }
 
     refiningBlockId?.let { blockId ->
+        val isContact = refiningBlockType == "contact"
         AlertDialog(
             onDismissRequest = { if (!refining) refiningBlockId = null },
-            title = { Text("AI refine block") },
+            title = { Text(if (isContact) "Edit contact" else "AI refine block") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        refineDraft,
-                        { refineDraft = it },
-                        Modifier.fillMaxWidth(),
-                        label = { Text("Content") },
-                        minLines = 4,
-                    )
-                    OutlinedTextField(
-                        refineInstruction,
-                        { refineInstruction = it },
-                        Modifier.fillMaxWidth(),
-                        label = { Text("Instruction (optional)") },
-                    )
+                    if (isContact) {
+                        OutlinedTextField(contactEmailDraft, { contactEmailDraft = it }, Modifier.fillMaxWidth(), label = { Text("Email") })
+                        OutlinedTextField(contactPhoneDraft, { contactPhoneDraft = it }, Modifier.fillMaxWidth(), label = { Text("Phone") })
+                        OutlinedTextField(contactLocationDraft, { contactLocationDraft = it }, Modifier.fillMaxWidth(), label = { Text("Location") })
+                        OutlinedTextField(contactLinkedInDraft, { contactLinkedInDraft = it }, Modifier.fillMaxWidth(), label = { Text("LinkedIn") })
+                        OutlinedTextField(contactGitHubDraft, { contactGitHubDraft = it }, Modifier.fillMaxWidth(), label = { Text("GitHub") })
+                    } else {
+                        OutlinedTextField(
+                            refineDraft,
+                            { refineDraft = it },
+                            Modifier.fillMaxWidth(),
+                            label = { Text("Content") },
+                            minLines = 4,
+                        )
+                        OutlinedTextField(
+                            refineInstruction,
+                            { refineInstruction = it },
+                            Modifier.fillMaxWidth(),
+                            label = { Text("Instruction (optional)") },
+                        )
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
                     enabled = !refining,
                     onClick = {
-                        refining = true
-                        scope.launch {
-                            runCatching {
-                                repository.refineCvBlock(
-                                    refineDraft,
-                                    refineInstruction.ifBlank { "Professional tone, ATS-friendly, fix grammar, keep facts" },
-                                )
-                            }.onSuccess { res ->
-                                val refined = res.refinedContent?.takeIf { it.isNotBlank() } ?: refineDraft
-                                template = template?.let { tpl ->
-                                    tpl.copy(blocks = tpl.blocks.map { b ->
-                                        if (b.id == blockId) b.copy(content = refined, pendingRaw = null) else b
-                                    })
-                                }
-                                refiningBlockId = null
+                        if (isContact) {
+                            val overrides = PosCvBlockOverrides(
+                                email = contactEmailDraft.trim(),
+                                phone = contactPhoneDraft.trim(),
+                                location = contactLocationDraft.trim(),
+                                linkedin = contactLinkedInDraft.trim(),
+                                github = contactGitHubDraft.trim(),
+                            )
+                            val content = listOfNotNull(
+                                overrides.email?.takeIf { it.isNotBlank() },
+                                overrides.phone?.takeIf { it.isNotBlank() },
+                                overrides.location?.takeIf { it.isNotBlank() },
+                                overrides.linkedin?.takeIf { it.isNotBlank() },
+                                overrides.github?.takeIf { it.isNotBlank() },
+                            ).joinToString(" · ")
+                            template = template?.let { tpl ->
+                                tpl.copy(blocks = tpl.blocks.map { b ->
+                                    if (b.id == blockId) b.copy(content = content, overrides = overrides, pendingRaw = null) else b
+                                })
                             }
-                            refining = false
+                            refiningBlockId = null
+                        } else {
+                            refining = true
+                            scope.launch {
+                                runCatching {
+                                    repository.refineCvBlock(
+                                        refineDraft,
+                                        refineInstruction.ifBlank { "Professional tone, ATS-friendly, fix grammar, keep facts" },
+                                    )
+                                }.onSuccess { res ->
+                                    val refined = res.refinedContent?.takeIf { it.isNotBlank() } ?: refineDraft
+                                    template = template?.let { tpl ->
+                                        tpl.copy(blocks = tpl.blocks.map { b ->
+                                            if (b.id == blockId) b.copy(content = refined, pendingRaw = null) else b
+                                        })
+                                    }
+                                    refiningBlockId = null
+                                }
+                                refining = false
+                            }
                         }
                     },
                 ) { Text(if (refining) "…" else "Apply") }
@@ -307,7 +346,7 @@ fun CvHubScreen(
                         if (tpl.blocks.isEmpty()) {
                             PosEmptyState(
                                 "No blocks yet",
-                                "Pull to refresh or pick ★ Default (1-page) after the server seeds your CV.",
+                                "Pull to refresh or pick ★ Professional CV (1 page) after the server seeds your CV.",
                                 "Retry",
                             ) { reloadTemplates(tpl.id) }
                         } else {
@@ -315,8 +354,17 @@ fun CvHubScreen(
                                 tpl = tpl,
                                 onTemplateChange = { template = it },
                                 onEditBlock = { block ->
-                                    refineDraft = block.content.orEmpty()
-                                    refineInstruction = ""
+                                    refiningBlockType = block.type
+                                    if (block.type == "contact") {
+                                        contactEmailDraft = block.overrides?.email.orEmpty()
+                                        contactPhoneDraft = block.overrides?.phone.orEmpty()
+                                        contactLocationDraft = block.overrides?.location.orEmpty()
+                                        contactLinkedInDraft = block.overrides?.linkedin.orEmpty()
+                                        contactGitHubDraft = block.overrides?.github.orEmpty()
+                                    } else {
+                                        refineDraft = block.content.orEmpty()
+                                        refineInstruction = ""
+                                    }
                                     refiningBlockId = block.id
                                 },
                             )
@@ -509,8 +557,12 @@ private fun CvBlockCard(
     onMoveUp: (() -> Unit)?,
     onMoveDown: (() -> Unit)?,
 ) {
-    val title = block.overrides?.title?.takeIf { it.isNotBlank() }
-        ?: block.type.replaceFirstChar { it.uppercase() }
+    val title = when (block.type) {
+        "contact" -> "Contact"
+        "summary" -> "Profile"
+        else -> block.overrides?.title?.takeIf { it.isNotBlank() }
+            ?: block.type.replaceFirstChar { it.uppercase() }
+    }
     PosCard {
         Column(
             modifier = Modifier.fillMaxWidth().then(
@@ -538,6 +590,7 @@ private fun CvBlockCard(
                     }
                     block.skillGroups.orEmpty().forEach { group -> SkillGroupBlock(group) }
                 }
+                block.type == "contact" -> ContactBlockBody(block)
                 !block.content.isNullOrBlank() -> {
                     Text(
                         block.content.orEmpty(),
@@ -557,7 +610,7 @@ private fun CvBlockCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                PosPrimaryButton("Refine", modifier = Modifier.weight(1f), onClick = onEdit)
+                PosPrimaryButton(if (block.type == "contact") "Edit" else "Refine", modifier = Modifier.weight(1f), onClick = onEdit)
                 onMoveUp?.let {
                     IconButton(onClick = it) {
                         Icon(Icons.Default.ArrowUpward, contentDescription = "Move up", tint = PosTheme.Ink)
@@ -570,6 +623,29 @@ private fun CvBlockCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ContactBlockBody(block: PosCvBlock) {
+    val o = block.overrides
+    if (o != null) {
+        listOf(
+            "Email" to o.email,
+            "Phone" to o.phone,
+            "Location" to o.location,
+            "LinkedIn" to o.linkedin,
+            "GitHub" to o.github,
+        ).forEach { (label, value) ->
+            value?.takeIf { it.isNotBlank() }?.let {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("$label:", style = posLabel(), fontWeight = FontWeight.SemiBold, color = PosTheme.Muted)
+                    Text(it, style = posDisplay(11f))
+                }
+            }
+        }
+    } else if (!block.content.isNullOrBlank()) {
+        Text(block.content.orEmpty(), style = posDisplay(11f))
     }
 }
 

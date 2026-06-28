@@ -5,14 +5,14 @@ package cv
 func CanonicalIdealCV() CVDocument {
 	return CVDocument{
 		Variant:  "ideal",
-		Headline: "Nguyen Khoa Minh Phuc — Backend Software Engineer",
-		Summary:  "Backend Software Engineer specializing in Java and Spring Boot for enterprise systems — BFF/API/batch tiers, AEM-Java integration, PostgreSQL, and Japanese client delivery. Strong in REST API design, batch processing, performance tuning, and CI/CD. Comfortable with TypeScript/React front-ends for integration; primary strength is backend system development.",
+		Headline: "Nguyen Khoa Minh Phuc — Software Engineer",
+		Summary:  "Software Engineer with a backend focus on Java, Spring Boot, and enterprise system design — BFF/API/batch tiers, AEM-Java integration, PostgreSQL, and Japanese client delivery. Strong in REST API design, batch processing, performance tuning, and CI/CD. Comfortable collaborating on TypeScript/React front-ends; primary strength is backend delivery.",
 		Contact: Contact{
-			Email:    "phuckhoa81@gmail.com",
-			Phone:    "+(84) 972495038",
+			Email:    "mphuc8671@gmail.com",
+			Phone:    "+84 972 495 038",
 			Location: "Ho Chi Minh City, Vietnam",
-			LinkedIn: "linkedin.com/in/nguyen-khoa-minh-phuc",
-			GitHub:   "github.com/mphuc8671",
+			LinkedIn: "https://www.linkedin.com/in/minh-phuc-774110229/",
+			GitHub:   "https://github.com/phuckhoa33",
 		},
 		PrimaryStack:    []string{"Java", "Spring Boot", "Spring Batch", "AEM", "PostgreSQL"},
 		YearsExperience: 3.5,

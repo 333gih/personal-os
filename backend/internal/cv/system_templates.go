@@ -14,8 +14,11 @@ import (
 )
 
 const (
-	systemDefaultName     = "Default (1-page)"
-	systemRecommendedName = "AI Recommended"
+	systemDefaultName       = "Professional CV (1 page)"
+	systemRecommendedName   = "Stack-optimized CV"
+	legacyDefaultName       = "Default (1-page)"
+	legacyRecommendedName   = "AI Recommended"
+	systemCVSeedRevision    = 2
 )
 
 var techLineRE = regexp.MustCompile(`(?i)(?:^|\n)\s*Tech:\s*(.+?)(?:\n|$)`)
@@ -58,7 +61,7 @@ func (s *Service) ensureSystemCVSetup(userID uuid.UUID, force bool) error {
 			if tpl.Name == systemRecommendedName {
 				doc = BuildRecommendedDocument(baseDoc)
 			}
-			if force || templateBlocksNeedSync(tpl.Blocks) {
+			if force || templateBlocksNeedSync(tpl.Blocks) || legacySystemName(tpl.Name) {
 				if err := s.syncTemplateBlocks(userID, templates[i].ID, doc); err != nil {
 					return err
 				}
@@ -108,7 +111,29 @@ func isSystemTemplate(tpl CVTemplate) bool {
 	if tpl.IsSystem {
 		return true
 	}
-	return tpl.Name == systemDefaultName || tpl.Name == systemRecommendedName
+	switch tpl.Name {
+	case systemDefaultName, systemRecommendedName, legacyDefaultName, legacyRecommendedName:
+		return true
+	}
+	return tpl.IsDefault && tpl.Name != ""
+}
+
+func legacySystemName(name string) bool {
+	return name == legacyDefaultName || name == legacyRecommendedName
+}
+
+func normalizeSystemTemplateName(tpl *CVTemplate) {
+	switch tpl.Name {
+	case legacyDefaultName, systemDefaultName:
+		tpl.Name = systemDefaultName
+		tpl.IsDefault = true
+		tpl.IsSystem = true
+	case legacyRecommendedName, systemRecommendedName:
+		if tpl.Name == legacyRecommendedName {
+			tpl.Name = systemRecommendedName
+		}
+		tpl.IsSystem = true
+	}
 }
 
 func templateBlocksNeedSync(blocks []CVBlock) bool {
@@ -146,6 +171,14 @@ func (s *Service) ensureIdealDocument(userID uuid.UUID) (CVDocument, error) {
 	NormalizeDocument(&doc)
 	if documentIsSparse(doc) {
 		doc = CanonicalIdealCV()
+		if upsertErr := s.upsertIdealDocument(userID, doc); upsertErr != nil {
+			return CVDocument{}, upsertErr
+		}
+		return doc, nil
+	}
+	canonical := CanonicalIdealCV()
+	if profileOutdated(doc, canonical) {
+		doc = canonical
 		if upsertErr := s.upsertIdealDocument(userID, doc); upsertErr != nil {
 			return CVDocument{}, upsertErr
 		}
@@ -189,12 +222,15 @@ func (s *Service) syncTemplateBlocks(userID uuid.UUID, templateID uuid.UUID, doc
 	}
 	tpl := entityToTemplate(ent)
 	tpl.Blocks = DocumentToBlocks(doc)
+	normalizeSystemTemplateName(&tpl)
 	if tpl.IsDefault && tpl.Name == systemDefaultName {
 		tpl.IsSystem = true
 	}
 	if tpl.Name == systemRecommendedName {
 		tpl.IsSystem = true
 	}
+	ent.Title = "CV Template — " + tpl.Name
+	ent.Content = tpl.Name
 	ent.Metadata = templateToMetadata(tpl)
 	return entityWrites(s.db).Save(ent).Error
 }

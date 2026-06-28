@@ -29,7 +29,11 @@ enum POSCVDocumentBlocks {
                 .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
             if !parts.isEmpty {
-                add(POSCVBlock(id: "contact", type: "contact", order: 0, enabled: true, content: parts.joined(separator: " · ")))
+                let overrides = POSCVBlockOverrides(
+                    email: contact.email, phone: contact.phone, location: contact.location,
+                    linkedin: contact.linkedin, github: contact.github
+                )
+                add(POSCVBlock(id: "contact", type: "contact", order: 0, enabled: true, content: parts.joined(separator: " · "), overrides: overrides))
             }
         }
 

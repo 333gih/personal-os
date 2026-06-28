@@ -37,7 +37,11 @@ func DocumentToBlocks(doc CVDocument) []CVBlock {
 		add(CVBlock{ID: "summary", Type: "summary", Enabled: true, Content: content})
 	}
 	if parts := contactParts(doc.Contact); len(parts) > 0 {
-		add(CVBlock{ID: "contact", Type: "contact", Enabled: true, Content: strings.Join(parts, " · ")})
+		add(CVBlock{
+			ID: "contact", Type: "contact", Enabled: true,
+			Content:   formatContactDisplay(doc.Contact),
+			Overrides: contactOverrides(doc.Contact),
+		})
 	}
 	if len(doc.SkillGroups) > 0 {
 		overrides := (*CVBlockOverrides)(nil)
@@ -114,9 +118,21 @@ func BlocksToDocument(blocks []CVBlock) CVDocument {
 		}
 		switch b.Type {
 		case "summary":
-			doc.Summary = blockText(b)
+			headline, summary := splitSummaryBlock(blockText(b))
+			if headline != "" {
+				doc.Headline = headline
+			}
+			if summary != "" {
+				doc.Summary = summary
+			} else if headline != "" && doc.Summary == "" {
+				doc.Summary = headline
+			}
 		case "contact":
-			// contact kept in summary flow for PDF header from headline
+			c := contactFromOverrides(b.Overrides)
+			if strings.TrimSpace(c.Email+c.Phone+c.LinkedIn+c.GitHub) == "" {
+				c = parseContactContent(blockText(b))
+			}
+			doc.Contact = mergeContact(doc.Contact, c)
 		case "skills":
 			if len(b.SkillGroups) > 0 {
 				doc.SkillGroups = b.SkillGroups

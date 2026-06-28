@@ -115,6 +115,11 @@ type CVBlockOverrides struct {
 	Period         string   `json:"period,omitempty"`
 	HighlightStack []string `json:"highlight_stack,omitempty"`
 	SkillItems     []string `json:"skill_items,omitempty"`
+	Email          string   `json:"email,omitempty"`
+	Phone          string   `json:"phone,omitempty"`
+	Location       string   `json:"location,omitempty"`
+	LinkedIn       string   `json:"linkedin,omitempty"`
+	GitHub         string   `json:"github,omitempty"`
 }
 
 type CVBlock struct {

@@ -119,6 +119,11 @@ data class PosCvBlockOverrides(
     val period: String? = null,
     @Json(name = "highlight_stack") val highlightStack: List<String>? = null,
     @Json(name = "skill_items") val skillItems: List<String>? = null,
+    val email: String? = null,
+    val phone: String? = null,
+    val location: String? = null,
+    val linkedin: String? = null,
+    val github: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

@@ -19,6 +19,11 @@ struct POSCVHubView: View {
     @State private var refiningBlock: POSCVBlock?
     @State private var refineDraft = ""
     @State private var refineInstruction = ""
+    @State private var contactEmailDraft = ""
+    @State private var contactPhoneDraft = ""
+    @State private var contactLocationDraft = ""
+    @State private var contactLinkedInDraft = ""
+    @State private var contactGitHubDraft = ""
     @State private var isRefining = false
     @State private var isSaving = false
     @State private var isExporting = false
@@ -266,6 +271,8 @@ struct POSCVHubView: View {
             }
             if block.type == "skills", let groups = block.skillGroups, !groups.isEmpty {
                 skillsBlockBody(groups: groups, focus: block.overrides?.skillItems)
+            } else if block.type == "contact" {
+                contactBlockBody(block)
             } else if let content = block.content, !content.isEmpty {
                 Text(content)
                     .font(.caption)
@@ -285,9 +292,18 @@ struct POSCVHubView: View {
                 Button {
                     POSHaptics.light()
                     refiningBlock = block
-                    refineDraft = block.content ?? ""
+                    if block.type == "contact" {
+                        contactEmailDraft = block.overrides?.email ?? ""
+                        contactPhoneDraft = block.overrides?.phone ?? ""
+                        contactLocationDraft = block.overrides?.location ?? ""
+                        contactLinkedInDraft = block.overrides?.linkedin ?? ""
+                        contactGitHubDraft = block.overrides?.github ?? ""
+                    } else {
+                        refineDraft = block.content ?? ""
+                    }
+                    refineInstruction = ""
                 } label: {
-                    Text("Edit + refine")
+                    Text(block.type == "contact" ? "Edit" : "Edit + refine")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(POSTheme.primaryDark)
                 }
@@ -320,8 +336,49 @@ struct POSCVHubView: View {
     }
 
     private func blockTitle(_ block: POSCVBlock) -> String {
+        if block.type == "contact" { return "Contact" }
+        if block.type == "summary" { return "Profile" }
         if let title = block.overrides?.title, !title.isEmpty { return title }
         return block.type.capitalized
+    }
+
+    @ViewBuilder
+    private func contactBlockBody(_ block: POSCVBlock) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let email = block.overrides?.email, !email.isEmpty {
+                contactLine("Email", email)
+            }
+            if let phone = block.overrides?.phone, !phone.isEmpty {
+                contactLine("Phone", phone)
+            }
+            if let location = block.overrides?.location, !location.isEmpty {
+                contactLine("Location", location)
+            }
+            if let linkedin = block.overrides?.linkedin, !linkedin.isEmpty {
+                contactLine("LinkedIn", linkedin)
+            }
+            if let github = block.overrides?.github, !github.isEmpty {
+                contactLine("GitHub", github)
+            }
+            if block.overrides == nil, let content = block.content, !content.isEmpty {
+                Text(content)
+                    .font(.caption)
+                    .foregroundStyle(POSTheme.ink.opacity(0.9))
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func contactLine(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(label + ":")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(POSTheme.muted)
+                .frame(width: 58, alignment: .leading)
+            Text(value)
+                .font(.caption)
+                .foregroundStyle(POSTheme.ink.opacity(0.9))
+        }
     }
 
     @ViewBuilder
@@ -424,29 +481,41 @@ struct POSCVHubView: View {
             POSScreen {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        POSCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Content")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(POSTheme.primaryDark)
-                                TextEditor(text: $refineDraft)
-                                    .frame(minHeight: 140)
-                                    .font(.subheadline)
+                        if block.type == "contact" {
+                            POSCard {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    contactField("Email", text: $contactEmailDraft)
+                                    contactField("Phone", text: $contactPhoneDraft)
+                                    contactField("Location", text: $contactLocationDraft)
+                                    contactField("LinkedIn", text: $contactLinkedInDraft)
+                                    contactField("GitHub", text: $contactGitHubDraft)
+                                }
                             }
-                        }
-                        POSCard {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Instruction (optional)")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(POSTheme.primaryDark)
-                                TextField("Professional tone, ATS-friendly…", text: $refineInstruction, axis: .vertical)
+                        } else {
+                            POSCard {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Content")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(POSTheme.primaryDark)
+                                    TextEditor(text: $refineDraft)
+                                        .frame(minHeight: 140)
+                                        .font(.subheadline)
+                                }
+                            }
+                            POSCard {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Instruction (optional)")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(POSTheme.primaryDark)
+                                    TextField("Professional tone, ATS-friendly…", text: $refineInstruction, axis: .vertical)
+                                }
                             }
                         }
                     }
                     .padding(16)
                 }
             }
-            .navigationTitle("AI refine")
+            .navigationTitle(block.type == "contact" ? "Edit contact" : "AI refine")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -454,12 +523,66 @@ struct POSCVHubView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isRefining ? "…" : "Apply") {
-                        Task { await applyRefine(blockID: block.id) }
+                        Task {
+                            if block.type == "contact" {
+                                applyContactEdit(blockID: block.id)
+                            } else {
+                                await applyRefine(blockID: block.id)
+                            }
+                        }
                     }
                     .disabled(isRefining)
                 }
             }
         }
+    }
+
+    private func contactField(_ label: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(POSTheme.primaryDark)
+            TextField(label, text: text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+        }
+    }
+
+    private func buildContactContent(email: String, phone: String, location: String, linkedin: String, github: String) -> String {
+        [email, phone, location, linkedin, github]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    private func applyContactEdit(blockID: String) {
+        let overrides = POSCVBlockOverrides(
+            email: contactEmailDraft.trimmingCharacters(in: .whitespacesAndNewlines),
+            phone: contactPhoneDraft.trimmingCharacters(in: .whitespacesAndNewlines),
+            location: contactLocationDraft.trimmingCharacters(in: .whitespacesAndNewlines),
+            linkedin: contactLinkedInDraft.trimmingCharacters(in: .whitespacesAndNewlines),
+            github: contactGitHubDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        let content = buildContactContent(
+            email: overrides.email ?? "",
+            phone: overrides.phone ?? "",
+            location: overrides.location ?? "",
+            linkedin: overrides.linkedin ?? "",
+            github: overrides.github ?? ""
+        )
+        template = template.map { tpl in
+            var copy = tpl
+            copy.blocks = tpl.blocks.map { block in
+                guard block.id == blockID else { return block }
+                return POSCVBlock(
+                    id: block.id, type: block.type, order: block.order, enabled: block.enabled,
+                    sourceEntityID: block.sourceEntityID, content: content, overrides: overrides,
+                    aiRefinedAt: block.aiRefinedAt, pendingRaw: nil, skillGroups: block.skillGroups
+                )
+            }
+            return copy
+        }
+        refiningBlock = nil
     }
 
     private func bindingEnabled(blockID: String) -> Binding<Bool> {
@@ -529,7 +652,7 @@ struct POSCVHubView: View {
             ?? templates.first
             ?? POSCVTemplate(
                 id: assembled.documentID ?? UUID().uuidString,
-                name: "Default (1-page)",
+                name: "Professional CV (1 page)",
                 layoutID: "two_column_one_page_v5",
                 isDefault: true,
                 isSystem: true,

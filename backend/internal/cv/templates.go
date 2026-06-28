@@ -32,7 +32,7 @@ func (s *Service) EnsureTemplatesMigrated(userID uuid.UUID) error {
 	}
 	var blocks []CVBlock
 	layoutID := "two_column_one_page_v5"
-	name := "Default (1-page)"
+	name := systemDefaultName
 	if docEnt != nil {
 		cvDoc := metadataToDocument(docEnt)
 		NormalizeDocument(&cvDoc)
@@ -163,7 +163,7 @@ func (s *Service) SaveTemplate(userID, templateID uuid.UUID, tpl CVTemplate, for
 		tpl.ID = forked.ID
 		tpl.IsSystem = false
 		tpl.IsDefault = false
-		if tpl.Name == existing.Name || tpl.Name == systemDefaultName || tpl.Name == systemRecommendedName {
+		if tpl.Name == existing.Name || tpl.Name == systemDefaultName || tpl.Name == systemRecommendedName || legacySystemName(tpl.Name) {
 			tpl.Name = forked.Name
 		}
 		templateID = forkID
@@ -413,7 +413,10 @@ func entityToTemplate(ent *models.Entity) CVTemplate {
 	}
 	tpl.IsDefault = meta.IsDefault
 	tpl.IsSystem = meta.IsSystem
-	if tpl.IsDefault && tpl.Name == systemDefaultName {
+	if tpl.IsDefault && (tpl.Name == systemDefaultName || tpl.Name == legacyDefaultName) {
+		tpl.IsSystem = true
+	}
+	if tpl.Name == systemRecommendedName || tpl.Name == legacyRecommendedName {
 		tpl.IsSystem = true
 	}
 	tpl.Constraints = meta.Constraints
