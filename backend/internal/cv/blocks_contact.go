@@ -32,6 +32,20 @@ func formatContactDisplay(c Contact) string {
 	return strings.Join(contactParts(c), " · ")
 }
 
+func normalizeContactURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		return raw
+	}
+	if strings.HasPrefix(raw, "mailto:") {
+		return raw
+	}
+	return "https://" + strings.TrimPrefix(raw, "//")
+}
+
 func splitSummaryBlock(text string) (headline, summary string) {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -79,5 +93,16 @@ func profileOutdated(doc, canonical CVDocument) bool {
 	}
 	want := canonical.Contact
 	got := doc.Contact
-	return got.Email != want.Email || got.GitHub != want.GitHub || got.LinkedIn != want.LinkedIn || got.Phone != want.Phone
+	if got.Email != want.Email || got.GitHub != want.GitHub || got.LinkedIn != want.LinkedIn || got.Phone != want.Phone {
+		return true
+	}
+	if len(doc.Projects) != len(canonical.Projects) {
+		return true
+	}
+	for i := range canonical.Projects {
+		if doc.Projects[i].Content != canonical.Projects[i].Content {
+			return true
+		}
+	}
+	return false
 }

@@ -120,22 +120,22 @@ func expBulletLimit(level layoutTrimLevel) int {
 func projBulletLimit(level layoutTrimLevel) int {
 	switch level {
 	case trimLight:
-		return 4
+		return 5
 	case trimMedium:
-		return 3
+		return 4
 	default:
-		return 2
+		return 3
 	}
 }
 
 func bulletCharLimit(level layoutTrimLevel) int {
 	switch level {
 	case trimLight:
-		return 220
+		return 260
 	case trimMedium:
-		return 180
+		return 210
 	default:
-		return 140
+		return 175
 	}
 }
 

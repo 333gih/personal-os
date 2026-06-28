@@ -194,15 +194,72 @@ func renderPDFRightColumn(pdf *gofpdf.Fpdf, x, y, w float64, doc CVDocument) flo
 }
 
 func renderPDFContact(pdf *gofpdf.Fpdf, contentW float64, c Contact) {
-	parts := filterNonEmpty([]string{c.Email, c.Phone, c.Location, c.LinkedIn, c.GitHub})
-	if len(parts) == 0 {
+	type segment struct {
+		text string
+		url  string
+	}
+	var segs []segment
+	add := func(text, url string) {
+		text = strings.TrimSpace(text)
+		if text == "" {
+			return
+		}
+		segs = append(segs, segment{text: text, url: url})
+	}
+	if c.Email != "" {
+		add(c.Email, "mailto:"+strings.TrimSpace(c.Email))
+	}
+	if c.Phone != "" {
+		add(strings.TrimSpace(c.Phone), "")
+	}
+	if c.Location != "" {
+		add(strings.TrimSpace(c.Location), "")
+	}
+	if strings.TrimSpace(c.LinkedIn) != "" {
+		add("LinkedIn", normalizeContactURL(c.LinkedIn))
+	}
+	if strings.TrimSpace(c.GitHub) != "" {
+		add("GitHub", normalizeContactURL(c.GitHub))
+	}
+	if len(segs) == 0 {
 		return
 	}
+
 	setDejaVu(pdf, "", cvFontContact)
-	pdf.SetTextColor(90, 100, 110)
-	pdf.SetX(cvMarginL)
-	pdf.MultiCell(contentW, 3.5, strings.Join(parts, "   ·   "), "", "L", false)
+	y := pdf.GetY()
+	x := cvMarginL
+	const sep = "   ·   "
+	lineH := 3.5
+
+	for i, seg := range segs {
+		if i > 0 {
+			pdf.SetTextColor(90, 100, 110)
+			pdf.SetFontStyle("")
+			pdf.SetXY(x, y)
+			pdf.Cell(pdf.GetStringWidth(sep), lineH, sep)
+			x = pdf.GetX()
+		}
+		if seg.url != "" {
+			pdf.SetTextColor(cvAccentR, cvAccentG, cvAccentB)
+			pdf.SetFontStyle("U")
+			pdf.SetXY(x, y)
+			w := pdf.GetStringWidth(seg.text)
+			pdf.CellFormat(w, lineH, seg.text, "", 0, "L", false, 0, seg.url)
+			x = pdf.GetX()
+			pdf.SetFontStyle("")
+		} else {
+			pdf.SetTextColor(90, 100, 110)
+			pdf.SetFontStyle("")
+			pdf.SetXY(x, y)
+			w := pdf.GetStringWidth(seg.text)
+			pdf.Cell(w, lineH, seg.text)
+			x = pdf.GetX()
+		}
+	}
+
 	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFontStyle("")
+	pdf.SetY(y + lineH + 0.5)
 }
 
 func pdfSection(pdf *gofpdf.Fpdf, x, y, w float64, title string, sectionGap float64, body func(y float64) float64) float64 {

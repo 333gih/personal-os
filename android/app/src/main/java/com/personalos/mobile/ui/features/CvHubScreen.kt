@@ -3,6 +3,7 @@ package com.personalos.mobile.ui.features
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalos.mobile.data.models.PosCvBlock
@@ -628,25 +630,41 @@ private fun CvBlockCard(
 
 @Composable
 private fun ContactBlockBody(block: PosCvBlock) {
+    val context = LocalContext.current
     val o = block.overrides
     if (o != null) {
         listOf(
-            "Email" to o.email,
-            "Phone" to o.phone,
-            "Location" to o.location,
-            "LinkedIn" to o.linkedin,
-            "GitHub" to o.github,
-        ).forEach { (label, value) ->
-            value?.takeIf { it.isNotBlank() }?.let {
+            Triple("Email", o.email, false),
+            Triple("Phone", o.phone, false),
+            Triple("Location", o.location, false),
+            Triple("LinkedIn", o.linkedin, true),
+            Triple("GitHub", o.github, true),
+        ).forEach { (label, value, isLink) ->
+            value?.takeIf { it.isNotBlank() }?.let { raw ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("$label:", style = posLabel(), fontWeight = FontWeight.SemiBold, color = PosTheme.Muted)
-                    Text(it, style = posDisplay(11f))
+                    if (isLink) {
+                        Text(
+                            label,
+                            style = posDisplay(11f),
+                            color = PosTheme.PrimaryDark,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable { openContactUrl(context, raw) },
+                        )
+                    } else {
+                        Text(raw, style = posDisplay(11f))
+                    }
                 }
             }
         }
     } else if (!block.content.isNullOrBlank()) {
         Text(block.content.orEmpty(), style = posDisplay(11f))
     }
+}
+
+private fun openContactUrl(context: android.content.Context, raw: String) {
+    val url = raw.trim().let { if (it.startsWith("http://") || it.startsWith("https://")) it else "https://$it" }
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 }
 
 @OptIn(ExperimentalLayoutApi::class)

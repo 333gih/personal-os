@@ -9,11 +9,17 @@ import (
 
 func contactParts(c Contact) []string {
 	var parts []string
-	for _, p := range []string{c.Email, c.Phone, c.Location, c.LinkedIn, c.GitHub} {
+	for _, p := range []string{c.Email, c.Phone, c.Location} {
 		p = strings.TrimSpace(p)
 		if p != "" {
 			parts = append(parts, p)
 		}
+	}
+	if strings.TrimSpace(c.LinkedIn) != "" {
+		parts = append(parts, "LinkedIn")
+	}
+	if strings.TrimSpace(c.GitHub) != "" {
+		parts = append(parts, "GitHub")
 	}
 	return parts
 }

@@ -143,7 +143,10 @@ func pdfColumnTarget(leftEndY, rightEndY, pageH float64) float64 {
 	if taller > pageTarget {
 		return pageTarget
 	}
-	return pageTarget
+	if taller < pageTarget-cvColumnFillMinGap {
+		return pageTarget
+	}
+	return taller
 }
 
 func pdfWipeColumnArea(pdf *gofpdf.Fpdf, leftX, rightX, columnStartY, leftW, rightW, pageH float64) {
@@ -197,13 +200,13 @@ func pdfBalanceRightColumn(pdf *gofpdf.Fpdf, rightX, columnStartY, rightW, right
 
 	blocks := countRightBlocks(doc)
 	gap := targetY - rightEndY
-	blockExtra := (gap * 0.60) / float64(blocks)
-	lineExtra := gap * 0.015
-	if blockExtra > 5.0 {
-		blockExtra = 5.0
+	blockExtra := (gap * 0.72) / float64(blocks)
+	lineExtra := gap * 0.018
+	if blockExtra > 12.0 {
+		blockExtra = 12.0
 	}
-	if lineExtra > 0.35 {
-		lineExtra = 0.35
+	if lineExtra > 0.55 {
+		lineExtra = 0.55
 	}
 
 	pdf.SetFillColor(255, 255, 255)
@@ -270,6 +273,12 @@ func pdfBalanceColumns(pdf *gofpdf.Fpdf, leftX, rightX, columnStartY, leftW, rig
 	leftEndY = pdfBalanceLeftColumn(pdf, leftX, columnStartY, leftW, leftEndY, targetY, pageH, doc)
 
 	// Second pass if one column still shorter after first stretch.
+	if leftEndY < targetY-cvColumnFillMinGap || rightEndY < targetY-cvColumnFillMinGap {
+		rightEndY = pdfBalanceRightColumn(pdf, rightX, columnStartY, rightW, rightEndY, targetY, pageH, doc)
+		leftEndY = pdfBalanceLeftColumn(pdf, leftX, columnStartY, leftW, leftEndY, targetY, pageH, doc)
+	}
+
+	// Third pass for stubborn height gaps on the experience/projects column.
 	if leftEndY < targetY-cvColumnFillMinGap || rightEndY < targetY-cvColumnFillMinGap {
 		rightEndY = pdfBalanceRightColumn(pdf, rightX, columnStartY, rightW, rightEndY, targetY, pageH, doc)
 		leftEndY = pdfBalanceLeftColumn(pdf, leftX, columnStartY, leftW, leftEndY, targetY, pageH, doc)

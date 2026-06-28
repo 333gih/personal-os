@@ -25,9 +25,18 @@ enum POSCVDocumentBlocks {
         }
 
         if let contact = doc.contact {
-            let parts = [contact.email, contact.phone, contact.location, contact.linkedin, contact.github]
-                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
+            var parts: [String] = []
+            for field in [contact.email, contact.phone, contact.location] {
+                if let v = field?.trimmingCharacters(in: .whitespacesAndNewlines), !v.isEmpty {
+                    parts.append(v)
+                }
+            }
+            if contact.linkedin?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                parts.append("LinkedIn")
+            }
+            if contact.github?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                parts.append("GitHub")
+            }
             if !parts.isEmpty {
                 let overrides = POSCVBlockOverrides(
                     email: contact.email, phone: contact.phone, location: contact.location,

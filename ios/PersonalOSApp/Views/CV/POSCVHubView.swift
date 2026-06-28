@@ -355,10 +355,10 @@ struct POSCVHubView: View {
                 contactLine("Location", location)
             }
             if let linkedin = block.overrides?.linkedin, !linkedin.isEmpty {
-                contactLine("LinkedIn", linkedin)
+                contactLinkLine(label: "LinkedIn", url: linkedin)
             }
             if let github = block.overrides?.github, !github.isEmpty {
-                contactLine("GitHub", github)
+                contactLinkLine(label: "GitHub", url: github)
             }
             if block.overrides == nil, let content = block.content, !content.isEmpty {
                 Text(content)
@@ -379,6 +379,30 @@ struct POSCVHubView: View {
                 .font(.caption)
                 .foregroundStyle(POSTheme.ink.opacity(0.9))
         }
+    }
+
+    private func contactLinkLine(label: String, url: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(label + ":")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(POSTheme.muted)
+                .frame(width: 58, alignment: .leading)
+            if let dest = normalizedContactURL(url) {
+                Link(label, destination: dest)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(POSTheme.primaryDark)
+                    .underline()
+            }
+        }
+    }
+
+    private func normalizedContactURL(_ raw: String) -> URL? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.lowercased().hasPrefix("http://") || trimmed.lowercased().hasPrefix("https://") {
+            return URL(string: trimmed)
+        }
+        return URL(string: "https://\(trimmed)")
     }
 
     @ViewBuilder

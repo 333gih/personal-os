@@ -29,9 +29,14 @@ object CvDocumentBlocks {
         }
 
         doc.contact?.let { contact ->
-            val parts = listOfNotNull(contact.email, contact.phone, contact.location, contact.linkedin, contact.github)
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
+            val parts = buildList {
+                listOfNotNull(contact.email, contact.phone, contact.location)
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .forEach { add(it) }
+                if (!contact.linkedin.isNullOrBlank()) add("LinkedIn")
+                if (!contact.github.isNullOrBlank()) add("GitHub")
+            }
             if (parts.isNotEmpty()) {
                 add(
                     PosCvBlock(
