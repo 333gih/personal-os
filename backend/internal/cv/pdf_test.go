@@ -61,6 +61,28 @@ func TestRenderPDF_SinglePage(t *testing.T) {
 	}
 }
 
+func TestRenderPDF_CanonicalIdealSinglePage(t *testing.T) {
+	doc := CanonicalIdealCV()
+	data, err := renderPDF(doc)
+	if err != nil {
+		t.Fatalf("renderPDF: %v", err)
+	}
+	if pages := pdfPageCount(data); pages != 1 {
+		t.Fatalf("canonical ideal CV must fit 1 page, got %d pages", pages)
+	}
+}
+
+func TestTrimDocumentForLayout_PreservesStructure(t *testing.T) {
+	doc := CanonicalIdealCV()
+	trimmed := trimDocumentForLayout(doc, trimHeavy)
+	if len(trimmed.Experience) == 0 || len(trimmed.Projects) == 0 {
+		t.Fatal("trim should keep experience and projects")
+	}
+	if trimmed.Summary == "" {
+		t.Fatal("trim should keep summary")
+	}
+}
+
 func fullV5TestDocument() CVDocument {
 	return CVDocument{
 		Headline: "Nguyen Khoa Minh Phuc — Software Engineer",

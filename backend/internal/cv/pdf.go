@@ -74,6 +74,7 @@ func renderPDF(doc CVDocument) ([]byte, error) {
 
 	pdf.SetPage(1)
 	leftEndY, rightEndY = pdfBalanceColumns(pdf, leftX, rightX, columnStartY, leftW, rightW, leftEndY, rightEndY, pageH, doc)
+	pdfClipColumnOverflow(pdf, leftX, rightX, columnStartY, leftW, rightW, pageH)
 	_ = leftEndY
 	_ = rightEndY
 
@@ -140,6 +141,7 @@ func renderPDFLeftColumn(pdf *gofpdf.Fpdf, x, y, w float64, doc CVDocument) floa
 				}
 				setDejaVu(pdf, "", cvFontBullet)
 				y = pdfMC(pdf, x+1.2, y, w-1.2, pdfLeftLineHeight(), "•  "+strings.TrimSpace(a.Content))
+				y += pdfLeftBlockGap() * 0.35
 			}
 			return y
 		})

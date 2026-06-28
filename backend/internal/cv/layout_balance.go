@@ -26,8 +26,8 @@ func resetPDFCompressScale() {
 }
 
 func setPDFCompressScale(scale float64) {
-	if scale < 0.84 {
-		scale = 0.84
+	if scale < cvLayoutMinScale {
+		scale = cvLayoutMinScale
 	}
 	pdfCompressScale = scale
 }
@@ -76,7 +76,7 @@ func pdfRoleLineHeight() float64 {
 }
 
 func pdfColumnTargetY(pageH float64) float64 {
-	return pageH - cvMarginB - 2
+	return pageH - cvMarginB - cvColumnBottomPad
 }
 
 func countRightBlocks(doc CVDocument) int {
@@ -135,18 +135,15 @@ func countLeftBlocks(doc CVDocument) int {
 }
 
 func pdfColumnTarget(leftEndY, rightEndY, pageH float64) float64 {
-	targetY := leftEndY
-	if rightEndY > targetY {
-		targetY = rightEndY
-	}
 	pageTarget := pdfColumnTargetY(pageH)
-	if targetY > pageTarget {
+	taller := leftEndY
+	if rightEndY > taller {
+		taller = rightEndY
+	}
+	if taller > pageTarget {
 		return pageTarget
 	}
-	if pageTarget > targetY {
-		return pageTarget
-	}
-	return targetY
+	return pageTarget
 }
 
 func pdfWipeColumnArea(pdf *gofpdf.Fpdf, leftX, rightX, columnStartY, leftW, rightW, pageH float64) {
@@ -156,43 +153,57 @@ func pdfWipeColumnArea(pdf *gofpdf.Fpdf, leftX, rightX, columnStartY, leftW, rig
 	pdf.SetFillColor(0, 0, 0)
 }
 
-func pdfFitColumnsToPage(pdf *gofpdf.Fpdf, leftX, rightX, columnStartY, leftW, rightW, pageH float64, doc CVDocument) (float64, float64) {
-	pageTarget := pdfColumnTargetY(pageH)
-	leftEndY := columnStartY
-	rightEndY := columnStartY
-
-	for scale := 1.0; scale >= 0.84; scale -= 0.04 {
-		setPDFCompressScale(scale)
-		resetPDFRightSpacing()
-		resetPDFLeftSpacing()
-		pdfWipeColumnArea(pdf, leftX, rightX, columnStartY, leftW, rightW, pageH)
-
-		leftEndY = renderPDFLeftColumn(pdf, leftX, columnStartY, leftW, doc)
-		rightEndY = renderPDFRightColumn(pdf, rightX, columnStartY, rightW, doc)
-
-		maxY := leftEndY
-		if rightEndY > maxY {
-			maxY = rightEndY
-		}
-		if maxY <= pageTarget+cvColumnFillMinGap {
-			break
-		}
-	}
-
+func pdfRenderColumns(pdf *gofpdf.Fpdf, leftX, rightX, columnStartY, leftW, rightW float64, doc CVDocument) (float64, float64) {
+	leftEndY := renderPDFLeftColumn(pdf, leftX, columnStartY, leftW, doc)
+	rightEndY := renderPDFRightColumn(pdf, rightX, columnStartY, rightW, doc)
 	return leftEndY, rightEndY
 }
 
+func pdfFitColumnsToPage(pdf *gofpdf.Fpdf, leftX, rightX, columnStartY, leftW, rightW, pageH float64, doc CVDocument) (float64, float64) {
+	pageTarget := pdfColumnTargetY(pageH)
+	variants := layoutDocumentVariants(doc)
+
+	for _, variant := range variants {
+		for scale := 1.0; scale >= cvLayoutMinScale-0.001; scale -= 0.02 {
+			setPDFCompressScale(scale)
+			resetPDFRightSpacing()
+			resetPDFLeftSpacing()
+			pdfWipeColumnArea(pdf, leftX, rightX, columnStartY, leftW, rightW, pageH)
+
+			leftEndY, rightEndY := pdfRenderColumns(pdf, leftX, rightX, columnStartY, leftW, rightW, variant)
+			maxY := leftEndY
+			if rightEndY > maxY {
+				maxY = rightEndY
+			}
+			if maxY <= pageTarget+cvColumnFillMinGap*0.5 {
+				return leftEndY, rightEndY
+			}
+		}
+	}
+
+	setPDFCompressScale(cvLayoutMinScale)
+	resetPDFRightSpacing()
+	resetPDFLeftSpacing()
+	pdfWipeColumnArea(pdf, leftX, rightX, columnStartY, leftW, rightW, pageH)
+	heavy := trimDocumentForLayout(prepareDocumentForPDF(doc), trimHeavy)
+	return pdfRenderColumns(pdf, leftX, rightX, columnStartY, leftW, rightW, heavy)
+}
+
 func pdfBalanceRightColumn(pdf *gofpdf.Fpdf, rightX, columnStartY, rightW, rightEndY, targetY, pageH float64, doc CVDocument) float64 {
-	if rightEndY >= targetY-cvColumnFillMinGap {
+	pageTarget := pdfColumnTargetY(pageH)
+	if rightEndY > pageTarget || rightEndY >= targetY-cvColumnFillMinGap {
 		return rightEndY
 	}
 
 	blocks := countRightBlocks(doc)
 	gap := targetY - rightEndY
-	blockExtra := (gap * 0.55) / float64(blocks)
-	lineExtra := 0.15
-	if blockExtra > 2.5 {
-		blockExtra = 2.5
+	blockExtra := (gap * 0.60) / float64(blocks)
+	lineExtra := gap * 0.015
+	if blockExtra > 5.0 {
+		blockExtra = 5.0
+	}
+	if lineExtra > 0.35 {
+		lineExtra = 0.35
 	}
 
 	pdf.SetFillColor(255, 255, 255)
@@ -204,21 +215,25 @@ func pdfBalanceRightColumn(pdf *gofpdf.Fpdf, rightX, columnStartY, rightW, right
 }
 
 func pdfBalanceLeftColumn(pdf *gofpdf.Fpdf, leftX, columnStartY, leftW, leftEndY, targetY, pageH float64, doc CVDocument) float64 {
-	if leftEndY >= targetY-cvColumnFillMinGap {
+	pageTarget := pdfColumnTargetY(pageH)
+	if leftEndY > pageTarget || leftEndY >= targetY-cvColumnFillMinGap {
 		return leftEndY
 	}
 
 	sections := countLeftSections(doc)
 	blocks := countLeftBlocks(doc)
 	gap := targetY - leftEndY
-	sectionExtra := (gap * 0.40) / float64(sections)
-	blockExtra := (gap * 0.35) / float64(blocks)
-	lineExtra := 0.12
-	if sectionExtra > 2.0 {
-		sectionExtra = 2.0
+	sectionExtra := (gap * 0.45) / float64(sections)
+	blockExtra := (gap * 0.40) / float64(blocks)
+	lineExtra := gap * 0.012
+	if sectionExtra > 3.5 {
+		sectionExtra = 3.5
 	}
-	if blockExtra > 1.5 {
-		blockExtra = 1.5
+	if blockExtra > 2.5 {
+		blockExtra = 2.5
+	}
+	if lineExtra > 0.30 {
+		lineExtra = 0.30
 	}
 
 	pdf.SetFillColor(255, 255, 255)
@@ -229,15 +244,36 @@ func pdfBalanceLeftColumn(pdf *gofpdf.Fpdf, leftX, columnStartY, leftW, leftEndY
 	return renderPDFLeftColumn(pdf, leftX, columnStartY, leftW, doc)
 }
 
+func pdfClipColumnOverflow(pdf *gofpdf.Fpdf, leftX, rightX, columnStartY, leftW, rightW, pageH float64) {
+	clipY := pdfColumnTargetY(pageH) + 0.5
+	height := pageH - clipY
+	if height <= 0 {
+		return
+	}
+	pdf.SetFillColor(255, 255, 255)
+	pdf.Rect(leftX, clipY, leftW, height, "F")
+	pdf.Rect(rightX, clipY, rightW, height, "F")
+	pdf.SetFillColor(0, 0, 0)
+}
+
 // pdfBalanceColumns re-renders whichever column is shorter so both reach the same bottom edge.
 func pdfBalanceColumns(pdf *gofpdf.Fpdf, leftX, rightX, columnStartY, leftW, rightW, leftEndY, rightEndY, pageH float64, doc CVDocument) (float64, float64) {
-	targetY := pdfColumnTarget(leftEndY, rightEndY, pageH)
+	pageTarget := pdfColumnTargetY(pageH)
+	if leftEndY > pageTarget || rightEndY > pageTarget {
+		pdfClipColumnOverflow(pdf, leftX, rightX, columnStartY, leftW, rightW, pageH)
+		return leftEndY, rightEndY
+	}
 
-	resetPDFRightSpacing()
-	resetPDFLeftSpacing()
+	targetY := pdfColumnTarget(leftEndY, rightEndY, pageH)
 
 	rightEndY = pdfBalanceRightColumn(pdf, rightX, columnStartY, rightW, rightEndY, targetY, pageH, doc)
 	leftEndY = pdfBalanceLeftColumn(pdf, leftX, columnStartY, leftW, leftEndY, targetY, pageH, doc)
+
+	// Second pass if one column still shorter after first stretch.
+	if leftEndY < targetY-cvColumnFillMinGap || rightEndY < targetY-cvColumnFillMinGap {
+		rightEndY = pdfBalanceRightColumn(pdf, rightX, columnStartY, rightW, rightEndY, targetY, pageH, doc)
+		leftEndY = pdfBalanceLeftColumn(pdf, leftX, columnStartY, leftW, leftEndY, targetY, pageH, doc)
+	}
 
 	return leftEndY, rightEndY
 }
