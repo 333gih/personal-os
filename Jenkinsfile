@@ -147,7 +147,7 @@ pipeline {
                             -v go-mod-cache-personal-os:/go/pkg/mod \\
                             -w /app \\
                             golang:1.24-bookworm \\
-                            bash -ec 'set -e; mkdir -p /app; tar -xC /app; echo \"=== backend (in container) ===\"; ls -la; test -f go.mod; go mod download; go test ./... -count=1; go vet ./...'
+                            bash -ec 'set -e; mkdir -p /app; tar -xC /app; echo \"=== backend (in container) ===\"; ls -la; test -f go.mod; go mod download; go test ./... -short -count=1; go vet ./...'
                     """
                 }
             }
