@@ -58,23 +58,36 @@ for (const { name, size } of iosIcons) {
   console.log(`[ios] ${name}`);
 }
 
+// Adaptive foreground: 432×432 with logo scaled to ~58% (inside 66% safe zone).
+const ADAPTIVE_CANVAS = 432;
+const ADAPTIVE_LOGO_RATIO = 0.58;
+const adaptiveLogoSize = Math.round(ADAPTIVE_CANVAS * ADAPTIVE_LOGO_RATIO);
+const adaptivePad = Math.floor((ADAPTIVE_CANVAS - adaptiveLogoSize) / 2);
+const creamBg = { r: 249, g: 247, b: 242, alpha: 1 };
+
 for (const { folder, size } of androidDensities) {
   const dir = resolve(repoRoot, `android/app/src/main/res/${folder}`);
   mkdirSync(dir, { recursive: true });
   for (const name of ['ic_launcher.png', 'ic_launcher_round.png']) {
     await sharp(sourcePath)
-      .resize(size, size, { fit: 'cover' })
+      .resize(size, size, { fit: 'contain', background: creamBg })
       .png()
       .toFile(resolve(dir, name));
   }
   console.log(`[android] ${folder}`);
 }
 
-// Foreground for adaptive icon (432dp safe zone → 108dp vector equivalent at xxxhdpi)
 const fgDir = resolve(repoRoot, 'android/app/src/main/res/drawable-nodpi');
 mkdirSync(fgDir, { recursive: true });
 await sharp(sourcePath)
-  .resize(432, 432, { fit: 'contain', background: { r: 249, g: 247, b: 242, alpha: 1 } })
+  .resize(adaptiveLogoSize, adaptiveLogoSize, { fit: 'contain', background: creamBg })
+  .extend({
+    top: adaptivePad,
+    bottom: ADAPTIVE_CANVAS - adaptiveLogoSize - adaptivePad,
+    left: adaptivePad,
+    right: ADAPTIVE_CANVAS - adaptiveLogoSize - adaptivePad,
+    background: creamBg,
+  })
   .png({ compressionLevel: 9, force: true })
   .toFile(resolve(fgDir, 'ic_launcher_foreground.png'));
 
