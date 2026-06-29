@@ -52,6 +52,14 @@ func locationMatches(hay, location string, types []string) bool {
 			return true
 		}
 	}
+	// Vietnam job boards list mostly local roles; match hybrid/onsite/anywhere seekers.
+	if strings.Contains(loc, "vietnam") || strings.Contains(loc, "việt nam") {
+		if containsAny(types, models.WorkLocationHybrid) ||
+			containsAny(types, models.WorkLocationOnsite) ||
+			containsAny(types, models.WorkLocationAnywhere) {
+			return true
+		}
+	}
 	// Remote job boards often omit location detail — treat empty/remote-ish as OK for remote seekers
 	if containsAny(types, models.WorkLocationRemote) {
 		if loc == "" || strings.Contains(loc, "remote") {

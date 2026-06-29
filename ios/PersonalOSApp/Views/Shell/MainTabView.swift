@@ -310,6 +310,14 @@ struct MainTabView: View {
                 await session.refreshSessionIfNeeded(force: false)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .posOpenDeepLink)) { note in
+            guard let path = note.object as? String else { return }
+            if path == "/jobs" || path.hasPrefix("/jobs") {
+                showJobScout = true
+            } else if path == "/learning" || path.hasPrefix("/learning") {
+                showLearningHub = true
+            }
+        }
     }
 
     private func openRoute(_ route: WebSheetRoute) {

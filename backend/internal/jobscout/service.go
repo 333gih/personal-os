@@ -13,6 +13,7 @@ import (
 	"github.com/personal-os/backend/internal/ai"
 	"github.com/personal-os/backend/internal/cv"
 	"github.com/personal-os/backend/internal/models"
+	"github.com/personal-os/backend/internal/notification"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -22,15 +23,17 @@ type Service struct {
 	db        *gorm.DB
 	ai        *ai.Service
 	cv        *cv.Service
+	notify    *notification.Service
 	githubTok string
 	scans     *scanTracker
 }
 
-func NewService(db *gorm.DB, aiSvc *ai.Service, cvSvc *cv.Service) *Service {
+func NewService(db *gorm.DB, aiSvc *ai.Service, cvSvc *cv.Service, notify *notification.Service) *Service {
 	return &Service{
 		db:        db,
 		ai:        aiSvc,
 		cv:        cvSvc,
+		notify:    notify,
 		githubTok: strings.TrimSpace(os.Getenv("GITHUB_TOKEN")),
 		scans:     newScanTracker(),
 	}
@@ -86,12 +89,13 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	skills, profile := s.loadCandidateProfile(userID)
+	_, profile := s.loadCandidateProfile(userID)
 	prefs, _ := s.GetPreferences(userID)
 	if prefs == nil {
 		def := defaultPreferences()
 		prefs = &def
 	}
+	scanSkills := s.refineScanSkills(userID, profile, scanSkillsForUser(*prefs, profile))
 	var all []rawJob
 
 	remotive, err := fetchRemotive(ctx)
@@ -108,11 +112,25 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 		all = append(all, remoteOK...)
 	}
 
-	githubJobs, err := fetchGitHub(ctx, skills, s.githubTok)
+	githubJobs, err := fetchGitHub(ctx, scanSkills, s.githubTok)
 	if err != nil {
 		log.Printf("jobscout: github fetch: %v", err)
 	} else {
 		all = append(all, githubJobs...)
+	}
+
+	itviecJobs, err := fetchITviec(ctx, scanSkills)
+	if err != nil {
+		log.Printf("jobscout: itviec fetch: %v", err)
+	} else {
+		all = append(all, itviecJobs...)
+	}
+
+	topcvJobs, err := fetchTopCV(ctx, scanSkills)
+	if err != nil {
+		log.Printf("jobscout: topcv fetch: %v", err)
+	} else {
+		all = append(all, topcvJobs...)
 	}
 
 	result := &ScanResult{
@@ -128,6 +146,10 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 			result.Sources.RemoteOK++
 		case "github":
 			result.Sources.GitHub++
+		case "itviec":
+			result.Sources.ITviec++
+		case "topcv":
+			result.Sources.TopCV++
 		}
 	}
 
@@ -143,7 +165,7 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 			continue
 		}
 		pre, hits, primary := preScoreJob(profile, j)
-		if pre >= preFilterMinScore || primary || j.Source == "github" {
+		if pre >= preFilterMinScore || primary || j.Source == "github" || isVNJobBoardSource(j.Source) {
 			candidates = append(candidates, candidate{job: j, preScore: pre, preHits: hits, primaryMatch: primary})
 		}
 	}
@@ -227,6 +249,7 @@ func (s *Service) Scan(userID uuid.UUID) (*ScanResult, error) {
 		}
 	}
 
+	s.touchLastScan(userID)
 	return result, nil
 }
 
@@ -258,34 +281,5 @@ func defaultSkills() []string {
 	return []string{
 		"Java", "Spring Boot", "AEM", "NestJS", "Node.js", "TypeScript",
 		"PostgreSQL", "MongoDB", "Algolia", "Elasticsearch", "GCP", "Docker",
-	}
-}
-
-func (s *Service) StartDailyWorker(ctx context.Context, interval time.Duration) {
-	if interval <= 0 {
-		interval = 24 * time.Hour
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	log.Printf("jobscout: daily worker started (interval=%s, min_score=%.0f%%)", interval, MinMatchScore*100)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.scanAllUsers()
-		}
-	}
-}
-
-func (s *Service) scanAllUsers() {
-	var userIDs []uuid.UUID
-	if err := s.db.Model(&models.User{}).Pluck("id", &userIDs).Error; err != nil {
-		return
-	}
-	for _, id := range userIDs {
-		if _, err := s.Scan(id); err != nil {
-			log.Printf("jobscout: scan user %s: %v", id, err)
-		}
 	}
 }

@@ -27,6 +27,10 @@ type JobSearchPreferences struct {
 	TargetRole        string         `gorm:"not null;default:''" json:"target_role"`
 	WorkLocationTypes datatypes.JSON `gorm:"type:jsonb;not null;default:'[\"remote\"]'" json:"work_location_types"`
 	EmploymentTypes   datatypes.JSON `gorm:"type:jsonb;not null;default:'[\"full_time\"]'" json:"employment_types"`
+	DailyScanEnabled  bool           `gorm:"not null;default:true" json:"daily_scan_enabled"`
+	PushEnabled       bool           `gorm:"not null;default:true" json:"push_enabled"`
+	Timezone          string         `gorm:"not null;default:'Asia/Ho_Chi_Minh'" json:"timezone"`
+	LastScanAt        *time.Time     `json:"last_scan_at,omitempty"`
 	UpdatedAt         time.Time      `json:"updated_at"`
 }
 

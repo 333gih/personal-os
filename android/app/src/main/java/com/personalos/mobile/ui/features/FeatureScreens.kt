@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,7 @@ import com.personalos.mobile.data.models.PosCvSuggestedSkill
 import com.personalos.mobile.data.models.PosEntity
 import com.personalos.mobile.data.models.PosJobSearchPreferences
 import com.personalos.mobile.data.models.PosJobTab
+import com.personalos.mobile.data.models.summaryText
 import com.personalos.mobile.data.models.PosLearningTrack
 import com.personalos.mobile.data.models.PosPracticeMode
 import com.personalos.mobile.data.repository.PersonalOSRepository
@@ -133,6 +136,18 @@ fun JobScoutScreen(repository: PersonalOSRepository, onClose: () -> Unit) {
                         val on = prefs.workLocationTypes.contains(loc)
                         prefs = prefs.copy(workLocationTypes = if (on) prefs.workLocationTypes - loc else prefs.workLocationTypes + loc)
                     }
+                    Text("Daily schedule", style = posDisplay(12f))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Scan daily (~7:00 ICT)", style = posDisplay(12f))
+                        Switch(checked = prefs.dailyScanEnabled, onCheckedChange = { prefs = prefs.copy(dailyScanEnabled = it) })
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Push alerts for new jobs", style = posDisplay(12f))
+                        Switch(checked = prefs.pushEnabled, onCheckedChange = { prefs = prefs.copy(pushEnabled = it) })
+                    }
+                    prefs.lastScanAt?.let {
+                        Text("Last scan: $it", color = PosTheme.Muted, style = posDisplay(11f))
+                    }
                     PosPrimaryButton(if (savingPrefs) "Saving…" else "Save preferences") {
                         savingPrefs = true
                         scope.launch {
@@ -158,8 +173,7 @@ fun JobScoutScreen(repository: PersonalOSRepository, onClose: () -> Unit) {
                         repository.saveJobPreferences(prefs)
                         repository.scanJobs()
                     }.onSuccess { result ->
-                        val pct = ((result.minScore ?: 0.35f) * 100).toInt()
-                        scanSummary = "Scanned ${result.found} · ${result.matched} matched ≥$pct% · ${result.stored} new"
+                        scanSummary = result.summaryText()
                         reloadJobs()
                     }.onFailure { error = it.message }
                     scanning = false

@@ -19,6 +19,10 @@ type SearchPreferences struct {
 	TargetRole        string   `json:"target_role"`
 	WorkLocationTypes []string `json:"work_location_types"`
 	EmploymentTypes   []string `json:"employment_types"`
+	DailyScanEnabled  bool     `json:"daily_scan_enabled"`
+	PushEnabled       bool     `json:"push_enabled"`
+	Timezone          string   `json:"timezone"`
+	LastScanAt        *time.Time `json:"last_scan_at,omitempty"`
 	AvailableSkills   []string `json:"available_skills,omitempty"`
 }
 
@@ -29,6 +33,9 @@ func defaultPreferences() SearchPreferences {
 		TargetRole:        "Software Engineer",
 		WorkLocationTypes: []string{models.WorkLocationRemote, models.WorkLocationHybrid},
 		EmploymentTypes:   []string{models.EmploymentFullTime},
+		DailyScanEnabled:  true,
+		PushEnabled:       true,
+		Timezone:          dailyScanLocation,
 	}
 }
 
@@ -79,13 +86,20 @@ func (s *Service) SavePreferences(userID uuid.UUID, in SearchPreferences) (*Sear
 		TargetRole:        in.TargetRole,
 		WorkLocationTypes: locJSON,
 		EmploymentTypes:   empJSON,
+		DailyScanEnabled:  in.DailyScanEnabled,
+		PushEnabled:       in.PushEnabled,
+		Timezone:          strings.TrimSpace(in.Timezone),
 		UpdatedAt:         time.Now().UTC(),
+	}
+	if row.Timezone == "" {
+		row.Timezone = dailyScanLocation
 	}
 	if err := s.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"focus_skills", "years_experience", "target_role",
-			"work_location_types", "employment_types", "updated_at",
+			"work_location_types", "employment_types",
+			"daily_scan_enabled", "push_enabled", "timezone", "updated_at",
 		}),
 	}).Create(&row).Error; err != nil {
 		return nil, err
@@ -223,6 +237,13 @@ func applyRow(prefs *SearchPreferences, row models.JobSearchPreferences) {
 	_ = json.Unmarshal(row.EmploymentTypes, &prefs.EmploymentTypes)
 	prefs.YearsExperience = row.YearsExperience
 	prefs.TargetRole = row.TargetRole
+	prefs.DailyScanEnabled = row.DailyScanEnabled
+	prefs.PushEnabled = row.PushEnabled
+	prefs.Timezone = row.Timezone
+	prefs.LastScanAt = row.LastScanAt
+	if prefs.Timezone == "" {
+		prefs.Timezone = dailyScanLocation
+	}
 }
 
 func (s *Service) buildMatchProfile(userID uuid.UUID) cv.StackProfile {

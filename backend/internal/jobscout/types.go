@@ -13,6 +13,8 @@ type ScanResult struct {
 		Remotive int `json:"remotive"`
 		RemoteOK int `json:"remoteok"`
 		GitHub   int `json:"github"`
+		ITviec   int `json:"itviec"`
+		TopCV    int `json:"topcv"`
 	} `json:"sources"`
 }
 

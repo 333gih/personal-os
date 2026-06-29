@@ -163,10 +163,14 @@ func main() {
 	cvHandler := cv.NewHandler(cvSvc)
 	cvHandler.RegisterRoutes(protected.Group("/cv"))
 
-	jobScoutSvc := jobscout.NewService(db, aiSvc, cvSvc)
+	notifyPub := notification.NewPublisher(cfg.Notification)
+	defer notifyPub.Close()
+	notifySvc := notification.NewService(db, notifyPub, cfg.Notification)
+
+	jobScoutSvc := jobscout.NewService(db, aiSvc, cvSvc, notifySvc)
 	jobScoutHandler := jobscout.NewHandler(jobScoutSvc)
 	jobScoutHandler.RegisterRoutes(protected.Group("/jobs"))
-	go jobScoutSvc.StartDailyWorker(context.Background(), 24*time.Hour)
+	go jobscout.NewScheduleWorker(jobScoutSvc, 15*time.Minute).Start(context.Background())
 
 	workImportSvc := workimport.NewService(db, aiSvc, storageSvc, embedSvc, cvSvc)
 	workImportHandler := workimport.NewHandler(workImportSvc)
@@ -180,9 +184,6 @@ func main() {
 	learningImportHandler := learningimport.NewHandler(learningImportSvc)
 	learningImportHandler.RegisterRoutes(protected.Group("/learning"))
 
-	notifyPub := notification.NewPublisher(cfg.Notification)
-	defer notifyPub.Close()
-	notifySvc := notification.NewService(db, notifyPub, cfg.Notification)
 	studySvc := studylearning.NewService(db, learningImportSvc, notifySvc)
 	studyHandler := studylearning.NewHandler(studySvc, notifySvc)
 	studyHandler.RegisterRoutes(protected.Group("/learning"))

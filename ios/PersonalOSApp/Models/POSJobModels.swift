@@ -29,6 +29,14 @@ struct POSJobListResponse: Decodable {
     }
 }
 
+struct POSJobScanSources: Decodable {
+    let remotive: Int
+    let remoteok: Int
+    let github: Int
+    let itviec: Int
+    let topcv: Int
+}
+
 struct POSJobScanResponse: Decodable {
     let found: Int
     let matched: Int
@@ -36,11 +44,26 @@ struct POSJobScanResponse: Decodable {
     let updated: Int
     let minScore: Float?
     let scannedAt: String?
+    let sources: POSJobScanSources?
 
     enum CodingKeys: String, CodingKey {
-        case found, matched, stored, updated
+        case found, matched, stored, updated, sources
         case minScore = "min_score"
         case scannedAt = "scanned_at"
+    }
+
+    func summaryText() -> String {
+        let pct = Int((minScore ?? 0.35) * 100)
+        var text = "Scanned \(found) · \(matched) matched ≥\(pct)% · \(stored) new"
+        if let sources {
+            var vn: [String] = []
+            if sources.itviec > 0 { vn.append("ITviec \(sources.itviec)") }
+            if sources.topcv > 0 { vn.append("TopCV \(sources.topcv)") }
+            if !vn.isEmpty {
+                text += " (" + vn.joined(separator: " · ") + ")"
+            }
+        }
+        return text
     }
 }
 
@@ -65,6 +88,10 @@ struct POSJobSearchPreferences: Codable, Hashable {
     var targetRole: String
     var workLocationTypes: [String]
     var employmentTypes: [String]
+    var dailyScanEnabled: Bool
+    var pushEnabled: Bool
+    var timezone: String
+    var lastScanAt: String?
     var availableSkills: [String]?
 
     enum CodingKeys: String, CodingKey {
@@ -73,6 +100,10 @@ struct POSJobSearchPreferences: Codable, Hashable {
         case targetRole = "target_role"
         case workLocationTypes = "work_location_types"
         case employmentTypes = "employment_types"
+        case dailyScanEnabled = "daily_scan_enabled"
+        case pushEnabled = "push_enabled"
+        case timezone
+        case lastScanAt = "last_scan_at"
         case availableSkills = "available_skills"
     }
 
@@ -82,6 +113,10 @@ struct POSJobSearchPreferences: Codable, Hashable {
         targetRole: "Software Engineer",
         workLocationTypes: ["remote", "hybrid"],
         employmentTypes: ["full_time"],
+        dailyScanEnabled: true,
+        pushEnabled: true,
+        timezone: "Asia/Ho_Chi_Minh",
+        lastScanAt: nil,
         availableSkills: nil
     )
 }

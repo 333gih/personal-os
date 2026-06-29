@@ -204,6 +204,16 @@ struct POSJobScoutView: View {
                         ("internship", "Internship")
                     ], selection: $prefs.employmentTypes)
 
+                    Toggle("Daily scan (~7:00 ICT)", isOn: $prefs.dailyScanEnabled)
+                        .font(.caption)
+                    Toggle("Push alerts for new jobs", isOn: $prefs.pushEnabled)
+                        .font(.caption)
+                    if let lastScan = prefs.lastScanAt, !lastScan.isEmpty {
+                        Text("Last scan: \(lastScan)")
+                            .font(.caption2)
+                            .foregroundStyle(POSTheme.muted)
+                    }
+
                     POSActionButton(title: isSavingPrefs ? "Saving…" : "Save preferences", icon: "checkmark.circle", style: .primary) {
                         Task { await savePreferences() }
                     }
@@ -388,8 +398,7 @@ struct POSJobScoutView: View {
         do {
             _ = try await session.api.saveJobPreferences(prefs)
             let result = try await session.api.scanJobs()
-            let pct = Int((result.minScore ?? 0.35) * 100)
-            scanSummary = "Scanned \(result.found) · \(result.matched) matched ≥\(pct)% · \(result.stored) new"
+            scanSummary = result.summaryText()
             await loadJobsOnly()
             POSHaptics.light()
         } catch {
