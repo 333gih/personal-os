@@ -56,14 +56,16 @@ class MobileApiClient(
         contentType: String?,
         retried: Boolean = false,
     ): Response {
-        val token = runBlocking { sessionManager.validAccessToken() }
-            ?: throw ApiException.Unauthorized
+        val token = runBlocking {
+            runCatching { sessionManager.validAccessToken() }.getOrNull()
+        } ?: throw ApiException.Unauthorized
         val request = buildRequest(method, path, body, contentType, token)
         val response = client.newCall(request).execute()
         if (response.code != 401 || retried) return response
         response.close()
-        val refreshed = runBlocking { sessionManager.refreshAccessToken(force = true) }
-            ?: throw ApiException.Unauthorized
+        val refreshed = runBlocking {
+            runCatching { sessionManager.refreshAccessToken(force = true) }.getOrNull()
+        } ?: throw ApiException.Unauthorized
         val retry = buildRequest(method, path, body, contentType, refreshed)
         val retryResponse = client.newCall(retry).execute()
         if (retryResponse.code == 401) {

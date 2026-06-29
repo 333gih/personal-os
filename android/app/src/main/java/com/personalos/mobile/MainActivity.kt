@@ -28,11 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.personalos.mobile.data.auth.SessionManager
 import com.personalos.mobile.data.models.PosEntitySection
@@ -80,12 +77,6 @@ class MainActivity : ComponentActivity() {
         val app = application as PersonalOSApplication
         val sessionManager = app.sessionManager
         val repository = app.repository
-
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                sessionManager.refreshSessionIfNeeded(force = false)
-            }
-        }
 
         sessionManager.bootstrap {
             lifecycleScope.launch {

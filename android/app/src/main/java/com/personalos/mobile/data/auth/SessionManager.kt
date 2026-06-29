@@ -1,8 +1,10 @@
 package com.personalos.mobile.data.auth
 
+import android.util.Log
 import com.personalos.mobile.config.AppEnvironment
 import com.personalos.mobile.network.AuthHttpClient
 import com.personalos.mobile.util.JwtHelpers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,7 +44,7 @@ class SessionManager(
 
     fun bootstrap(onReady: suspend () -> Unit = {}) {
         scope.launch {
-            refreshSessionIfNeeded(force = false)
+            runCatching { awaitSessionRefresh(force = false) }
             if (_isAuthenticated.value) {
                 scheduleProactiveRefresh()
                 onReady()
@@ -52,22 +54,30 @@ class SessionManager(
 
     fun refreshSessionIfNeeded(force: Boolean = false) {
         scope.launch {
-            val session = storedSession
-            if (session == null) {
-                if (!_isAuthenticated.value) return@launch
-                signOut()
-                return@launch
-            }
-            if (!JwtHelpers.isRefreshTokenValid(session)) {
-                signOut()
-                return@launch
-            }
-            val needsRefresh = force ||
-                JwtHelpers.shouldRefreshAccess(session) ||
-                JwtHelpers.isExpired(session.accessToken)
-            if (needsRefresh) {
-                refreshAccessToken(force = force || JwtHelpers.isExpired(session.accessToken))
-            }
+            runCatching { awaitSessionRefresh(force) }
+                .onFailure { e ->
+                    if (e !is CancellationException) {
+                        Log.w(TAG, "refreshSessionIfNeeded failed", e)
+                    }
+                }
+        }
+    }
+
+    private suspend fun awaitSessionRefresh(force: Boolean) {
+        val session = storedSession
+        if (session == null) {
+            if (_isAuthenticated.value) signOut()
+            return
+        }
+        if (!JwtHelpers.isRefreshTokenValid(session)) {
+            signOut()
+            return
+        }
+        val needsRefresh = force ||
+            JwtHelpers.shouldRefreshAccess(session) ||
+            JwtHelpers.isExpired(session.accessToken)
+        if (needsRefresh) {
+            refreshAccessToken(force = force || JwtHelpers.isExpired(session.accessToken))
         }
     }
 
@@ -106,19 +116,32 @@ class SessionManager(
     }
 
     suspend fun refreshAccessToken(force: Boolean): String? = refreshMutex.withLock {
-        refreshJob?.join()
+        joinRefreshJobSafely(refreshJob)
         val job = scope.launch(Dispatchers.IO) {
             performRefresh(force)
         }
         refreshJob = job
-        job.join()
+        joinRefreshJobSafely(job)
         return storedSession?.accessToken
     }
 
     fun signOut() {
         val refresh = storedSession?.refreshToken
         proactiveRefreshJob?.cancel()
-        clearLocal()
+        clearSessionState()
+        cancelRefreshJob()
+        if (!refresh.isNullOrBlank()) {
+            scope.launch(Dispatchers.IO) {
+                runCatching { authHttp.logout(refresh) }
+            }
+        }
+    }
+
+    /** Clears session during an in-flight refresh without cancelling the refresh coroutine. */
+    private fun signOutFromRefresh() {
+        val refresh = storedSession?.refreshToken
+        proactiveRefreshJob?.cancel()
+        clearSessionState()
         if (!refresh.isNullOrBlank()) {
             scope.launch(Dispatchers.IO) {
                 runCatching { authHttp.logout(refresh) }
@@ -161,7 +184,7 @@ class SessionManager(
     private suspend fun performRefresh(force: Boolean): String? {
         val session = storedSession ?: return null
         if (!JwtHelpers.isRefreshTokenValid(session)) {
-            signOut()
+            signOutFromRefresh()
             return null
         }
         if (!force && !JwtHelpers.shouldRefreshAccess(session) && !JwtHelpers.isExpired(session.accessToken)) {
@@ -187,7 +210,9 @@ class SessionManager(
             scheduleProactiveRefresh()
             updated.accessToken
         } catch (e: AuthHttpClient.UnauthorizedException) {
-            signOut()
+            signOutFromRefresh()
+            null
+        } catch (_: CancellationException) {
             null
         } catch (_: Exception) {
             if (!JwtHelpers.isExpired(session.accessToken)) {
@@ -199,6 +224,28 @@ class SessionManager(
         }
     }
 
+    private suspend fun joinRefreshJobSafely(job: Job?) {
+        if (job == null) return
+        try {
+            job.join()
+        } catch (_: CancellationException) {
+            // refresh cleared session while job was running — treat as signed out
+        }
+    }
+
+    private fun clearSessionState() {
+        storedSession = null
+        _accessToken.value = null
+        _user.value = null
+        _isAuthenticated.value = false
+        sessionStore.clear()
+    }
+
+    private fun cancelRefreshJob() {
+        refreshJob?.cancel()
+        refreshJob = null
+    }
+
     private fun persist(session: StoredAuthSession) {
         storedSession = session
         _accessToken.value = session.accessToken
@@ -206,13 +253,7 @@ class SessionManager(
         sessionStore.save(session)
     }
 
-    private fun clearLocal() {
-        storedSession = null
-        _accessToken.value = null
-        _user.value = null
-        _isAuthenticated.value = false
-        refreshJob?.cancel()
-        refreshJob = null
-        sessionStore.clear()
+    companion object {
+        private const val TAG = "SessionManager"
     }
 }

@@ -57,7 +57,12 @@ class AuthSessionStore(context: Context, private val moshi: Moshi) {
         } catch (e: Exception) {
             Log.w(TAG, "Keystore invalid — recreating encrypted prefs", e)
             appContext.deleteSharedPreferences(PREFS_NAME)
-            openEncryptedPrefs()
+            try {
+                openEncryptedPrefs()
+            } catch (e2: Exception) {
+                Log.e(TAG, "Encrypted prefs recovery failed", e2)
+                throw e2
+            }
         }
     }
 
