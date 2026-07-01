@@ -37,6 +37,12 @@ class SessionManager(
     private val _isAuthenticated = MutableStateFlow(initAuthenticated())
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
 
+    private val _bootstrapReady = MutableStateFlow(false)
+    val bootstrapReady: StateFlow<Boolean> = _bootstrapReady.asStateFlow()
+
+    private val bootstrapMutex = Mutex()
+    private var bootstrapDone = false
+
     private fun initAuthenticated(): Boolean {
         val session = storedSession ?: return false
         return JwtHelpers.isRefreshTokenValid(session)
@@ -44,9 +50,17 @@ class SessionManager(
 
     fun bootstrap(onReady: suspend () -> Unit = {}) {
         scope.launch {
-            runCatching { awaitSessionRefresh(force = false) }
+            bootstrapMutex.withLock {
+                if (!bootstrapDone) {
+                    runCatching { awaitSessionRefresh(force = false) }
+                    if (_isAuthenticated.value) {
+                        scheduleProactiveRefresh()
+                    }
+                    bootstrapDone = true
+                    _bootstrapReady.value = true
+                }
+            }
             if (_isAuthenticated.value) {
-                scheduleProactiveRefresh()
                 onReady()
             }
         }
@@ -96,6 +110,8 @@ class SessionManager(
             applicationId = handoff.applicationId,
         )
         persist(session)
+        bootstrapDone = true
+        _bootstrapReady.value = true
         scheduleProactiveRefresh()
     }
 
@@ -108,21 +124,29 @@ class SessionManager(
             signOut()
             return null
         }
-        if (!JwtHelpers.shouldRefreshAccess(session) && !JwtHelpers.isExpired(session.accessToken)) {
-            _accessToken.value = session.accessToken
-            return session.accessToken
+        awaitActiveRefresh()
+        val current = storedSession ?: return null
+        if (!JwtHelpers.shouldRefreshAccess(current) && !JwtHelpers.isExpired(current.accessToken)) {
+            _accessToken.value = current.accessToken
+            return current.accessToken
         }
         return refreshAccessToken(force = false)
     }
 
-    suspend fun refreshAccessToken(force: Boolean): String? = refreshMutex.withLock {
-        joinRefreshJobSafely(refreshJob)
-        val job = scope.launch(Dispatchers.IO) {
-            performRefresh(force)
+    suspend fun refreshAccessToken(force: Boolean): String? {
+        val job = refreshMutex.withLock {
+            refreshJob?.takeIf { it.isActive }?.let { return@withLock it }
+            scope.launch(Dispatchers.IO) {
+                performRefresh(force)
+            }.also { refreshJob = it }
         }
-        refreshJob = job
         joinRefreshJobSafely(job)
         return storedSession?.accessToken
+    }
+
+    private suspend fun awaitActiveRefresh() {
+        val active = refreshJob?.takeIf { it.isActive } ?: return
+        joinRefreshJobSafely(active)
     }
 
     fun signOut() {

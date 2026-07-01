@@ -19,7 +19,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -99,22 +98,14 @@ private fun PersonalOSRoot(
     repository: com.personalos.mobile.data.repository.PersonalOSRepository,
 ) {
     val isAuthenticated by sessionManager.isAuthenticated.collectAsStateWithLifecycle()
-    var bootstrapping by remember { mutableStateOf(true) }
+    val bootstrapReady by sessionManager.bootstrapReady.collectAsStateWithLifecycle()
     var loginError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(isAuthenticated) {
-        if (isAuthenticated) bootstrapping = false
-    }
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(400)
-        bootstrapping = false
-    }
-
     when {
-        bootstrapping && sessionManager.isAuthenticated.value -> {
+        !bootstrapReady -> {
             Column(Modifier.fillMaxSize().statusBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator(modifier = Modifier.padding(24.dp), color = PosTheme.PrimaryDark)
-                Text("Restoring session…")
+                Text(if (isAuthenticated) "Restoring session…" else "Starting…")
             }
         }
         !isAuthenticated -> {

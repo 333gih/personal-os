@@ -2,6 +2,7 @@ package com.personalos.mobile.network
 
 import com.personalos.mobile.config.AppEnvironment
 import com.personalos.mobile.data.auth.SessionManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -56,16 +57,12 @@ class MobileApiClient(
         contentType: String?,
         retried: Boolean = false,
     ): Response {
-        val token = runBlocking {
-            runCatching { sessionManager.validAccessToken() }.getOrNull()
-        } ?: throw ApiException.Unauthorized
+        val token = blockingAccessToken() ?: throw ApiException.Unauthorized
         val request = buildRequest(method, path, body, contentType, token)
         val response = client.newCall(request).execute()
         if (response.code != 401 || retried) return response
         response.close()
-        val refreshed = runBlocking {
-            runCatching { sessionManager.refreshAccessToken(force = true) }.getOrNull()
-        } ?: throw ApiException.Unauthorized
+        val refreshed = blockingRefreshToken(force = true) ?: throw ApiException.Unauthorized
         val retry = buildRequest(method, path, body, contentType, refreshed)
         val retryResponse = client.newCall(retry).execute()
         if (retryResponse.code == 401) {
@@ -98,6 +95,22 @@ class MobileApiClient(
             else -> builder.method(method, body)
         }
         return builder.build()
+    }
+
+    private fun blockingAccessToken(): String? = runBlocking {
+        try {
+            sessionManager.validAccessToken()
+        } catch (_: CancellationException) {
+            null
+        }
+    }
+
+    private fun blockingRefreshToken(force: Boolean): String? = runBlocking {
+        try {
+            sessionManager.refreshAccessToken(force)
+        } catch (_: CancellationException) {
+            null
+        }
     }
 
     private inner class AuthInterceptor : Interceptor {
