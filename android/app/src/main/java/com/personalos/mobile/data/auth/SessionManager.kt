@@ -1,14 +1,15 @@
 package com.personalos.mobile.data.auth
 
 import android.util.Log
-import com.personalos.mobile.config.AppEnvironment
 import com.personalos.mobile.network.AuthHttpClient
 import com.personalos.mobile.util.JwtHelpers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,14 +17,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 class SessionManager(
     private val sessionStore: AuthSessionStore,
     private val authHttp: AuthHttpClient,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val refreshMutex = Mutex()
-    private var refreshJob: Job? = null
+    private var refreshDeferred: Deferred<String?>? = null
     private var proactiveRefreshJob: Job? = null
 
     private var storedSession: StoredAuthSession? = sessionStore.load()
@@ -37,32 +40,65 @@ class SessionManager(
     private val _isAuthenticated = MutableStateFlow(initAuthenticated())
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
 
-    private val _bootstrapReady = MutableStateFlow(false)
+    private val _bootstrapReady = MutableStateFlow(shouldSkipBootstrapRefresh())
     val bootstrapReady: StateFlow<Boolean> = _bootstrapReady.asStateFlow()
 
-    private val bootstrapMutex = Mutex()
-    private var bootstrapDone = false
+    @Volatile
+    private var bootstrapStarted = false
 
     private fun initAuthenticated(): Boolean {
         val session = storedSession ?: return false
         return JwtHelpers.isRefreshTokenValid(session)
     }
 
+    /** No stored session — show login immediately without waiting for network. */
+    private fun shouldSkipBootstrapRefresh(): Boolean {
+        val session = storedSession ?: return true
+        return !JwtHelpers.isRefreshTokenValid(session)
+    }
+
     fun bootstrap(onReady: suspend () -> Unit = {}) {
+        if (bootstrapStarted) {
+            scope.launch {
+                waitForBootstrapReady()
+                if (_isAuthenticated.value) onReady()
+            }
+            return
+        }
+        bootstrapStarted = true
+
         scope.launch {
-            bootstrapMutex.withLock {
-                if (!bootstrapDone) {
-                    runCatching { awaitSessionRefresh(force = false) }
+            try {
+                if (_isAuthenticated.value) {
+                    awaitSessionRefresh(force = false)
                     if (_isAuthenticated.value) {
                         scheduleProactiveRefresh()
                     }
-                    bootstrapDone = true
-                    _bootstrapReady.value = true
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "bootstrap refresh failed", e)
+                applyCachedTokenFallback()
+            } finally {
+                _bootstrapReady.value = true
             }
             if (_isAuthenticated.value) {
                 onReady()
             }
+        }
+    }
+
+    private suspend fun waitForBootstrapReady() {
+        if (_bootstrapReady.value) return
+        withTimeoutOrNull(BOOTSTRAP_UI_TIMEOUT_MS) {
+            while (!_bootstrapReady.value) {
+                delay(50)
+            }
+        }
+        if (!_bootstrapReady.value) {
+            Log.w(TAG, "bootstrap wait timed out — unblocking UI")
+            _bootstrapReady.value = true
         }
     }
 
@@ -74,6 +110,31 @@ class SessionManager(
                         Log.w(TAG, "refreshSessionIfNeeded failed", e)
                     }
                 }
+        }
+    }
+
+    /** Re-run session restore after UI timeout (mirrors iOS re-bootstrap on retry). */
+    fun retryBootstrap(onReady: suspend () -> Unit = {}) {
+        _bootstrapReady.value = false
+        scope.launch {
+            try {
+                if (_isAuthenticated.value) {
+                    awaitSessionRefresh(force = true)
+                    if (_isAuthenticated.value) {
+                        scheduleProactiveRefresh()
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "retryBootstrap failed", e)
+                applyCachedTokenFallback()
+            } finally {
+                _bootstrapReady.value = true
+            }
+            if (_isAuthenticated.value) {
+                onReady()
+            }
         }
     }
 
@@ -91,7 +152,24 @@ class SessionManager(
             JwtHelpers.shouldRefreshAccess(session) ||
             JwtHelpers.isExpired(session.accessToken)
         if (needsRefresh) {
-            refreshAccessToken(force = force || JwtHelpers.isExpired(session.accessToken))
+            withTimeoutOrNull(REFRESH_TIMEOUT_MS) {
+                refreshAccessToken(force = force || JwtHelpers.isExpired(session.accessToken))
+            } ?: run {
+                Log.w(TAG, "refresh timed out during bootstrap")
+                applyCachedTokenFallback()
+            }
+        }
+    }
+
+    private fun applyCachedTokenFallback() {
+        val session = storedSession ?: return
+        if (JwtHelpers.isRefreshTokenValid(session) && !JwtHelpers.isExpired(session.accessToken)) {
+            _accessToken.value = session.accessToken
+            _isAuthenticated.value = true
+            return
+        }
+        if (!JwtHelpers.isRefreshTokenValid(session)) {
+            signOut()
         }
     }
 
@@ -110,7 +188,6 @@ class SessionManager(
             applicationId = handoff.applicationId,
         )
         persist(session)
-        bootstrapDone = true
         _bootstrapReady.value = true
         scheduleProactiveRefresh()
     }
@@ -124,7 +201,7 @@ class SessionManager(
             signOut()
             return null
         }
-        awaitActiveRefresh()
+        awaitInFlightRefresh()
         val current = storedSession ?: return null
         if (!JwtHelpers.shouldRefreshAccess(current) && !JwtHelpers.isExpired(current.accessToken)) {
             _accessToken.value = current.accessToken
@@ -134,19 +211,41 @@ class SessionManager(
     }
 
     suspend fun refreshAccessToken(force: Boolean): String? {
-        val job = refreshMutex.withLock {
-            refreshJob?.takeIf { it.isActive }?.let { return@withLock it }
-            scope.launch(Dispatchers.IO) {
-                performRefresh(force)
-            }.also { refreshJob = it }
+        refreshMutex.withLock { refreshDeferred?.takeIf { it.isActive } }?.let { existing ->
+            return withTimeoutOrNull(REFRESH_TIMEOUT_MS) { existing.await() } ?: fallbackToken()
         }
-        joinRefreshJobSafely(job)
+
+        val deferred = refreshMutex.withLock {
+            refreshDeferred?.takeIf { it.isActive }?.let { return@withLock it }
+            scope.async(Dispatchers.IO) {
+                performRefresh(force)
+            }.also { refreshDeferred = it }
+        }
+
+        return try {
+            withTimeoutOrNull(REFRESH_TIMEOUT_MS) { deferred.await() } ?: fallbackToken()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "refreshAccessToken failed", e)
+            fallbackToken()
+        } finally {
+            refreshMutex.withLock {
+                if (refreshDeferred === deferred) {
+                    refreshDeferred = null
+                }
+            }
+        }
+    }
+
+    private fun fallbackToken(): String? {
+        applyCachedTokenFallback()
         return storedSession?.accessToken
     }
 
-    private suspend fun awaitActiveRefresh() {
-        val active = refreshJob?.takeIf { it.isActive } ?: return
-        joinRefreshJobSafely(active)
+    private suspend fun awaitInFlightRefresh() {
+        val active = refreshMutex.withLock { refreshDeferred?.takeIf { it.isActive } } ?: return
+        withTimeoutOrNull(REFRESH_TIMEOUT_MS) { active.await() }
     }
 
     fun signOut() {
@@ -154,6 +253,7 @@ class SessionManager(
         proactiveRefreshJob?.cancel()
         clearSessionState()
         cancelRefreshJob()
+        _bootstrapReady.value = true
         if (!refresh.isNullOrBlank()) {
             scope.launch(Dispatchers.IO) {
                 runCatching { authHttp.logout(refresh) }
@@ -161,7 +261,6 @@ class SessionManager(
         }
     }
 
-    /** Clears session during an in-flight refresh without cancelling the refresh coroutine. */
     private fun signOutFromRefresh() {
         val refresh = storedSession?.refreshToken
         proactiveRefreshJob?.cancel()
@@ -205,17 +304,17 @@ class SessionManager(
         }
     }
 
-    private suspend fun performRefresh(force: Boolean): String? {
-        val session = storedSession ?: return null
+    private suspend fun performRefresh(force: Boolean): String? = withContext(Dispatchers.IO) {
+        val session = storedSession ?: return@withContext null
         if (!JwtHelpers.isRefreshTokenValid(session)) {
             signOutFromRefresh()
-            return null
+            return@withContext null
         }
         if (!force && !JwtHelpers.shouldRefreshAccess(session) && !JwtHelpers.isExpired(session.accessToken)) {
             _accessToken.value = session.accessToken
-            return session.accessToken
+            return@withContext session.accessToken
         }
-        return try {
+        try {
             val refreshed = authHttp.refresh(session.refreshToken)
             val (accessExpiry, refreshExpiry) = JwtHelpers.sessionExpiry(
                 refreshed.accessToken,
@@ -236,9 +335,10 @@ class SessionManager(
         } catch (e: AuthHttpClient.UnauthorizedException) {
             signOutFromRefresh()
             null
-        } catch (_: CancellationException) {
-            null
-        } catch (_: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "performRefresh network error", e)
             if (!JwtHelpers.isExpired(session.accessToken)) {
                 _accessToken.value = session.accessToken
                 session.accessToken
@@ -248,13 +348,9 @@ class SessionManager(
         }
     }
 
-    private suspend fun joinRefreshJobSafely(job: Job?) {
-        if (job == null) return
-        try {
-            job.join()
-        } catch (_: CancellationException) {
-            // refresh cleared session while job was running — treat as signed out
-        }
+    private fun cancelRefreshJob() {
+        refreshDeferred?.cancel()
+        refreshDeferred = null
     }
 
     private fun clearSessionState() {
@@ -263,11 +359,6 @@ class SessionManager(
         _user.value = null
         _isAuthenticated.value = false
         sessionStore.clear()
-    }
-
-    private fun cancelRefreshJob() {
-        refreshJob?.cancel()
-        refreshJob = null
     }
 
     private fun persist(session: StoredAuthSession) {
@@ -279,5 +370,7 @@ class SessionManager(
 
     companion object {
         private const val TAG = "SessionManager"
+        private const val REFRESH_TIMEOUT_MS = 12_000L
+        private const val BOOTSTRAP_UI_TIMEOUT_MS = 15_000L
     }
 }

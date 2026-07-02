@@ -63,8 +63,8 @@ android {
         applicationId = "com.personalos.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "1.0.16"
+        versionCode = 18
+        versionName = "1.0.17"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "HTTP_USER_AGENT", buildConfigStringLiteral("PersonalOS-Android/1.0"))
     }

@@ -17,9 +17,9 @@ import com.personalos.mobile.ui.shell.PosOverlayScaffold
 import com.personalos.mobile.data.models.PosLearningTrack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,7 +28,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.personalos.mobile.data.auth.SessionManager
 import com.personalos.mobile.data.models.PosEntitySection
@@ -67,7 +66,6 @@ import com.personalos.mobile.ui.theme.PosTheme
 import com.personalos.mobile.ui.web.EmbeddedWebScreen
 import com.personalos.mobile.ui.work.WorkScreen
 import com.personalos.mobile.ui.work.WorkViewModel
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,9 +76,7 @@ class MainActivity : ComponentActivity() {
         val repository = app.repository
 
         sessionManager.bootstrap {
-            lifecycleScope.launch {
-                runCatching { repository.me() }.onSuccess { sessionManager.setUser(it) }
-            }
+            runCatching { repository.me() }.onSuccess { sessionManager.setUser(it) }
         }
 
         setContent {
@@ -100,12 +96,42 @@ private fun PersonalOSRoot(
     val isAuthenticated by sessionManager.isAuthenticated.collectAsStateWithLifecycle()
     val bootstrapReady by sessionManager.bootstrapReady.collectAsStateWithLifecycle()
     var loginError by remember { mutableStateOf<String?>(null) }
+    var bootstrapTimedOut by remember { mutableStateOf(false) }
+
+    LaunchedEffect(bootstrapReady) {
+        if (bootstrapReady) {
+            bootstrapTimedOut = false
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.delay(15_000)
+        if (!sessionManager.bootstrapReady.value) {
+            bootstrapTimedOut = true
+        }
+    }
 
     when {
-        !bootstrapReady -> {
+        isAuthenticated && !bootstrapReady && !bootstrapTimedOut -> {
             Column(Modifier.fillMaxSize().statusBarsPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator(modifier = Modifier.padding(24.dp), color = PosTheme.PrimaryDark)
-                Text(if (isAuthenticated) "Restoring session…" else "Starting…")
+                Text("Restoring session…")
+            }
+        }
+        isAuthenticated && !bootstrapReady && bootstrapTimedOut -> {
+            Column(
+                Modifier.fillMaxSize().statusBarsPadding().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Session restore is taking too long.")
+                IconButton(onClick = {
+                    bootstrapTimedOut = false
+                    sessionManager.retryBootstrap {
+                        runCatching { repository.me() }.onSuccess { sessionManager.setUser(it) }
+                    }
+                }) { Text("Retry") }
+                IconButton(onClick = {
+                    bootstrapTimedOut = false
+                    sessionManager.signOut()
+                }) { Text("Sign in again") }
             }
         }
         !isAuthenticated -> {

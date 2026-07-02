@@ -3,6 +3,7 @@ package com.personalos.mobile.network
 import com.personalos.mobile.config.AppEnvironment
 import com.personalos.mobile.data.auth.SessionManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -97,7 +98,8 @@ class MobileApiClient(
         return builder.build()
     }
 
-    private fun blockingAccessToken(): String? = runBlocking {
+    /** Never runBlocking on OkHttp/IO threads — use Default to avoid nested dispatcher deadlocks. */
+    private fun blockingAccessToken(): String? = runBlocking(Dispatchers.Default) {
         try {
             sessionManager.validAccessToken()
         } catch (_: CancellationException) {
@@ -105,7 +107,7 @@ class MobileApiClient(
         }
     }
 
-    private fun blockingRefreshToken(force: Boolean): String? = runBlocking {
+    private fun blockingRefreshToken(force: Boolean): String? = runBlocking(Dispatchers.Default) {
         try {
             sessionManager.refreshAccessToken(force)
         } catch (_: CancellationException) {
