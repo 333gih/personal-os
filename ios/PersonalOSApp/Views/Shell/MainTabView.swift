@@ -53,25 +53,27 @@ struct POSAppHeader: View {
 }
 
 struct POSBottomTabBar: View {
-    @Binding var selection: POSTab
+    @Binding var selection: String
+    let tabIds: [String]
 
     var body: some View {
         HStack {
-            ForEach(POSTab.allCases) { tab in
+            ForEach(tabIds, id: \.self) { tabId in
+                let tab = POSTabID.from(tabId) ?? .dashboard
                 Button {
                     POSHaptics.selection()
-                    selection = tab
+                    selection = tabId
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: tab.systemImage)
-                            .font(.system(size: 19, weight: selection == tab ? .semibold : .regular))
+                            .font(.system(size: 19, weight: selection == tabId ? .semibold : .regular))
                         Text(tab.title)
                             .font(.system(size: 10, weight: .medium))
                         Circle()
-                            .fill(selection == tab ? POSTheme.primaryDark : .clear)
+                            .fill(selection == tabId ? POSTheme.primaryDark : .clear)
                             .frame(width: 4, height: 4)
                     }
-                    .foregroundStyle(selection == tab ? POSTheme.primaryDark : POSTheme.muted)
+                    .foregroundStyle(selection == tabId ? POSTheme.primaryDark : POSTheme.muted)
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(POSPressButtonStyle())
@@ -101,8 +103,10 @@ struct POSLearningLessonRoute: Identifiable, Equatable {
 
 struct MainTabView: View {
     @EnvironmentObject private var session: SessionManager
+    @EnvironmentObject private var modules: ModulesStore
     @Environment(\.scenePhase) private var scenePhase
-    @State private var tab: POSTab = .home
+    @State private var selectedTab: String = "dashboard"
+    @State private var showModuleSettings = false
     @State private var webSheet: WebSheetRoute?
     @State private var entityDetail: POSEntityDetailRoute?
     @State private var showCVHub = false
@@ -130,7 +134,7 @@ struct MainTabView: View {
     private var nav: POSNavigationActions {
         POSNavigationActions(
             onOpen: openRoute,
-            onSwitchTab: { tab = $0 },
+            onSwitchTab: { id in selectedTab = mapLegacyTab(id) },
             onLegacyScreen: { webSheet = $0.embedded() },
             onOpenCV: { showCVHub = true },
             onOpenJobScout: { showJobScout = true },
@@ -161,31 +165,47 @@ struct MainTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             POSAppHeader(
-                title: tab.headerTitle,
+                title: (POSTabID.from(selectedTab) ?? .dashboard).headerTitle,
                 initials: session.userInitials(),
                 onAvatarTap: { openRoute(.path("/settings", title: "Profile")) },
-                onSettingsTap: { tab = .more }
+                onSettingsTap: { selectedTab = modules.bottomTabIds.contains("more") ? "more" : "dashboard" }
             )
 
             Group {
-                switch tab {
-                case .home:
+                switch POSTabID.from(selectedTab) ?? .dashboard {
+                case .dashboard:
                     HomeView(nav: nav)
                 case .work:
-                    WorkView(nav: nav)
-                        .id(workReloadToken)
+                    if modules.isEnabled("work") {
+                        WorkView(nav: nav).id(workReloadToken)
+                    } else {
+                        moduleDisabledPlaceholder("Work")
+                    }
                 case .learning:
-                    LearningView(nav: nav)
-                        .id(learningReloadToken)
+                    if modules.isEnabled("learning") {
+                        LearningView(nav: nav).id(learningReloadToken)
+                    } else {
+                        moduleDisabledPlaceholder("Learning")
+                    }
                 case .search:
                     SearchView(nav: nav)
                 case .more:
-                    POSMoreView(nav: nav)
+                    POSMoreView(nav: nav, onOpenModuleSettings: { showModuleSettings = true }, onSelectTab: { selectedTab = $0 })
+                case .startup:
+                    StartupView(nav: nav).id(startupReloadToken)
+                case .entertainment:
+                    LegacyWebTabView(path: "/entertainment")
+                case .goals:
+                    LegacyWebTabView(path: "/entities?domain=goal")
+                case .inbox:
+                    LegacyWebTabView(path: "/inbox")
+                default:
+                    LegacyWebTabView(path: "/\(selectedTab)")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            POSBottomTabBar(selection: $tab)
+            POSBottomTabBar(selection: $selectedTab, tabIds: modules.bottomTabIds)
         }
         .background(POSTheme.background)
         .sheet(item: $webSheet) { route in
@@ -304,6 +324,17 @@ struct MainTabView: View {
             POSInterviewPrepView()
                 .environmentObject(session)
         }
+        .sheet(isPresented: $showModuleSettings) {
+            POSModuleSettingsView()
+                .environmentObject(modules)
+        }
+        .task {
+            modules.attach(session: session)
+            await modules.refresh()
+            if !modules.bottomTabIds.contains(selectedTab) {
+                selectedTab = modules.bottomTabIds.first ?? "dashboard"
+            }
+        }
         .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
             Task {
@@ -318,6 +349,25 @@ struct MainTabView: View {
                 showLearningHub = true
             }
         }
+    }
+
+    private func mapLegacyTab(_ tab: POSTab) -> String {
+        switch tab {
+        case .home: return "dashboard"
+        case .work: return "work"
+        case .learning: return "learning"
+        case .search: return "search"
+        case .more: return "more"
+        }
+    }
+
+    private func moduleDisabledPlaceholder(_ name: String) -> some View {
+        VStack(spacing: 12) {
+            Text("\(name) module is off")
+                .font(.headline)
+            Button("Open module settings") { showModuleSettings = true }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func openRoute(_ route: WebSheetRoute) {

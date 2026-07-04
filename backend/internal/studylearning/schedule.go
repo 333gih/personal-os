@@ -1,12 +1,14 @@
 package studylearning
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/personal-os/backend/internal/connectors"
 	"github.com/personal-os/backend/internal/learningimport"
 	"github.com/personal-os/backend/internal/models"
 	"github.com/personal-os/backend/internal/notification"
@@ -30,10 +32,40 @@ type Service struct {
 	db       *gorm.DB
 	learning *learningimport.Service
 	notify   *notification.Service
+	calendar connectors.CalendarSyncer
+
+	moduleChecker func(uuid.UUID, string) bool
+	moduleConfig  func(uuid.UUID, string, string) bool
 }
 
 func NewService(db *gorm.DB, learning *learningimport.Service, notify *notification.Service) *Service {
-	return &Service{db: db, learning: learning, notify: notify}
+	return &Service{
+		db:       db,
+		learning: learning,
+		notify:   notify,
+		moduleChecker: func(uuid.UUID, string) bool { return true },
+		moduleConfig:  func(uuid.UUID, string, string) bool { return false },
+	}
+}
+
+func (s *Service) SetModuleChecker(fn func(uuid.UUID, string) bool) {
+	if fn != nil {
+		s.moduleChecker = fn
+	}
+}
+
+func (s *Service) SetModuleConfig(fn func(uuid.UUID, string, string) bool) {
+	if fn != nil {
+		s.moduleConfig = fn
+	}
+}
+
+func (s *Service) SetCalendarSyncer(cal connectors.CalendarSyncer) {
+	s.calendar = cal
+}
+
+func (s *Service) learningEnabled(userID uuid.UUID) bool {
+	return s.moduleChecker(userID, models.ModuleLearning)
 }
 
 type ScheduleDTO struct {
@@ -209,7 +241,15 @@ func (s *Service) upsertStudyReminder(userID uuid.UUID, b TodayBlock) error {
 		Kind:     kindStudySchedule,
 		Metadata: datatypes.JSON(meta),
 	}
-	return s.db.Create(&rem).Error
+	if err := s.db.Create(&rem).Error; err != nil {
+		return err
+	}
+	if s.calendar != nil && s.moduleConfig(userID, models.ModuleLearning, "calendar_sync") {
+		if err := s.calendar.SyncStudyReminder(context.Background(), userID, rem, b.DurationMinutes); err != nil {
+			log.Printf("studylearning: calendar sync user=%s reminder=%s: %v", userID, rem.ID, err)
+		}
+	}
+	return nil
 }
 
 func (s *Service) resolveReminderEntityID(userID uuid.UUID, b TodayBlock) (uuid.UUID, error) {

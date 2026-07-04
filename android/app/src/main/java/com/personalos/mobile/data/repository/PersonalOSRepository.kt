@@ -19,6 +19,9 @@ import com.personalos.mobile.data.models.PosCvTemplate
 import com.personalos.mobile.data.models.PosCvTemplatesResponse
 import com.personalos.mobile.data.models.PosCvValidateRequest
 import com.personalos.mobile.data.models.PosCvValidateResult
+import com.personalos.mobile.data.models.PosModuleUpdatePref
+import com.personalos.mobile.data.models.PosModuleUpdateRequest
+import com.personalos.mobile.data.models.PosModulesResponse
 import com.personalos.mobile.data.models.PosDashboard
 import com.personalos.mobile.data.models.PosEntityDetailResponse
 import com.personalos.mobile.data.models.PosEntityListResponse
@@ -93,6 +96,17 @@ class PersonalOSRepository(
     private val notificationLogAdapter = moshi.adapter(PosNotificationLogResponse::class.java)
     private val studyJobAdapter = moshi.adapter(PosStudyJob::class.java)
     private val interviewDrillAdapter = moshi.adapter(PosInterviewDrillResult::class.java)
+    private val modulesAdapter = moshi.adapter(PosModulesResponse::class.java)
+    private val modulesUpdateAdapter = moshi.adapter(PosModuleUpdateRequest::class.java)
+
+    suspend fun fetchModules(): PosModulesResponse = withContext(Dispatchers.IO) {
+        decode(api.get("modules"), modulesAdapter)
+    }
+
+    suspend fun updateModules(prefs: List<PosModuleUpdatePref>): PosModulesResponse = withContext(Dispatchers.IO) {
+        val body = modulesUpdateAdapter.toJson(PosModuleUpdateRequest(prefs))
+        decode(api.put("modules", body), modulesAdapter)
+    }
 
     suspend fun me(): PosUser = withContext(Dispatchers.IO) {
         decode(api.get("auth/me"), userAdapter)

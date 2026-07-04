@@ -12,9 +12,13 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/personal-os/backend/internal/ai"
 	"github.com/personal-os/backend/internal/auth"
+	"github.com/personal-os/backend/internal/connectors"
+	calendarconn "github.com/personal-os/backend/internal/connectors/calendar"
 	"github.com/personal-os/backend/internal/cv"
 	"github.com/personal-os/backend/internal/dashboard"
+	"github.com/personal-os/backend/internal/goals"
 	"github.com/personal-os/backend/internal/learningimport"
+	"github.com/personal-os/backend/internal/modules"
 	"github.com/personal-os/backend/internal/notification"
 	"github.com/personal-os/backend/internal/studylearning"
 	"github.com/personal-os/backend/internal/jobscout"
@@ -134,6 +138,24 @@ func main() {
 	protected := api.Group("")
 	protected.Use(auth.Middleware(authSvc))
 
+	catalog := modules.NewCatalog()
+	modulesSvc := modules.NewService(db, catalog)
+	modulesHandler := modules.NewHandler(modulesSvc)
+	protected.Use(modulesSvc.GuardMiddleware())
+	modulesHandler.RegisterRoutes(protected.Group("/modules"))
+
+	calendarSvc := calendarconn.NewService(db, calendarconn.Config{
+		ClientID:     cfg.GoogleCalendar.ClientID,
+		ClientSecret: cfg.GoogleCalendar.ClientSecret,
+		RedirectURL:  cfg.GoogleCalendar.RedirectURL,
+	})
+	if !calendarSvc.Configured() {
+		log.Printf("integrations: google calendar OAuth not configured (set GOOGLE_CALENDAR_CLIENT_ID/SECRET)")
+	}
+	integrationsHandler := connectors.NewHandler(calendarSvc)
+	integrationsHandler.RegisterRoutes(protected.Group("/integrations"))
+	api.GET("/integrations/calendar/callback", integrationsHandler.CalendarCallback)
+
 	entityHandler := entity.NewHandler(entitySvc)
 	entityHandler.RegisterRoutes(protected.Group("/entities"))
 
@@ -168,6 +190,7 @@ func main() {
 	notifySvc := notification.NewService(db, notifyPub, cfg.Notification)
 
 	jobScoutSvc := jobscout.NewService(db, aiSvc, cvSvc, notifySvc)
+	jobScoutSvc.SetModuleChecker(modulesSvc.IsEnabledForUser)
 	jobScoutHandler := jobscout.NewHandler(jobScoutSvc)
 	jobScoutHandler.RegisterRoutes(protected.Group("/jobs"))
 	go jobscout.NewScheduleWorker(jobScoutSvc, 15*time.Minute).Start(context.Background())
@@ -185,9 +208,16 @@ func main() {
 	learningImportHandler.RegisterRoutes(protected.Group("/learning"))
 
 	studySvc := studylearning.NewService(db, learningImportSvc, notifySvc)
+	studySvc.SetModuleChecker(modulesSvc.IsEnabledForUser)
+	studySvc.SetModuleConfig(modulesSvc.ModuleConfigBool)
+	studySvc.SetCalendarSyncer(calendarSvc)
 	studyHandler := studylearning.NewHandler(studySvc, notifySvc)
 	studyHandler.RegisterRoutes(protected.Group("/learning"))
 	go studylearning.NewWorker(studySvc, 2*time.Minute).Start(context.Background())
+
+	goalsSvc := goals.NewService(db, aiSvc)
+	goalsHandler := goals.NewHandler(goalsSvc)
+	goalsHandler.RegisterRoutes(protected.Group("/goals"))
 
 	addr := ":" + cfg.AppPort
 	log.Printf("personal-os API listening on %s", addr)

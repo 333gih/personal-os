@@ -34,6 +34,13 @@ type Config struct {
 	FashAuth         FashAuthConfig
 	AI               AIConfig
 	Notification     NotificationConfig
+	GoogleCalendar   GoogleCalendarConfig
+}
+
+type GoogleCalendarConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
 }
 
 func Load() *Config {
@@ -81,6 +88,19 @@ func Load() *Config {
 		FashAuth:             loadFashAuthConfig(),
 		AI:                   loadAIConfig(),
 		Notification:         loadNotificationConfig(),
+		GoogleCalendar:         loadGoogleCalendarConfig(appPublicURL),
+	}
+}
+
+func loadGoogleCalendarConfig(appPublicURL string) GoogleCalendarConfig {
+	redirect := getEnv("GOOGLE_CALENDAR_REDIRECT_URL", "")
+	if redirect == "" && appPublicURL != "" {
+		redirect = strings.TrimSuffix(appPublicURL, "/") + "/api/v1/integrations/calendar/callback"
+	}
+	return GoogleCalendarConfig{
+		ClientID:     getEnv("GOOGLE_CALENDAR_CLIENT_ID", ""),
+		ClientSecret: getEnv("GOOGLE_CALENDAR_CLIENT_SECRET", ""),
+		RedirectURL:  redirect,
 	}
 }
 

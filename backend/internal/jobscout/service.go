@@ -26,6 +26,8 @@ type Service struct {
 	notify    *notification.Service
 	githubTok string
 	scans     *scanTracker
+
+	moduleChecker func(uuid.UUID, string) bool
 }
 
 func NewService(db *gorm.DB, aiSvc *ai.Service, cvSvc *cv.Service, notify *notification.Service) *Service {
@@ -36,7 +38,18 @@ func NewService(db *gorm.DB, aiSvc *ai.Service, cvSvc *cv.Service, notify *notif
 		notify:    notify,
 		githubTok: strings.TrimSpace(os.Getenv("GITHUB_TOKEN")),
 		scans:     newScanTracker(),
+		moduleChecker: func(uuid.UUID, string) bool { return true },
 	}
+}
+
+func (s *Service) SetModuleChecker(fn func(uuid.UUID, string) bool) {
+	if fn != nil {
+		s.moduleChecker = fn
+	}
+}
+
+func (s *Service) moduleEnabled(userID uuid.UUID) bool {
+	return s.moduleChecker(userID, models.ModuleWork)
 }
 
 type ListOptions struct {

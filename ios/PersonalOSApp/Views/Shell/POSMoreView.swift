@@ -1,110 +1,45 @@
 import SwiftUI
 
-struct POSMoreMenuItem: Identifiable {
-    let id = UUID()
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    let tint: Color
-    let path: String
-    let sheetTitle: String
-}
-
 struct POSMoreView: View {
     @EnvironmentObject private var session: SessionManager
+    @EnvironmentObject private var modules: ModulesStore
     let nav: POSNavigationActions
-
-    private let sections: [(title: String, items: [POSMoreMenuItem])] = [
-        ("Capture", [
-            POSMoreMenuItem(
-                title: "Inbox",
-                subtitle: "Quick notes, links, and captures",
-                systemImage: "tray.full",
-                tint: POSTheme.primaryDark,
-                path: "/inbox",
-                sheetTitle: "Inbox"
-            ),
-        ]),
-        ("Explore", [
-            POSMoreMenuItem(
-                title: "CV Transfer",
-                subtitle: "Ideal resume, AI edit, PDF export & share",
-                systemImage: "doc.richtext.fill",
-                tint: POSTheme.primaryDark,
-                path: "/cv",
-                sheetTitle: "CV"
-            ),
-            POSMoreMenuItem(
-                title: "Job Scout",
-                subtitle: "Daily skill-matched jobs from Remotive & GitHub",
-                systemImage: "briefcase.fill",
-                tint: POSTheme.focus,
-                path: "/jobs",
-                sheetTitle: "Jobs"
-            ),
-            POSMoreMenuItem(
-                title: "Startup",
-                subtitle: "Ideas, pain points, and experiments",
-                systemImage: "rocket.fill",
-                tint: POSTheme.focus,
-                path: "/startup",
-                sheetTitle: "Startup"
-            ),
-            POSMoreMenuItem(
-                title: "Entertainment",
-                subtitle: "Reading log & story sync",
-                systemImage: "gamecontroller.fill",
-                tint: Color(red: 0.45, green: 0.35, blue: 0.72),
-                path: "/entertainment",
-                sheetTitle: "Reading Log"
-            ),
-        ]),
-        ("Account", [
-            POSMoreMenuItem(
-                title: "Settings",
-                subtitle: "Profile, Safari extension, preferences",
-                systemImage: "gearshape.fill",
-                tint: POSTheme.muted,
-                path: "/settings",
-                sheetTitle: "Settings"
-            ),
-        ]),
-    ]
+    var onOpenModuleSettings: (() -> Void)?
+    var onSelectTab: ((String) -> Void)?
 
     var body: some View {
         POSScreen {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     profileCard
-                    ForEach(sections, id: \.title) { section in
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(section.title.uppercased())
-                                .font(.posCaps())
-                                .foregroundStyle(POSTheme.muted)
-                                .tracking(0.8)
-                            VStack(spacing: 10) {
-                                ForEach(section.items) { item in
-                                    Button {
-                                        if item.path == "/cv" {
-                                            nav.openCV()
-                                        } else if item.path == "/jobs" {
-                                            nav.openJobScout()
-                                        } else if item.path == "/startup" {
-                                            nav.openStartup()
-                                        } else {
-                                            nav.onOpen(.path(item.path, title: item.sheetTitle))
-                                        }
-                                    } label: {
-                                        POSListRow(
-                                            title: item.title,
-                                            subtitle: item.subtitle,
-                                            systemImage: item.systemImage,
-                                            iconTint: item.tint
-                                        )
-                                    }
-                                    .buttonStyle(POSPressButtonStyle())
-                                }
+                    if !drawerModules.isEmpty {
+                        section("Modules") {
+                            ForEach(drawerModules, id: \.self) { moduleId in
+                                drawerRow(moduleId)
                             }
+                        }
+                    }
+                    section("Capture") {
+                        drawerButton(title: "Inbox", subtitle: "Quick notes, links, and captures", icon: "tray.full", tint: POSTheme.primaryDark) {
+                            nav.onOpen(.path("/inbox", title: "Inbox"))
+                        }
+                    }
+                    section("Tools") {
+                        if modules.isEnabled("work") {
+                            drawerButton(title: "CV Transfer", subtitle: "Ideal resume, AI edit, PDF export", icon: "doc.richtext.fill", tint: POSTheme.primaryDark) {
+                                nav.openCV()
+                            }
+                            drawerButton(title: "Job Scout", subtitle: "Daily skill-matched jobs", icon: "briefcase.fill", tint: POSTheme.focus) {
+                                nav.openJobScout()
+                            }
+                        }
+                    }
+                    section("Account") {
+                        drawerButton(title: "Module settings", subtitle: "Enable or disable app modules", icon: "puzzlepiece.extension.fill", tint: POSTheme.primaryDark) {
+                            onOpenModuleSettings?()
+                        }
+                        drawerButton(title: "Settings", subtitle: "Profile and preferences", icon: "gearshape.fill", tint: POSTheme.muted) {
+                            nav.onOpen(.path("/settings", title: "Settings"))
                         }
                     }
                     signOutButton
@@ -113,6 +48,46 @@ struct POSMoreView: View {
                 .padding(.bottom, 24)
             }
         }
+    }
+
+    private var drawerModules: [String] {
+        modules.drawerIds.filter { id in
+            switch id {
+            case "inbox", "settings": return false
+            default: return modules.isEnabled(id) || id == "settings"
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func drawerRow(_ moduleId: String) -> some View {
+        let tab = POSTabID.from(moduleId) ?? .dashboard
+        let entry = modules.catalog.first(where: { $0.id == moduleId })
+        drawerButton(
+            title: entry?.label ?? tab.title,
+            subtitle: entry?.description ?? "",
+            icon: tab.systemImage,
+            tint: POSTheme.focus
+        ) {
+            onSelectTab?(moduleId)
+        }
+    }
+
+    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title.uppercased())
+                .font(.posCaps())
+                .foregroundStyle(POSTheme.muted)
+                .tracking(0.8)
+            VStack(spacing: 10) { content() }
+        }
+    }
+
+    private func drawerButton(title: String, subtitle: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            POSListRow(title: title, subtitle: subtitle, systemImage: icon, iconTint: tint)
+        }
+        .buttonStyle(POSPressButtonStyle())
     }
 
     private var profileCard: some View {

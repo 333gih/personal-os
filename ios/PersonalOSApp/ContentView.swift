@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var session = SessionManager()
+    @StateObject private var modules = ModulesStore()
     @State private var bootstrapping = true
     @Environment(\.scenePhase) private var scenePhase
 
@@ -13,6 +14,7 @@ struct ContentView: View {
                     .background(POSTheme.background)
             } else if session.isAuthenticated {
                 MainTabView()
+                    .environmentObject(modules)
             } else {
                 LoginWebView()
             }

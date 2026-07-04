@@ -61,6 +61,9 @@ func (s *Service) ProcessPendingJobs(ctx context.Context, limit int) error {
 		return err
 	}
 	for _, job := range jobs {
+		if !s.learningEnabled(job.UserID) {
+			continue
+		}
 		if err := s.runJob(ctx, &job); err != nil {
 			continue
 		}
@@ -153,6 +156,9 @@ func (s *Service) DispatchDueReminders(ctx context.Context) error {
 	}
 
 	for _, rem := range reminders {
+		if !s.learningEnabled(rem.UserID) {
+			continue
+		}
 		if s.notify == nil {
 			continue
 		}
@@ -202,6 +208,9 @@ func (s *Service) EnsureAllUsersTodayReminders() error {
 		return err
 	}
 	for _, id := range userIDs {
+		if !s.learningEnabled(id) {
+			continue
+		}
 		s.EnsureTodayReminders(id)
 	}
 	return nil

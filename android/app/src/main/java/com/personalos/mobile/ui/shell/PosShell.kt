@@ -21,11 +21,15 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -41,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.personalos.mobile.data.models.PosNavTab
 import com.personalos.mobile.data.models.PosTab
 import com.personalos.mobile.ui.theme.PosTheme
 import com.personalos.mobile.ui.theme.posDisplay
@@ -128,6 +133,63 @@ private fun PosTab.icon(): ImageVector = when (this) {
     PosTab.LEARNING -> Icons.AutoMirrored.Filled.MenuBook
     PosTab.SEARCH -> Icons.Default.Search
     PosTab.MORE -> Icons.Default.MoreHoriz
+}
+
+@Composable
+fun PosDynamicBottomTabBar(selectedId: String, tabIds: List<String>, onSelect: (String) -> Unit) {
+    Column {
+        HorizontalDivider(color = PosTheme.Border)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .background(PosTheme.Card)
+                .height(PosTheme.TabBarHeight)
+                .padding(top = 8.dp, bottom = 8.dp),
+        ) {
+            tabIds.forEach { tabId ->
+                val tab = PosNavTab.from(tabId) ?: PosNavTab.DASHBOARD
+                val isSelected = tabId == selectedId
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clickable { onSelect(tabId) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(
+                        tab.icon(),
+                        contentDescription = tab.title,
+                        tint = if (isSelected) PosTheme.PrimaryDark else PosTheme.Muted,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Text(
+                        tab.title,
+                        style = posDisplay(10f, FontWeight.Medium),
+                        color = if (isSelected) PosTheme.PrimaryDark else PosTheme.Muted,
+                    )
+                    Box(
+                        Modifier
+                            .size(4.dp)
+                            .clip(CircleShape)
+                            .background(if (isSelected) PosTheme.PrimaryDark else PosTheme.Background),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun PosNavTab.icon(): ImageVector = when (this) {
+    PosNavTab.DASHBOARD -> Icons.Default.Home
+    PosNavTab.WORK -> Icons.Default.Work
+    PosNavTab.LEARNING -> Icons.AutoMirrored.Filled.MenuBook
+    PosNavTab.SEARCH -> Icons.Default.Search
+    PosNavTab.MORE -> Icons.Default.MoreHoriz
+    PosNavTab.STARTUP -> Icons.Default.Business
+    PosNavTab.ENTERTAINMENT -> Icons.Default.Article
+    PosNavTab.GOALS -> Icons.Default.Star
+    PosNavTab.INBOX -> Icons.Default.Inbox
 }
 
 @Composable

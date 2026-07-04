@@ -84,6 +84,9 @@ func (s *Service) runDailyScans(ctx context.Context, runKey string) {
 		return
 	}
 	for _, userID := range userIDs {
+		if !s.moduleEnabled(userID) {
+			continue
+		}
 		if !s.dailyScanEnabled(userID) {
 			continue
 		}

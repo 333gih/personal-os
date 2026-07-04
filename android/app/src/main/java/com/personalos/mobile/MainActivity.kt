@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import com.personalos.mobile.ui.shell.PosAppHeader
-import com.personalos.mobile.ui.shell.PosBottomTabBar
+import com.personalos.mobile.ui.modules.ModuleSettingsScreen
+import com.personalos.mobile.ui.modules.ModulesViewModel
+import com.personalos.mobile.ui.shell.PosDynamicBottomTabBar
 import com.personalos.mobile.ui.shell.PosModalBottomSheet
 import com.personalos.mobile.ui.shell.PosOverlayScaffold
 import com.personalos.mobile.data.models.PosLearningTrack
@@ -31,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.personalos.mobile.data.auth.SessionManager
 import com.personalos.mobile.data.models.PosEntitySection
+import com.personalos.mobile.data.models.PosNavTab
 import com.personalos.mobile.data.models.PosTab
 import com.personalos.mobile.ui.auth.LoginWebScreen
 import com.personalos.mobile.ui.entity.EntityDetailScreen
@@ -153,7 +156,17 @@ private fun MainShell(
     sessionManager: SessionManager,
     repository: com.personalos.mobile.data.repository.PersonalOSRepository,
 ) {
-    var tab by remember { mutableStateOf(PosTab.HOME) }
+    var selectedTab by remember { mutableStateOf("dashboard") }
+    var showModuleSettings by remember { mutableStateOf(false) }
+    val modulesVm: ModulesViewModel = viewModel(factory = simpleFactory { ModulesViewModel(repository) })
+    val bottomTabs = modulesVm.bottomTabIds
+
+    LaunchedEffect(Unit) { modulesVm.refresh(force = true) }
+    LaunchedEffect(bottomTabs) {
+        if (selectedTab !in bottomTabs) {
+            selectedTab = bottomTabs.firstOrNull() ?: "dashboard"
+        }
+    }
     var webRoute by remember { mutableStateOf<WebRoute?>(null) }
     var entityRoute by remember { mutableStateOf<EntityRoute?>(null) }
     var lessonRoute by remember { mutableStateOf<LearningLessonRoute?>(null) }
@@ -175,9 +188,17 @@ private fun MainShell(
     var learningReloadKey by remember { mutableStateOf(0) }
     var startupReloadKey by remember { mutableStateOf(0) }
 
-    val nav = remember {
+    val nav = remember(modulesVm) {
         AppNavigator(
-            onSwitchTab = { tab = it },
+            onSwitchTab = { legacy ->
+                selectedTab = when (legacy) {
+                    PosTab.HOME -> "dashboard"
+                    PosTab.WORK -> "work"
+                    PosTab.LEARNING -> "learning"
+                    PosTab.SEARCH -> "search"
+                    PosTab.MORE -> "more"
+                }
+            },
             onOpenWeb = { webRoute = it },
             onOpenEntity = { entityRoute = it },
             onOpenCv = { showCv = true },
@@ -211,21 +232,45 @@ private fun MainShell(
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             PosAppHeader(
-                title = tab.headerTitle,
+                title = (PosNavTab.from(selectedTab) ?: PosNavTab.DASHBOARD).let {
+                    when (it) {
+                        PosNavTab.WORK -> "Career Path"
+                        PosNavTab.MORE -> "More"
+                        else -> "Personal OS"
+                    }
+                },
                 initials = sessionManager.userInitials(),
                 onAvatarTap = { nav.onOpenWeb(WebRoute.path("/settings", "Settings")) },
-                onSettingsTap = { nav.onOpenWeb(WebRoute.path("/settings", "Settings")) },
+                onSettingsTap = { selectedTab = if ("more" in bottomTabs) "more" else "dashboard" },
             )
             Box(Modifier.weight(1f)) {
-                when (tab) {
-                    PosTab.HOME -> HomeScreen(homeVm, sessionManager, nav)
-                    PosTab.WORK -> WorkScreen(workVm, repository, nav, workReloadKey)
-                    PosTab.LEARNING -> LearningScreen(learningVm, nav, learningReloadKey)
-                    PosTab.SEARCH -> SearchScreen(searchVm, nav)
-                    PosTab.MORE -> MoreScreen(sessionManager, nav)
+                when (PosNavTab.from(selectedTab)) {
+                    PosNavTab.WORK -> if (modulesVm.isEnabled("work")) {
+                        WorkScreen(workVm, repository, nav, workReloadKey)
+                    } else {
+                        Text("Work module is off", Modifier.padding(24.dp))
+                    }
+                    PosNavTab.LEARNING -> if (modulesVm.isEnabled("learning")) {
+                        LearningScreen(learningVm, nav, learningReloadKey)
+                    } else {
+                        Text("Learning module is off", Modifier.padding(24.dp))
+                    }
+                    PosNavTab.SEARCH -> SearchScreen(searchVm, nav)
+                    PosNavTab.MORE -> MoreScreen(sessionManager, nav, modulesVm, onOpenModuleSettings = { showModuleSettings = true }, onSelectTab = { selectedTab = it })
+                    PosNavTab.STARTUP -> EmbeddedWebScreen(WebRoute.path("/startup", "Startup"))
+                    PosNavTab.ENTERTAINMENT -> EmbeddedWebScreen(WebRoute.path("/entertainment", "Reading Log"))
+                    PosNavTab.GOALS -> EmbeddedWebScreen(WebRoute.path("/entities?domain=goal", "Goals"))
+                    PosNavTab.INBOX -> EmbeddedWebScreen(WebRoute.path("/inbox", "Inbox"))
+                    else -> HomeScreen(homeVm, sessionManager, nav)
                 }
             }
-            PosBottomTabBar(selected = tab, onSelect = { tab = it })
+            PosDynamicBottomTabBar(selectedId = selectedTab, tabIds = bottomTabs, onSelect = { selectedTab = it })
+        }
+
+        if (showModuleSettings) {
+            FullScreenOverlay("Module settings", { showModuleSettings = false }) {
+                ModuleSettingsScreen(modulesVm) { showModuleSettings = false }
+            }
         }
 
         webRoute?.let { route ->

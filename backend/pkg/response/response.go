@@ -41,3 +41,7 @@ func InternalError(c *gin.Context, msg string) {
 func ServiceUnavailable(c *gin.Context, msg string) {
 	c.JSON(http.StatusServiceUnavailable, ErrorBody{Error: msg})
 }
+
+func Forbidden(c *gin.Context, msg string) {
+	c.JSON(http.StatusForbidden, ErrorBody{Error: msg})
+}

@@ -1,19 +1,46 @@
-// Package plugin defines the extension interface for future Personal OS plugins.
-// MVP does not load plugins at runtime; this contract enables future extensibility.
+// Package plugin defines the extension interface for Personal OS modules.
+// MVP uses compile-time catalog registration; no runtime plugin loading.
 package plugin
 
 import (
+	"encoding/json"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-// Plugin is the interface future domain plugins will implement.
+// Plugin is the base interface domain modules implement.
 type Plugin interface {
 	Name() string
 	Domain() string
 	EntityTypes() []string
 	RegisterRoutes(r *gin.RouterGroup)
 	Migrate(db *gorm.DB) error
+}
+
+// WorkerSpec describes a background worker owned by a module.
+type WorkerSpec struct {
+	Name     string `json:"name"`
+	Interval string `json:"interval,omitempty"`
+}
+
+// Module extends Plugin with catalog metadata for user-facing module selection.
+type Module interface {
+	Plugin
+	ID() string
+	Label() string
+	Description() string
+	Icon() string
+	Tier() string // "core" | "domain"
+	DefaultEnabled() bool
+	Required() bool
+	DependsOn() []string
+	RoutePrefixes() []string
+	NavHref() string
+	Workers() []WorkerSpec
+	AIPersona() string
+	IntegrationSlots() []string
+	ConfigSchema() json.RawMessage
 }
 
 // Registry holds registered plugins (future use).
