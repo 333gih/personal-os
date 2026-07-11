@@ -28,6 +28,7 @@ ios/StoryTrackerExtension/Resources/*
 ios/PersonalOSApp/Resources/*
 !ios/PersonalOSApp/Resources/.gitkeep
 ios/PersonalOSApp/Assets.xcassets/AppIcon.appiconset/*.png
+ios/PersonalOSApp/GoogleService-Info.plist
 ios/*.xcodeproj
 ios/*.xcworkspace
 ios/DerivedData/

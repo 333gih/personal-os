@@ -41,6 +41,17 @@ enum PersonalOSAppConfig {
         return URL(string: "https://api-auth.fashandcurious.com")!
     }
 
+    /// Push transport flag. `true` (default) → Firebase FCM when GoogleService-Info.plist is present;
+    /// set Info.plist `USE_FIREBASE_MESSAGING` to `false` to fall back to pure APNs device-token registration.
+    static var useFirebaseMessaging: Bool {
+        guard let raw = Bundle.main.object(forInfoDictionaryKey: "USE_FIREBASE_MESSAGING") as? String else {
+            return true
+        }
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if value.isEmpty { return true }
+        return !(value == "false" || value == "0" || value == "no")
+    }
+
     static var fashFCMRegisterPath: String {
         if let raw = Bundle.main.object(forInfoDictionaryKey: "FASH_AUTH_FCM_REGISTER_PATH") as? String,
            !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
