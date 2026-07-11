@@ -45,7 +45,7 @@ refresh_profile() {
   local bundle_id="$1"
   local profile_name="$2"
   local label="$3"
-  local out_base="${RUNNER_TEMP}/${label}"
+  local out_path="${RUNNER_TEMP}/${label}.mobileprovision"
 
   echo "==> Refresh App Store profile: ${profile_name} (${bundle_id})"
   fastlane run get_provisioning_profile \
@@ -53,18 +53,16 @@ refresh_profile() {
     app_identifier:"${bundle_id}" \
     team_id:"${TEAM_ID}" \
     provisioning_name:"${profile_name}" \
-    filename:"${out_base}" \
+    filename:"${out_path}" \
     force:true \
     skip_install:false \
     include_mac_in_profiles:false
 
-  local profile_path="${out_base}.mobileprovision"
-  if [[ ! -f "${profile_path}" ]]; then
-    echo "::error::fastlane did not produce ${profile_path}"
+  if [[ ! -f "${out_path}" ]]; then
+    echo "::error::fastlane did not produce ${out_path}"
     exit 1
   fi
-  cp "${profile_path}" "${RUNNER_TEMP}/${label}.mobileprovision"
-  echo "Refreshed profile saved to ${RUNNER_TEMP}/${label}.mobileprovision"
+  echo "Refreshed profile saved to ${out_path}"
 }
 
 refresh_profile "${APP_BUNDLE}" "${APP_PROFILE_NAME}" "personal-os-app"
