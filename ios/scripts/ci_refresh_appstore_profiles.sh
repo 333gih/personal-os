@@ -24,10 +24,12 @@ API_KEY_JSON="${RUNNER_TEMP}/asc_api_key.json"
 export KEY_ID ISSUER_ID KEY_FILE API_KEY_JSON
 python3 - <<'PY'
 import json, os
+with open(os.environ["KEY_FILE"], "r", encoding="utf-8") as fh:
+    key_content = fh.read()
 payload = {
     "key_id": os.environ["KEY_ID"],
     "issuer_id": os.environ["ISSUER_ID"],
-    "key_filepath": os.environ["KEY_FILE"],
+    "key": key_content,
     "duration": 1200,
     "in_house": False,
 }
