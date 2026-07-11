@@ -145,7 +145,6 @@ jobs:
           p12-password: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
 
       - name: Refresh App Store provisioning profiles (Push + latest entitlements)
-        working-directory: ios
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
@@ -153,7 +152,7 @@ jobs:
           APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
           APP_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_SPECIFIER }}
           EXT_PROFILE_NAME: ${{ secrets.IOS_EXTENSION_PROVISIONING_PROFILE_SPECIFIER }}
-        run: bash scripts/ci_refresh_appstore_profiles.sh
+        run: bash ios/scripts/ci_refresh_appstore_profiles.sh
 
       - name: Verify provisioning profiles (bundle IDs)
         working-directory: ios

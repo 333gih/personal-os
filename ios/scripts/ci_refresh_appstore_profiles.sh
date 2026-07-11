@@ -9,6 +9,9 @@ KEY_ID="${APP_STORE_CONNECT_API_KEY_ID:?APP_STORE_CONNECT_API_KEY_ID required}"
 ISSUER_ID="${APP_STORE_CONNECT_ISSUER_ID:?APP_STORE_CONNECT_ISSUER_ID required}"
 KEY_CONTENT="${APP_STORE_CONNECT_API_PRIVATE_KEY:?APP_STORE_CONNECT_API_PRIVATE_KEY required}"
 
+RUNNER_TEMP="${RUNNER_TEMP:-$(mktemp -d)}"
+export RUNNER_TEMP
+
 APP_BUNDLE="${APP_BUNDLE_ID:-com.personalos.story-tracker}"
 EXT_BUNDLE="${EXT_BUNDLE_ID:-com.personalos.story-tracker.extension}"
 APP_PROFILE_NAME="${APP_PROFILE_NAME:?APP_PROFILE_NAME required}"
@@ -55,16 +58,25 @@ refresh_profile() {
     app_identifier:"${bundle_id}" \
     team_id:"${TEAM_ID}" \
     provisioning_name:"${profile_name}" \
-    filename:"${out_path}" \
+    output_path:"${RUNNER_TEMP}" \
+    filename:"${label}.mobileprovision" \
     force:true \
-    skip_install:false \
+    skip_install:true \
     include_mac_in_profiles:false
 
   if [[ ! -f "${out_path}" ]]; then
     echo "::error::fastlane did not produce ${out_path}"
     exit 1
   fi
-  echo "Refreshed profile saved to ${out_path}"
+
+  local uuid plist_tmp
+  plist_tmp="$(mktemp)"
+  security cms -D -i "${out_path}" > "${plist_tmp}"
+  uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "${plist_tmp}")"
+  rm -f "${plist_tmp}"
+  mkdir -p "${HOME}/Library/MobileDevice/Provisioning Profiles"
+  cp "${out_path}" "${HOME}/Library/MobileDevice/Provisioning Profiles/${uuid}.mobileprovision"
+  echo "Installed refreshed profile ${profile_name} (${uuid})"
 }
 
 refresh_profile "${APP_BUNDLE}" "${APP_PROFILE_NAME}" "personal-os-app"
