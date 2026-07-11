@@ -46,6 +46,12 @@ if ! command -v fastlane >/dev/null 2>&1; then
 fi
 fastlane --version
 
+echo "==> Ensure Push Notifications capability on App ID ${APP_BUNDLE}"
+fastlane run enable_services \
+  api_key_path:"${API_KEY_JSON}" \
+  app_identifier:"${APP_BUNDLE}" \
+  push_notification:true
+
 refresh_profile() {
   local bundle_id="$1"
   local profile_name="$2"
