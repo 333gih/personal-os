@@ -96,6 +96,12 @@ if ([string]::IsNullOrWhiteSpace($p8) -and $envMap["APP_STORE_CONNECT_API_PRIVAT
 }
 Set-GhSecret "APP_STORE_CONNECT_API_PRIVATE_KEY" $p8
 
+$plistB64 = $envMap["GOOGLE_SERVICE_INFO_PLIST_BASE64"]
+if ([string]::IsNullOrWhiteSpace($plistB64) -and $envMap["GOOGLE_SERVICE_INFO_PLIST_PATH"]) {
+    $plistB64 = To-Base64File $envMap["GOOGLE_SERVICE_INFO_PLIST_PATH"] -Optional
+}
+Set-GhSecret "GOOGLE_SERVICE_INFO_PLIST_BASE64" $plistB64
+
 $skipped = @()
 foreach ($pair in @(
     @{ Name = "IOS_PROVISIONING_PROFILE_BASE64"; Path = $envMap["IOS_PROVISIONING_PROFILE_PATH"] },

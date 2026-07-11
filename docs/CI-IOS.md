@@ -63,8 +63,9 @@ Tùy chọn chỉ định repo: `.\scripts\push_github_ios_secrets.ps1 -Repo own
 | `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect API (TestFlight) |
 | `APP_STORE_CONNECT_API_KEY_ID` | Key ID |
 | `APP_STORE_CONNECT_API_PRIVATE_KEY` | Nội dung file `.p8` |
+| `GOOGLE_SERVICE_INFO_PLIST_BASE64` | `GoogleService-Info.plist` cho `com.personalos.story-tracker` (FCM; tải từ Firebase project sau khi thêm iOS app) |
 
-**Lưu ý:** Cần **2 provisioning profile** (app container + Safari extension).
+**Lưu ý:** Cần **2 provisioning profile** (app container + Safari extension). Workflow **iOS Release** tự làm mới profile qua App Store Connect API trước khi archive (để có Push nếu đã bật trên App ID).
 
 ## Checklist Apple Developer
 
@@ -72,7 +73,7 @@ Tùy chọn chỉ định repo: `.\scripts\push_github_ios_secrets.ps1 -Repo own
 
 | Bundle ID | Loại | Capability |
 |-----------|------|------------|
-| `com.personalos.story-tracker` | App (Personal OS) | **App Groups** → `group.com.personalos.story-tracker` |
+| `com.personalos.story-tracker` | App (Personal OS) | **App Groups** → `group.com.personalos.story-tracker`, **Push Notifications** |
 | `com.personalos.story-tracker.extension` | Safari Web Extension | **App Groups**, **Safari Web Extensions** |
 
 Entitlements:

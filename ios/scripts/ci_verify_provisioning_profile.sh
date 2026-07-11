@@ -31,4 +31,12 @@ if [[ -n "${EXPECTED_NAME}" && "${NAME}" != "${EXPECTED_NAME}" ]]; then
   exit 1
 fi
 
+REQUIRE_PUSH="${4:-}"
+if [[ "${REQUIRE_PUSH}" == "require-push" ]]; then
+  if ! /usr/libexec/PlistBuddy -c 'Print :Entitlements:aps-environment' "${PLIST}" >/dev/null 2>&1; then
+    echo "::error::Profile '${NAME}' is missing aps-environment (Push Notifications). Regenerate the App Store profile after enabling Push on the App ID."
+    exit 1
+  fi
+fi
+
 echo "OK profile: Name=${NAME} Team=${TEAM_PREFIX} AppId=${APP_ID}"
