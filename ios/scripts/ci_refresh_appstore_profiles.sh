@@ -47,10 +47,9 @@ fi
 fastlane --version
 
 echo "==> Ensure Push Notifications capability on App ID ${APP_BUNDLE}"
-fastlane run enable_services \
-  api_key_path:"${API_KEY_JSON}" \
-  app_identifier:"${APP_BUNDLE}" \
-  push_notification:true
+sudo gem install jwt -N --silent
+export BUNDLE_ID="${APP_BUNDLE}"
+ruby ios/scripts/ci_enable_push_capability.rb
 
 refresh_profile() {
   local bundle_id="$1"
